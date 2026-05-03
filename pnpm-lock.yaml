@@ -35,6 +35,9 @@ importers:
       pino:
         specifier: 9.5.0
         version: 9.5.0
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
     devDependencies:
       '@types/node':
         specifier: 20.16.11

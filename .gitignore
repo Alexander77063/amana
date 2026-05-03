@@ -35,3 +35,22 @@ out/
 # Test/coverage
 coverage/
 .nyc_output/
+
+# pnpm + turbo
+.turbo/
+.pnpm-store/
+
+# Build outputs
+dist/
+.expo/
+.expo-shared/
+
+# Local secrets (encrypted versions are committed under secrets/)
+*.key
+age.key
+
+# Mobile build artifacts
+ios/Pods/
+android/.gradle/
+android/build/
+*.keystore

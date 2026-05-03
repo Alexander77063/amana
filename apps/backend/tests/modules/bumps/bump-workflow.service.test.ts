@@ -157,3 +157,32 @@ describe('bumpWorkflowService.sweepExpired', () => {
     expect(out.expiredCount).toBe(0);
   });
 });
+
+describe('bumpWorkflowService.consumeToken', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('returns the bump_request the first time and null the second', async () => {
+    const { principalId, agentId, subWalletId, txnId } = await seedTxn();
+    const created = await bumpWorkflowService.create(testDb, {
+      transactionId: txnId, subWalletId, requestedByUserId: agentId,
+      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
+      now: new Date('2026-05-03T12:00:00Z'),
+    });
+    const decision = await bumpWorkflowService.decide(testDb, {
+      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
+      decision: 'approve_once', now: new Date('2026-05-03T12:05:00Z'),
+    });
+    const tok = isOk(decision) ? decision.value.oneShotToken?.token : undefined;
+    expect(tok).toBeDefined();
+
+    const first = await bumpWorkflowService.consumeToken(testDb, tok!, new Date('2026-05-03T12:06:00Z'));
+    expect(first?.id).toBe(created.bumpRequest.id);
+
+    const second = await bumpWorkflowService.consumeToken(testDb, tok!, new Date('2026-05-03T12:07:00Z'));
+    expect(second).toBeNull();
+  });
+
+  it('returns null for an unknown token', async () => {
+    expect(await bumpWorkflowService.consumeToken(testDb, 'nope', new Date())).toBeNull();
+  });
+});

@@ -127,4 +127,18 @@ export const bumpWorkflowService = {
       return { expiredCount: expired.length };
     });
   },
+
+  async consumeToken(
+    db: DbOrTx,
+    token: string,
+    now: Date,
+  ): Promise<BumpRequestRow | null> {
+    return db.transaction(async (tx) => {
+      const txDb = tx as DbOrTx;
+      const consumed = await oneShotTokensRepo.tryConsume(txDb, token, now);
+      if (!consumed) return null;
+      if (consumed.expiresAt < now) return null;
+      return (await bumpRequestsRepo.findById(txDb, consumed.bumpRequestId)) ?? null;
+    });
+  },
 };

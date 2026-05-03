@@ -10,6 +10,7 @@ const EnvSchema = z.object({
     .default('postgres://amana:amana_dev_only@localhost:5432/amana_dev'),
   SENTRY_DSN: z.string().url().optional(),
   ANCHOR_API_KEY: z.string().min(1).optional(),
+  ANCHOR_WEBHOOK_SECRET: z.string().min(1).optional(),
   ANCHOR_API_BASE_URL: z.string().url().default('https://api.sandbox.getanchor.co'),
 });
 

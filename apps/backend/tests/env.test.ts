@@ -18,4 +18,14 @@ describe('loadEnv', () => {
   it('throws a descriptive error when DATABASE_URL is malformed', () => {
     expect(() => loadEnv({ NODE_ENV: 'test', DATABASE_URL: 'not-a-url' })).toThrow(/DATABASE_URL/);
   });
+
+  it('ANCHOR_WEBHOOK_SECRET parses when set', () => {
+    const env = loadEnv({ NODE_ENV: 'test', ANCHOR_WEBHOOK_SECRET: 'whsec_x' });
+    expect(env.ANCHOR_WEBHOOK_SECRET).toBe('whsec_x');
+  });
+
+  it('ANCHOR_WEBHOOK_SECRET is optional (undefined when unset)', () => {
+    const env = loadEnv({ NODE_ENV: 'test' });
+    expect(env.ANCHOR_WEBHOOK_SECRET).toBeUndefined();
+  });
 });

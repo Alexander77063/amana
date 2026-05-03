@@ -35,6 +35,7 @@ async function spentInWindow(
   now: Date,
 ): Promise<Kobo> {
   const cutoff = new Date(now.getTime() - windowSeconds * 1000);
+  const cutoffIso = cutoff.toISOString();
   const result = await db.execute<{ s: string }>(sql`
     SELECT COALESCE(SUM(p.debit_kobo), 0)::text AS s
     FROM postings p
@@ -44,7 +45,7 @@ async function spentInWindow(
       AND la.kind = 'sub'
       AND t.status = 'settled'
       AND t.kind = 'spend'
-      AND t.settled_at >= ${cutoff}
+      AND t.settled_at >= ${cutoffIso}::timestamptz
   `);
   return kobo(BigInt(result[0]?.s ?? '0'));
 }

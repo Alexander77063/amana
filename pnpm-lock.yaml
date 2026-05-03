@@ -18,6 +18,40 @@ importers:
         specifier: 5.5.4
         version: 5.5.4
 
+  apps/agent:
+    dependencies:
+      '@amana/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@amana/types':
+        specifier: workspace:*
+        version: link:../../packages/types
+      expo:
+        specifier: ~51.0.39
+        version: 51.0.39(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0)
+      expo-status-bar:
+        specifier: ~1.12.1
+        version: 1.12.1
+      react:
+        specifier: 18.2.0
+        version: 18.2.0
+      react-native:
+        specifier: 0.74.5
+        version: 0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0)
+    devDependencies:
+      '@babel/core':
+        specifier: ^7.25.0
+        version: 7.29.0
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.16.11
+      '@types/react':
+        specifier: ~18.2.79
+        version: 18.2.79
+      typescript:
+        specifier: 5.5.4
+        version: 5.5.4
+
   apps/backend:
     dependencies:
       '@amana/types':

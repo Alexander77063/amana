@@ -1,16 +1,22 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { testDb, truncateAll } from '../../helpers/test-db';
-import { factories } from '../../helpers/factories';
-import { usersRepo } from '../../../src/modules/identity/users.repo';
-import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { householdMembersRepo } from '../../../src/modules/identity/household-members.repo';
+import { householdsRepo } from '../../../src/modules/identity/households.repo';
+import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { factories } from '../../helpers/factories';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('households + household_members', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('insert + findByPrincipal', async () => {
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const hh = await householdsRepo.insert(testDb, {
       principalUserId: principal.id,
@@ -23,13 +29,21 @@ describe('households + household_members', () => {
 
   it('add member + list', async () => {
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const agent = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const hh = await householdsRepo.insert(testDb, {
-      principalUserId: principal.id, name: 'HH',
+      principalUserId: principal.id,
+      name: 'HH',
     });
     await householdMembersRepo.add(testDb, hh.id, principal.id);
     await householdMembersRepo.add(testDb, hh.id, agent.id);
@@ -39,10 +53,17 @@ describe('households + household_members', () => {
 
   it('setStatus suspends a member', async () => {
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const agent = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
     await householdMembersRepo.add(testDb, hh.id, agent.id);

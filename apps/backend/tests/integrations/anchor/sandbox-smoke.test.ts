@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { testDb } from '../../helpers/test-db';
 import { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { AnchorClient } from '../../../src/integrations/anchor/client';
+import { testDb } from '../../helpers/test-db';
 
 const KEY = process.env.ANCHOR_API_KEY;
 const URL = process.env.ANCHOR_API_BASE_URL ?? 'https://api.sandbox.getanchor.co';

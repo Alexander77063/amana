@@ -16,7 +16,9 @@ describe('narration formatter (Decisions #15, #17)', () => {
   });
 
   it('formatAgentNarration uses AMN/AGT/<hash> + household ref', () => {
-    expect(formatAgentNarration('hh-12345', 'user-abc')).toMatch(/^AMN\/AGT\/[a-z0-9]{5}\/hh-12345$/);
+    expect(formatAgentNarration('hh-12345', 'user-abc')).toMatch(
+      /^AMN\/AGT\/[a-z0-9]{5}\/hh-12345$/,
+    );
   });
 
   it('formatPrincipalNarration uses AMN/<householdRef>', () => {

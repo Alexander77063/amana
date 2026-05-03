@@ -32,13 +32,19 @@ export const masterWalletsRepo = {
       if (!row) throw new Error('masterWallets.provision returned no row');
 
       const masterLA = await ledgerAccountsRepo.insert(tx as DbOrTx, {
-        masterWalletId: row.id, kind: 'master', normalSide: 'debit',
+        masterWalletId: row.id,
+        kind: 'master',
+        normalSide: 'debit',
       });
       const suspenseLA = await ledgerAccountsRepo.insert(tx as DbOrTx, {
-        masterWalletId: row.id, kind: 'suspense', normalSide: 'credit',
+        masterWalletId: row.id,
+        kind: 'suspense',
+        normalSide: 'credit',
       });
       const feeLA = await ledgerAccountsRepo.insert(tx as DbOrTx, {
-        masterWalletId: row.id, kind: 'fee', normalSide: 'credit',
+        masterWalletId: row.id,
+        kind: 'fee',
+        normalSide: 'credit',
       });
 
       return {

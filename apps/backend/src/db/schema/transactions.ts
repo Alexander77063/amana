@@ -1,5 +1,15 @@
-import { bigint, decimal, geometry, jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import {
+  bigint,
+  decimal,
+  geometry,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { masterWallets, subWallets } from './wallet';
 
 export const txnKindEnum = pgEnum('txn_kind', ['spend', 'topup', 'refund', 'fee', 'reversal']);

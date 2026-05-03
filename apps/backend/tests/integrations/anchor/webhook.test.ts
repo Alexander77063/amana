@@ -1,8 +1,8 @@
-import { describe, expect, it } from 'vitest';
 import { createHmac } from 'node:crypto';
+import { describe, expect, it } from 'vitest';
 import {
-  parseAndVerifyWebhook,
   WebhookSignatureError,
+  parseAndVerifyWebhook,
 } from '../../../src/integrations/anchor/webhook';
 
 const SECRET = 'whsec_test';
@@ -26,12 +26,22 @@ describe('parseAndVerifyWebhook', () => {
   });
 
   it('throws WebhookSignatureError on bad signature', () => {
-    const body = JSON.stringify({ id: 'evt-2', type: 'transfer.completed', createdAt: '2026-05-03T00:00:00Z', data: {} });
+    const body = JSON.stringify({
+      id: 'evt-2',
+      type: 'transfer.completed',
+      createdAt: '2026-05-03T00:00:00Z',
+      data: {},
+    });
     expect(() => parseAndVerifyWebhook(body, 'wrong-sig', SECRET)).toThrow(WebhookSignatureError);
   });
 
   it('throws WebhookSignatureError on tampered body', () => {
-    const body = JSON.stringify({ id: 'evt-3', type: 'transfer.completed', createdAt: '2026-05-03T00:00:00Z', data: {} });
+    const body = JSON.stringify({
+      id: 'evt-3',
+      type: 'transfer.completed',
+      createdAt: '2026-05-03T00:00:00Z',
+      data: {},
+    });
     const sig = sign(body);
     const tampered = body.replace('evt-3', 'evt-4');
     expect(() => parseAndVerifyWebhook(tampered, sig, SECRET)).toThrow(WebhookSignatureError);

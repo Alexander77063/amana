@@ -66,12 +66,8 @@
           "name": "audit_log_actor_user_id_users_id_fk",
           "tableFrom": "audit_log",
           "tableTo": "users",
-          "columnsFrom": [
-            "actor_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["actor_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -152,12 +148,8 @@
           "name": "household_members_household_id_households_id_fk",
           "tableFrom": "household_members",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -165,12 +157,8 @@
           "name": "household_members_user_id_users_id_fk",
           "tableFrom": "household_members",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -178,10 +166,7 @@
       "compositePrimaryKeys": {
         "household_members_household_id_user_id_pk": {
           "name": "household_members_household_id_user_id_pk",
-          "columns": [
-            "household_id",
-            "user_id"
-          ]
+          "columns": ["household_id", "user_id"]
         }
       },
       "uniqueConstraints": {}
@@ -223,12 +208,8 @@
           "name": "households_principal_user_id_users_id_fk",
           "tableFrom": "households",
           "tableTo": "users",
-          "columnsFrom": [
-            "principal_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["principal_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -302,9 +283,7 @@
         "users_phone_unique": {
           "name": "users_phone_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "phone"
-          ]
+          "columns": ["phone"]
         }
       }
     },
@@ -352,12 +331,8 @@
           "name": "ledger_accounts_master_wallet_id_master_wallets_id_fk",
           "tableFrom": "ledger_accounts",
           "tableTo": "master_wallets",
-          "columnsFrom": [
-            "master_wallet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["master_wallet_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -365,12 +340,8 @@
           "name": "ledger_accounts_sub_wallet_id_sub_wallets_id_fk",
           "tableFrom": "ledger_accounts",
           "tableTo": "sub_wallets",
-          "columnsFrom": [
-            "sub_wallet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["sub_wallet_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -436,12 +407,8 @@
           "name": "master_wallets_household_id_households_id_fk",
           "tableFrom": "master_wallets",
           "tableTo": "households",
-          "columnsFrom": [
-            "household_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["household_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -500,12 +467,8 @@
           "name": "sub_wallets_master_wallet_id_master_wallets_id_fk",
           "tableFrom": "sub_wallets",
           "tableTo": "master_wallets",
-          "columnsFrom": [
-            "master_wallet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["master_wallet_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -513,12 +476,8 @@
           "name": "sub_wallets_agent_user_id_users_id_fk",
           "tableFrom": "sub_wallets",
           "tableTo": "users",
-          "columnsFrom": [
-            "agent_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["agent_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -656,12 +615,8 @@
           "name": "transactions_master_wallet_id_master_wallets_id_fk",
           "tableFrom": "transactions",
           "tableTo": "master_wallets",
-          "columnsFrom": [
-            "master_wallet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["master_wallet_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -669,12 +624,8 @@
           "name": "transactions_sub_wallet_id_sub_wallets_id_fk",
           "tableFrom": "transactions",
           "tableTo": "sub_wallets",
-          "columnsFrom": [
-            "sub_wallet_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["sub_wallet_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -684,9 +635,7 @@
         "transactions_idempotency_key_unique": {
           "name": "transactions_idempotency_key_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "idempotency_key"
-          ]
+          "columns": ["idempotency_key"]
         }
       }
     },
@@ -741,12 +690,8 @@
           "name": "postings_transaction_id_transactions_id_fk",
           "tableFrom": "postings",
           "tableTo": "transactions",
-          "columnsFrom": [
-            "transaction_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["transaction_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -754,12 +699,8 @@
           "name": "postings_ledger_account_id_ledger_accounts_id_fk",
           "tableFrom": "postings",
           "tableTo": "ledger_accounts",
-          "columnsFrom": [
-            "ledger_account_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["ledger_account_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -828,113 +769,62 @@
     "public.actor_kind": {
       "name": "actor_kind",
       "schema": "public",
-      "values": [
-        "user",
-        "system",
-        "partner"
-      ]
+      "values": ["user", "system", "partner"]
     },
     "public.kyc_tier": {
       "name": "kyc_tier",
       "schema": "public",
-      "values": [
-        "1",
-        "2",
-        "3"
-      ]
+      "values": ["1", "2", "3"]
     },
     "public.member_status": {
       "name": "member_status",
       "schema": "public",
-      "values": [
-        "active",
-        "suspended"
-      ]
+      "values": ["active", "suspended"]
     },
     "public.user_role": {
       "name": "user_role",
       "schema": "public",
-      "values": [
-        "principal",
-        "agent"
-      ]
+      "values": ["principal", "agent"]
     },
     "public.user_status": {
       "name": "user_status",
       "schema": "public",
-      "values": [
-        "active",
-        "suspended"
-      ]
+      "values": ["active", "suspended"]
     },
     "public.ledger_account_kind": {
       "name": "ledger_account_kind",
       "schema": "public",
-      "values": [
-        "master",
-        "sub",
-        "suspense",
-        "fee",
-        "external"
-      ]
+      "values": ["master", "sub", "suspense", "fee", "external"]
     },
     "public.master_wallet_status": {
       "name": "master_wallet_status",
       "schema": "public",
-      "values": [
-        "active",
-        "frozen"
-      ]
+      "values": ["active", "frozen"]
     },
     "public.normal_side": {
       "name": "normal_side",
       "schema": "public",
-      "values": [
-        "debit",
-        "credit"
-      ]
+      "values": ["debit", "credit"]
     },
     "public.sub_wallet_status": {
       "name": "sub_wallet_status",
       "schema": "public",
-      "values": [
-        "active",
-        "suspended",
-        "closed"
-      ]
+      "values": ["active", "suspended", "closed"]
     },
     "public.txn_kind": {
       "name": "txn_kind",
       "schema": "public",
-      "values": [
-        "spend",
-        "topup",
-        "refund",
-        "fee",
-        "reversal"
-      ]
+      "values": ["spend", "topup", "refund", "fee", "reversal"]
     },
     "public.txn_status": {
       "name": "txn_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "rule_eval",
-        "bump_pending",
-        "in_flight",
-        "settled",
-        "failed",
-        "reversed"
-      ]
+      "values": ["draft", "rule_eval", "bump_pending", "in_flight", "settled", "failed", "reversed"]
     },
     "public.sticker_status": {
       "name": "sticker_status",
       "schema": "public",
-      "values": [
-        "unbound",
-        "active",
-        "revoked"
-      ]
+      "values": ["unbound", "active", "revoked"]
     }
   },
   "schemas": {},

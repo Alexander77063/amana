@@ -8,10 +8,7 @@ export type HouseholdMemberRow = typeof householdMembers.$inferSelect;
 
 export const householdMembersRepo = {
   async add(db: DbOrTx, householdId: string, userId: string): Promise<HouseholdMemberRow> {
-    const [row] = await db
-      .insert(householdMembers)
-      .values({ householdId, userId })
-      .returning();
+    const [row] = await db.insert(householdMembers).values({ householdId, userId }).returning();
     if (!row) throw new Error('householdMembers.add returned no row');
     return row;
   },
@@ -29,6 +26,8 @@ export const householdMembersRepo = {
     await db
       .update(householdMembers)
       .set({ status })
-      .where(and(eq(householdMembers.householdId, householdId), eq(householdMembers.userId, userId)));
+      .where(
+        and(eq(householdMembers.householdId, householdId), eq(householdMembers.userId, userId)),
+      );
   },
 };

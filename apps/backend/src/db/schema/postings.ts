@@ -1,7 +1,7 @@
-import { bigint, check, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { ledgerAccounts } from './wallet';
+import { bigint, check, pgTable, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { transactions } from './transactions';
+import { ledgerAccounts } from './wallet';
 
 export const postings = pgTable(
   'postings',

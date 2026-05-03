@@ -1,17 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { testDb, truncateAll } from '../../helpers/test-db';
 import { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { AnchorClient } from '../../../src/integrations/anchor/client';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('AnchorAdapter.phoneLookup', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('GETs /nibss/phone-lookup with the phone number', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({
-        bankCode: '999', accountNumber: '8011112222',
-        accountName: 'MUSA ABDULLAHI', phoneNumber: '+2348011112222',
-      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+      new Response(
+        JSON.stringify({
+          bankCode: '999',
+          accountNumber: '8011112222',
+          accountName: 'MUSA ABDULLAHI',
+          phoneNumber: '+2348011112222',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
     );
     const adapter = new AnchorAdapter({
       db: testDb,

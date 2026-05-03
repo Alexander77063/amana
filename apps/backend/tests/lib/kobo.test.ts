@@ -1,11 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  fromNairaString,
-  type Kobo,
-  kobo,
-  toNairaString,
-  zeroKobo,
-} from '../../src/lib/kobo';
+import { type Kobo, fromNairaString, kobo, toNairaString, zeroKobo } from '../../src/lib/kobo';
 
 describe('kobo', () => {
   it('kobo() brands a bigint', () => {

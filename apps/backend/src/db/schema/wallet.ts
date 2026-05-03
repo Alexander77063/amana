@@ -1,5 +1,5 @@
-import { pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { households, users } from './identity';
 
 export const masterWalletStatusEnum = pgEnum('master_wallet_status', ['active', 'frozen']);

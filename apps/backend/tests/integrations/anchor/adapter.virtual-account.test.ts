@@ -1,18 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { testDb, truncateAll } from '../../helpers/test-db';
-import { factories } from '../../helpers/factories';
 import { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { AnchorClient } from '../../../src/integrations/anchor/client';
+import { factories } from '../../helpers/factories';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('AnchorAdapter.provisionVirtualAccount', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('POSTs to /virtual-accounts with customerId + idempotency key', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({
-        id: 'va-1', bankCode: '058', accountNumber: '1234567890',
-        accountName: 'AMANA / ADEGBOLA HH', customerId: 'cust-1', status: 'ACTIVE',
-      }), { status: 201, headers: { 'content-type': 'application/json' } }),
+      new Response(
+        JSON.stringify({
+          id: 'va-1',
+          bankCode: '058',
+          accountNumber: '1234567890',
+          accountName: 'AMANA / ADEGBOLA HH',
+          customerId: 'cust-1',
+          status: 'ACTIVE',
+        }),
+        { status: 201, headers: { 'content-type': 'application/json' } },
+      ),
     );
     const adapter = new AnchorAdapter({
       db: testDb,
@@ -20,7 +29,10 @@ describe('AnchorAdapter.provisionVirtualAccount', () => {
       retryDelaysMs: [1, 1, 1],
     });
     const key = factories.idempotencyKey();
-    const va = await adapter.provisionVirtualAccount({ customerId: 'cust-1', label: 'AMANA / ADEGBOLA HH' }, key);
+    const va = await adapter.provisionVirtualAccount(
+      { customerId: 'cust-1', label: 'AMANA / ADEGBOLA HH' },
+      key,
+    );
     expect(va.accountNumber).toBe('1234567890');
     expect(va.bankCode).toBe('058');
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];

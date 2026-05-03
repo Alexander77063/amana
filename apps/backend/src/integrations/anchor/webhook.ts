@@ -33,7 +33,12 @@ export function parseAndVerifyWebhook(
   }
   if (!isObject(parsed)) throw new Error('webhook payload not an object');
   const { id, type, createdAt, data } = parsed as Record<string, unknown>;
-  if (typeof id !== 'string' || typeof createdAt !== 'string' || typeof type !== 'string' || data === undefined) {
+  if (
+    typeof id !== 'string' ||
+    typeof createdAt !== 'string' ||
+    typeof type !== 'string' ||
+    data === undefined
+  ) {
     throw new Error('webhook payload missing required fields');
   }
   if (!KNOWN_TYPES.has(type as AnchorWebhookEventType)) {

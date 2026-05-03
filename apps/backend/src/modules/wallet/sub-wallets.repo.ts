@@ -21,10 +21,7 @@ export type ProvisionedSubWallet = {
 export const subWalletsRepo = {
   async provision(db: DbOrTx, input: ProvisionSubInput): Promise<ProvisionedSubWallet> {
     return db.transaction(async (tx) => {
-      const [row] = await tx
-        .insert(subWallets)
-        .values(input)
-        .returning();
+      const [row] = await tx.insert(subWallets).values(input).returning();
       if (!row) throw new Error('subWallets.provision returned no row');
 
       const la = await ledgerAccountsRepo.insert(tx as DbOrTx, {

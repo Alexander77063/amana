@@ -1,6 +1,6 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { postingsRepo } from './postings.repo';
 import type { Kobo } from '../../lib/kobo';
+import { postingsRepo } from './postings.repo';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -19,12 +19,13 @@ export const ledgerService = {
     const totalDebit = legs.reduce((acc, l) => acc + l.debitKobo, 0n);
     const totalCredit = legs.reduce((acc, l) => acc + l.creditKobo, 0n);
     if (totalDebit !== totalCredit) {
-      throw new Error(
-        `writeDoubleEntry: unbalanced — debits=${totalDebit} credits=${totalCredit}`,
-      );
+      throw new Error(`writeDoubleEntry: unbalanced — debits=${totalDebit} credits=${totalCredit}`);
     }
     await db.transaction(async (tx) => {
-      await postingsRepo.insertMany(tx as DbOrTx, legs.map((l) => ({ ...l, transactionId })));
+      await postingsRepo.insertMany(
+        tx as DbOrTx,
+        legs.map((l) => ({ ...l, transactionId })),
+      );
     });
   },
 };

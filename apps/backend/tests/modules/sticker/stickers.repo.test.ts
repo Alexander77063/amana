@@ -1,11 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { testDb, truncateAll } from '../../helpers/test-db';
-import { factories } from '../../helpers/factories';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { stickersRepo } from '../../../src/modules/sticker/stickers.repo';
+import { factories } from '../../helpers/factories';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('vendor_stickers (schema + repo)', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('schema columns', async () => {
     const r = await testDb.execute<{ column_name: string }>(sql`
@@ -13,8 +15,13 @@ describe('vendor_stickers (schema + repo)', () => {
       WHERE table_name = 'vendor_stickers' ORDER BY ordinal_position
     `);
     expect(r.map((x) => x.column_name)).toEqual([
-      'uuid', 'bank_code', 'account_number', 'account_name',
-      'vendor_phone', 'status', 'registered_at',
+      'uuid',
+      'bank_code',
+      'account_number',
+      'account_name',
+      'vendor_phone',
+      'status',
+      'registered_at',
     ]);
   });
 

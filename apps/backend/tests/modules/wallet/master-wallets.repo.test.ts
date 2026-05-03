@@ -1,13 +1,15 @@
-import { beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { testDb, truncateAll } from '../../helpers/test-db';
-import { factories } from '../../helpers/factories';
-import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
+import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
+import { factories } from '../../helpers/factories';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('master-wallets.repo', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('master_wallets has the expected columns (schema)', async () => {
     const cols = await testDb.execute<{ column_name: string }>(sql`
@@ -15,8 +17,13 @@ describe('master-wallets.repo', () => {
       WHERE table_name = 'master_wallets' ORDER BY ordinal_position
     `);
     expect(cols.map((r) => r.column_name)).toEqual([
-      'id', 'household_id', 'anchor_virtual_account', 'anchor_bank_code',
-      'currency', 'status', 'created_at',
+      'id',
+      'household_id',
+      'anchor_virtual_account',
+      'anchor_bank_code',
+      'currency',
+      'status',
+      'created_at',
     ]);
   });
 
@@ -30,7 +37,11 @@ describe('master-wallets.repo', () => {
 
   it('provision creates wallet + 3 ledger accounts atomically', async () => {
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
 
@@ -57,11 +68,17 @@ describe('master-wallets.repo', () => {
 
   it('findByHousehold resolves the wallet', async () => {
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
     const provisioned = await masterWalletsRepo.provision(testDb, {
-      householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+      householdId: hh.id,
+      anchorVirtualAccount: '1234567890',
+      anchorBankCode: '058',
     });
     const found = await masterWalletsRepo.findByHousehold(testDb, hh.id);
     expect(found?.id).toBe(provisioned.master.id);

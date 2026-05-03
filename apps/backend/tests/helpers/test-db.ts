@@ -1,6 +1,6 @@
-import { drizzle, type PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import postgres from 'postgres';
 import { sql } from 'drizzle-orm';
+import { type PostgresJsDatabase, drizzle } from 'drizzle-orm/postgres-js';
+import postgres from 'postgres';
 
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? 'postgres://amana:amana_dev_only@localhost:5432/amana_dev';

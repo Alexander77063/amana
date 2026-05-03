@@ -33,7 +33,11 @@ export const stickersRepo = {
   },
 
   async findByUuid(db: DbOrTx, uuid: string): Promise<StickerRow | undefined> {
-    const [row] = await db.select().from(vendorStickers).where(eq(vendorStickers.uuid, uuid)).limit(1);
+    const [row] = await db
+      .select()
+      .from(vendorStickers)
+      .where(eq(vendorStickers.uuid, uuid))
+      .limit(1);
     return row;
   },
 

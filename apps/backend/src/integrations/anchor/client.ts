@@ -77,11 +77,7 @@ export class AnchorClient {
     const payload = await readResponseBody(res);
 
     if (!res.ok) {
-      throw new AnchorHttpError(
-        res.status,
-        payload,
-        `Anchor ${method} ${path} → ${res.status}`,
-      );
+      throw new AnchorHttpError(res.status, payload, `Anchor ${method} ${path} → ${res.status}`);
     }
     return payload as R;
   }

@@ -1,5 +1,5 @@
-import { pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+import { pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const stickerStatusEnum = pgEnum('sticker_status', ['unbound', 'active', 'revoked']);
 

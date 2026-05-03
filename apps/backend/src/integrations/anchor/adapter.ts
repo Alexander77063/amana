@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { idempotencyKeys } from '../../db/schema';
 import { CircuitBreaker, type CircuitBreakerConfig } from '../../lib/circuit-breaker';
-import { AnchorClient, AnchorHttpError } from './client';
+import { type AnchorClient, AnchorHttpError } from './client';
 
 const DEFAULT_RETRY_DELAYS_MS = [250, 500, 1_000, 2_000, 4_000, 8_000];
 const DEFAULT_CIRCUIT: CircuitBreakerConfig = {
@@ -50,11 +50,9 @@ export class AnchorAdapter {
     idempotencyKey: string,
   ): Promise<import('./types').AnchorKycUpgradeResponse> {
     return this.execIdempotent('anchor.kyc_upgrade', idempotencyKey, () =>
-      this.client.post<import('./types').AnchorKycUpgradeResponse>(
-        '/kyc-verifications',
-        input,
-        { idempotencyKey },
-      ),
+      this.client.post<import('./types').AnchorKycUpgradeResponse>('/kyc-verifications', input, {
+        idempotencyKey,
+      }),
     );
   }
 
@@ -85,11 +83,9 @@ export class AnchorAdapter {
     idempotencyKey: string,
   ): Promise<import('./types').AnchorTransferResponse> {
     return this.execIdempotent('anchor.transfer', idempotencyKey, () =>
-      this.client.post<import('./types').AnchorTransferResponse>(
-        '/transfers',
-        input,
-        { idempotencyKey },
-      ),
+      this.client.post<import('./types').AnchorTransferResponse>('/transfers', input, {
+        idempotencyKey,
+      }),
     );
   }
 

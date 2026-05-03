@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { err, isErr, isOk, ok, type Result } from '../../src/lib/result';
+import { type Result, err, isErr, isOk, ok } from '../../src/lib/result';
 
 describe('Result', () => {
   it('ok wraps a value and is_ok narrows', () => {

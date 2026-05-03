@@ -1,11 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
-import { testDb, truncateAll } from '../../helpers/test-db';
-import { factories } from '../../helpers/factories';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { auditRepo } from '../../../src/modules/audit/audit.repo';
+import { factories } from '../../helpers/factories';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('audit_log (immutability)', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('INSERT allowed; UPDATE / DELETE blocked', async () => {
     const id = factories.txnId();
@@ -17,14 +19,16 @@ describe('audit_log (immutability)', () => {
     await expect(
       testDb.execute(sql`UPDATE audit_log SET action = 'changed' WHERE id = ${id}`),
     ).rejects.toThrow(/append-only/);
-    await expect(
-      testDb.execute(sql`DELETE FROM audit_log WHERE id = ${id}`),
-    ).rejects.toThrow(/append-only/);
+    await expect(testDb.execute(sql`DELETE FROM audit_log WHERE id = ${id}`)).rejects.toThrow(
+      /append-only/,
+    );
   });
 });
 
 describe('audit.repo', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('append + listBySubject', async () => {
     const subjectId = factories.txnId();
@@ -44,8 +48,6 @@ describe('audit.repo', () => {
     });
     const list = await auditRepo.listBySubject(testDb, subjectId);
     expect(list).toHaveLength(2);
-    expect(list.map((r) => r.action).sort()).toEqual(
-      ['anchor.webhook.received', 'txn.rule_eval'],
-    );
+    expect(list.map((r) => r.action).sort()).toEqual(['anchor.webhook.received', 'txn.rule_eval']);
   });
 });

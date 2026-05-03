@@ -1,16 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { testDb, truncateAll } from '../../helpers/test-db';
-import { factories } from '../../helpers/factories';
 import { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { AnchorClient } from '../../../src/integrations/anchor/client';
+import { factories } from '../../helpers/factories';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('AnchorAdapter.requestKycUpgrade', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('POSTs to /kyc-verifications with customerId + targetTier + documents', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ customerId: 'cust-1', status: 'PENDING' }), {
-        status: 202, headers: { 'content-type': 'application/json' },
+        status: 202,
+        headers: { 'content-type': 'application/json' },
       }),
     );
     const adapter = new AnchorAdapter({

@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { testDb, truncateAll } from '../../helpers/test-db';
-import { factories } from '../../helpers/factories';
-import { stickersRepo } from '../../../src/modules/sticker/stickers.repo';
-import { stickerResolverService } from '../../../src/modules/sticker/sticker-resolver.service';
 import { isErr, isOk } from '../../../src/lib/result';
+import { stickerResolverService } from '../../../src/modules/sticker/sticker-resolver.service';
+import { stickersRepo } from '../../../src/modules/sticker/stickers.repo';
+import { factories } from '../../helpers/factories';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('stickerResolverService.resolve', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('resolves an active sticker to its bank account', async () => {
     const created = await stickersRepo.insert(testDb, {

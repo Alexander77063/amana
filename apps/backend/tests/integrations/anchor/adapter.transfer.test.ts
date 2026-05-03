@@ -1,17 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { testDb, truncateAll } from '../../helpers/test-db';
-import { factories } from '../../helpers/factories';
 import { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { AnchorClient } from '../../../src/integrations/anchor/client';
+import { factories } from '../../helpers/factories';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('AnchorAdapter.transfer', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('POSTs to /transfers with bigint amount serialised as string', async () => {
     const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({
-        id: 'tr-1', status: 'PENDING', reference: 'k-1',
-      }), { status: 202, headers: { 'content-type': 'application/json' } }),
+      new Response(
+        JSON.stringify({
+          id: 'tr-1',
+          status: 'PENDING',
+          reference: 'k-1',
+        }),
+        { status: 202, headers: { 'content-type': 'application/json' } },
+      ),
     );
     const adapter = new AnchorAdapter({
       db: testDb,
@@ -33,7 +40,7 @@ describe('AnchorAdapter.transfer', () => {
     expect(out.status).toBe('PENDING');
     const [, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
     expect(init.body as string).toContain('"amountKobo":"520000"');
-    expect(init.body as string).toContain('"reference":"' + key + '"');
+    expect(init.body as string).toContain(`"reference":"${key}"`);
     expect((init.headers as Record<string, string>)['Idempotency-Key']).toBe(key);
   });
 });

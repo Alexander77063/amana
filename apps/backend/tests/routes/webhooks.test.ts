@@ -1,8 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { testDb, truncateAll } from '../helpers/test-db';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { createServer } from '../../src/server';
+import { testDb, truncateAll } from '../helpers/test-db';
 
 const SECRET = 'whsec_test';
 
@@ -40,7 +40,10 @@ describe('POST /webhooks/anchor', () => {
   it('401 + no audit entry on bad signature', async () => {
     const app = createServer();
     const body = JSON.stringify({
-      id: 'evt-2', type: 'transfer.completed', createdAt: '2026-05-03T00:00:00Z', data: {},
+      id: 'evt-2',
+      type: 'transfer.completed',
+      createdAt: '2026-05-03T00:00:00Z',
+      data: {},
     });
     const res = await app.request('/webhooks/anchor', {
       method: 'POST',
@@ -48,12 +51,14 @@ describe('POST /webhooks/anchor', () => {
       body,
     });
     expect(res.status).toBe(401);
-    const audit = await testDb.execute<{ count: string }>(sql`SELECT COUNT(*)::text AS count FROM audit_log`);
+    const audit = await testDb.execute<{ count: string }>(
+      sql`SELECT COUNT(*)::text AS count FROM audit_log`,
+    );
     expect(audit[0]?.count).toBe('0');
   });
 
   it('503 when ANCHOR_WEBHOOK_SECRET is not configured', async () => {
-    delete process.env.ANCHOR_WEBHOOK_SECRET;
+    process.env.ANCHOR_WEBHOOK_SECRET = undefined;
     const app = createServer();
     const res = await app.request('/webhooks/anchor', {
       method: 'POST',
@@ -67,7 +72,9 @@ describe('POST /webhooks/anchor', () => {
     process.env.ANCHOR_WEBHOOK_SECRET = SECRET;
     const app = createServer();
     const body = JSON.stringify({
-      id: 'evt-3', type: 'transfer.completed', createdAt: '2026-05-03T00:00:00Z',
+      id: 'evt-3',
+      type: 'transfer.completed',
+      createdAt: '2026-05-03T00:00:00Z',
       data: { transferId: 't-x', reference: 'k-x', status: 'COMPLETED' },
     });
     const headers = { 'content-type': 'application/json', 'x-anchor-signature': sign(body) };

@@ -1,5 +1,5 @@
-import { closeTestDb, testDb } from './test-db';
 import { sql } from 'drizzle-orm';
+import { closeTestDb, testDb } from './test-db';
 
 export async function setup(): Promise<void> {
   try {

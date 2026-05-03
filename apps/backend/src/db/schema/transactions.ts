@@ -11,7 +11,6 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { masterWallets, subWallets } from './wallet';
-import { bumpRequests } from './bumps';
 
 export const txnKindEnum = pgEnum('txn_kind', ['spend', 'topup', 'refund', 'fee', 'reversal']);
 export const txnStatusEnum = pgEnum('txn_status', [
@@ -40,7 +39,7 @@ export const transactions = pgTable('transactions', {
   vendorResolvedName: text('vendor_resolved_name'),
   category: text('category'),
   anomalyScore: decimal('anomaly_score', { precision: 3, scale: 2 }),
-  bumpRequestId: uuid('bump_request_id').references(() => bumpRequests.id, { onDelete: 'restrict' }), // FK wired in Sub-plan 3, Task 4
+  bumpRequestId: uuid('bump_request_id'), // FK to bump_requests, enforced at DB layer (migration 0013)
   agentNote: text('agent_note'),
   geolocation: geometry('geolocation', { type: 'point', srid: 4326 }),
   attachedMedia: jsonb('attached_media'),

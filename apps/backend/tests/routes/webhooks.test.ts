@@ -58,7 +58,8 @@ describe('POST /webhooks/anchor', () => {
   });
 
   it('503 when ANCHOR_WEBHOOK_SECRET is not configured', async () => {
-    process.env.ANCHOR_WEBHOOK_SECRET = undefined;
+    // biome-ignore lint/performance/noDelete: must fully unset env var; undefined assignment leaves "undefined" string
+    delete process.env.ANCHOR_WEBHOOK_SECRET;
     const app = createServer();
     const res = await app.request('/webhooks/anchor', {
       method: 'POST',

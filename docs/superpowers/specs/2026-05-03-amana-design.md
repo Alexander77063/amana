@@ -21,6 +21,26 @@ Nigerian middle-class households routinely give cash to domestic staff, school-g
 ### Wedge
 Household domestic-staff and family-allowance use cases, unified as a single primitive: **principal funds, dependent spends within rules, principal controls.**
 
+### Two segments, one primitive
+The same primitive serves two distinct segments without changing the product. The household wedge proves the primitive; the SMB segment is the volume play once the household segment ramps.
+
+**1. Households (the wedge — decision #2).** Plans: Free, Family, Household.
+- Parents giving sub-wallets to school-going children for canteen, transport, books.
+- Heads-of-household giving sub-wallets to domestic staff for market runs, school-pickup errands, utility top-ups.
+- Adult children supporting ageing parents — predictable monthly allowance with category locks (groceries / pharmacy / transport) and visibility for everyone in the family chat.
+- Spouses managing a shared household budget where one person handles operations and the other wants real-time line of sight without joint accounts.
+
+**2. Small businesses (natural extension, same primitive).** Plan: Business (₦10,000/mo, 50 agents).
+- Restaurant, bar, cafe owners issuing sub-wallets to kitchen staff for daily market ingredient runs and petty cash.
+- Logistics, dispatch, and ride-hailing fleet owners giving riders sub-wallets for fuel, road tolls, minor repairs, and per-trip allowances — with category locks so the fuel allowance can't be spent on lunch.
+- Retail shop owners delegating restock budgets and utility payments to store managers without exposing the master account.
+- Construction site supervisors managing per-day allowances and material-purchase budgets for foremen and workers.
+- Field sales and trade-marketing teams with daily activation budgets per rep, settled real-time against vendor bank accounts.
+- Property managers letting caretakers handle small repairs, utility top-ups, and tenant interfacing within a fixed monthly envelope.
+- Schools, churches, and community organisations where multiple administrators make small operational purchases under a single principal's oversight.
+
+The spend pattern is structurally identical: a principal funds, delegates spending authority to N agents within rules, and controls + audits in real-time. The brand foundation (decision #12 — *"trust before transaction"*, *"the rules you shouldn't have to argue about"*) reads naturally in both contexts.
+
 ### Foundational principle
 Phone-to-phone is the main thing. It is the differentiating mechanic and must remain visible in the architecture, the UX, and the brand. Card-centric or merchant-centric framings are explicitly rejected.
 

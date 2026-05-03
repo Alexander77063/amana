@@ -2,7 +2,13 @@
 
 Phone-to-phone controlled-spend wallet for Nigeria.
 
-A principal (parent or employer) funds a master wallet and issues sub-wallets to dependents (kids or domestic staff) with real-time limits, category locks, and remote-or-present authorization. Phone-to-phone is between **principal and agent** — vendors are paid via standard NIP transfer.
+A principal funds a master wallet and issues sub-wallets to N agents with real-time limits, category locks, time windows, and remote-or-present authorization. Phone-to-phone is between **principal and agent** — vendors are paid via standard NIP transfer.
+
+**Two segments, one primitive:**
+- **Households** — parents and school-going kids, heads-of-household and domestic staff, adult children supporting ageing parents.
+- **Small businesses** — restaurant owners and kitchen staff, fleet owners and riders, retail managers, construction supervisors, field sales teams, property managers.
+
+The spend pattern is structurally identical in both: principal funds, delegates within rules, controls + audits in real-time.
 
 ## Status
 

@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Amana Principal",
+    "slug": "amana-principal",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": { "bundleIdentifier": "com.amana.principal", "supportsTablet": false },
+    "android": { "package": "com.amana.principal" },
+    "platforms": ["ios", "android"]
+  }
+}

@@ -37,4 +37,12 @@ export const auditRepo = {
   async listBySubject(db: DbOrTx, subjectId: string): Promise<AuditRow[]> {
     return db.select().from(auditLog).where(eq(auditLog.subjectId, subjectId));
   },
+
+  async listByActor(db: DbOrTx, actorUserId: string): Promise<AuditRow[]> {
+    return db.select().from(auditLog).where(eq(auditLog.actorUserId, actorUserId));
+  },
+
+  async listByAction(db: DbOrTx, action: string): Promise<AuditRow[]> {
+    return db.select().from(auditLog).where(eq(auditLog.action, action));
+  },
 };

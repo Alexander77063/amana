@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { auditRepo } from '../../../src/modules/audit/audit.repo';
 import { factories } from '../../helpers/factories';
+import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('audit_log (immutability)', () => {
@@ -49,5 +50,66 @@ describe('audit.repo', () => {
     const list = await auditRepo.listBySubject(testDb, subjectId);
     expect(list).toHaveLength(2);
     expect(list.map((r) => r.action).sort()).toEqual(['anchor.webhook.received', 'txn.rule_eval']);
+  });
+});
+
+describe('auditRepo.listByActor + listByAction', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  it('listByActor returns entries for that actor only', async () => {
+    const u1 = await usersRepo.insert(testDb, {
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
+    });
+    const u2 = await usersRepo.insert(testDb, {
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
+    });
+    await auditRepo.append(testDb, {
+      actorKind: 'user',
+      actorUserId: u1.id,
+      action: 'a',
+      subjectKind: 'x',
+      subjectId: factories.txnId(),
+      payloadJson: {},
+    });
+    await auditRepo.append(testDb, {
+      actorKind: 'user',
+      actorUserId: u2.id,
+      action: 'a',
+      subjectKind: 'x',
+      subjectId: factories.txnId(),
+      payloadJson: {},
+    });
+    const list = await auditRepo.listByActor(testDb, u1.id);
+    expect(list).toHaveLength(1);
+  });
+
+  it('listByAction returns entries with that action only', async () => {
+    const subjectId = factories.txnId();
+    await auditRepo.append(testDb, {
+      actorKind: 'system',
+      action: 'txn.rule_eval',
+      subjectKind: 'transaction',
+      subjectId,
+      payloadJson: {},
+    });
+    await auditRepo.append(testDb, {
+      actorKind: 'system',
+      action: 'txn.settled',
+      subjectKind: 'transaction',
+      subjectId,
+      payloadJson: {},
+    });
+    const list = await auditRepo.listByAction(testDb, 'txn.rule_eval');
+    expect(list).toHaveLength(1);
+    expect(list[0]?.action).toBe('txn.rule_eval');
   });
 });

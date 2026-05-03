@@ -20,6 +20,7 @@ const TABLES_TO_TRUNCATE = [
   'bump_requests',
   'rules',
   'rule_sets',
+  'vendor_recents',
   'sub_wallets',
   'ledger_accounts',
   'master_wallets',

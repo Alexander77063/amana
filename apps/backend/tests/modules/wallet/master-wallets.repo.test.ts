@@ -24,6 +24,7 @@ describe('master-wallets.repo', () => {
       'currency',
       'status',
       'created_at',
+      'anchor_account_id',
     ]);
   });
 
@@ -49,6 +50,7 @@ describe('master-wallets.repo', () => {
       householdId: hh.id,
       anchorVirtualAccount: '1234567890',
       anchorBankCode: '058',
+      anchorAccountId: 'anchor-acct-test',
     });
 
     expect(provisioned.master.householdId).toBe(hh.id);
@@ -79,6 +81,7 @@ describe('master-wallets.repo', () => {
       householdId: hh.id,
       anchorVirtualAccount: '1234567890',
       anchorBankCode: '058',
+      anchorAccountId: 'anchor-acct-test',
     });
     const found = await masterWalletsRepo.findByHousehold(testDb, hh.id);
     expect(found?.id).toBe(provisioned.master.id);

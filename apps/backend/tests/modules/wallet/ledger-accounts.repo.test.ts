@@ -17,8 +17,8 @@ async function seedMasterWallet(): Promise<string> {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mwId = factories.walletId();
   await testDb.execute(sql`
-    INSERT INTO master_wallets (id, household_id, anchor_virtual_account, anchor_bank_code)
-    VALUES (${mwId}, ${hh.id}, '1234567890', '058')
+    INSERT INTO master_wallets (id, household_id, anchor_virtual_account, anchor_bank_code, anchor_account_id)
+    VALUES (${mwId}, ${hh.id}, '1234567890', '058', 'anchor-acct-test')
   `);
   return mwId;
 }

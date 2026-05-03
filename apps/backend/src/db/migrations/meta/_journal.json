@@ -99,6 +99,13 @@
       "when": 1777835376677,
       "tag": "0013_transactions_bump_fk",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1777850703014,
+      "tag": "0014_recents_and_anchor_account_id",
+      "breakpoints": true
     }
   ]
 }

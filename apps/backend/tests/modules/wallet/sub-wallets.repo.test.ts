@@ -19,6 +19,7 @@ async function seedHouseholdWithMaster() {
     householdId: hh.id,
     anchorVirtualAccount: '1234567890',
     anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   return { principal, hh, master: provisioned.master };
 }

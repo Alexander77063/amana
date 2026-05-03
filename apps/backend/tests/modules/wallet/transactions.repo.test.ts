@@ -57,6 +57,7 @@ describe('transactions.repo', () => {
       householdId: hh.id,
       anchorVirtualAccount: '1234567890',
       anchorBankCode: '058',
+      anchorAccountId: 'anchor-acct-test',
     });
     return { masterId: provisioned.master.id };
   }

@@ -22,6 +22,7 @@ async function seedSubWallet() {
     householdId: hh.id,
     anchorVirtualAccount: '1234567890',
     anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent',

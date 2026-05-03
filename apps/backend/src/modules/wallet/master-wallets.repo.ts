@@ -11,6 +11,7 @@ export type ProvisionInput = {
   householdId: string;
   anchorVirtualAccount: string;
   anchorBankCode: string;
+  anchorAccountId: string;
 };
 
 export type ProvisionedMasterWallet = {
@@ -27,6 +28,7 @@ export const masterWalletsRepo = {
           householdId: input.householdId,
           anchorVirtualAccount: input.anchorVirtualAccount,
           anchorBankCode: input.anchorBankCode,
+          anchorAccountId: input.anchorAccountId,
         })
         .returning();
       if (!row) throw new Error('masterWallets.provision returned no row');

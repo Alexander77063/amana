@@ -20,6 +20,7 @@ export const masterWallets = pgTable('master_wallets', {
     .references(() => households.id, { onDelete: 'restrict' }),
   anchorVirtualAccount: text('anchor_virtual_account').notNull(),
   anchorBankCode: text('anchor_bank_code').notNull(),
+  anchorAccountId: text('anchor_account_id').notNull(),
   currency: text('currency').notNull().default('NGN'),
   status: masterWalletStatusEnum('status').notNull().default('active'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

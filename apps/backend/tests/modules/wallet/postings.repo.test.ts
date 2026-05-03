@@ -27,7 +27,7 @@ describe('postings table (immutability)', () => {
       INSERT INTO households (id, principal_user_id, name) VALUES (${hhId}, ${userId}, 'Test HH');
     `);
     await testDb.execute(sql`
-      INSERT INTO master_wallets (id, household_id, anchor_virtual_account, anchor_bank_code) VALUES (${mwId}, ${hhId}, '1234567890', '058');
+      INSERT INTO master_wallets (id, household_id, anchor_virtual_account, anchor_bank_code, anchor_account_id) VALUES (${mwId}, ${hhId}, '1234567890', '058', 'anchor-acct-test');
     `);
     await testDb.execute(sql`
       INSERT INTO ledger_accounts (id, master_wallet_id, kind, normal_side) VALUES (${laId}, ${mwId}, 'master', 'debit');
@@ -66,7 +66,7 @@ describe('postings table (immutability)', () => {
       sql`INSERT INTO households (id, principal_user_id, name) VALUES (${hhId}, ${userId}, 'Test HH');`,
     );
     await testDb.execute(
-      sql`INSERT INTO master_wallets (id, household_id, anchor_virtual_account, anchor_bank_code) VALUES (${mwId}, ${hhId}, '1234567890', '058');`,
+      sql`INSERT INTO master_wallets (id, household_id, anchor_virtual_account, anchor_bank_code, anchor_account_id) VALUES (${mwId}, ${hhId}, '1234567890', '058', 'anchor-acct-test');`,
     );
     await testDb.execute(
       sql`INSERT INTO ledger_accounts (id, master_wallet_id, kind, normal_side) VALUES (${laId}, ${mwId}, 'master', 'debit');`,
@@ -102,6 +102,7 @@ describe('postings.repo', () => {
       householdId: hh.id,
       anchorVirtualAccount: '1234567890',
       anchorBankCode: '058',
+      anchorAccountId: 'anchor-acct-test',
     });
     const masterLA = provisioned.ledgerAccountIds.master;
 
@@ -152,6 +153,7 @@ describe('postings.repo', () => {
       householdId: hh.id,
       anchorVirtualAccount: '1234567890',
       anchorBankCode: '058',
+      anchorAccountId: 'anchor-acct-test',
     });
     const txn = await transactionsRepo.insert(testDb, {
       masterWalletId: provisioned.master.id,

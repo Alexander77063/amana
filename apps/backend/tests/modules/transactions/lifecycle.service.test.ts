@@ -129,3 +129,51 @@ describe('lifecycleService — bump path', () => {
     expect(resumed.transaction.status).toBe('in_flight');
   });
 });
+
+describe('lifecycleService — deny + principal direct', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('principal denies the bump → txn stays in bump_pending (resume not possible)', async () => {
+    const { principalId, agentId, subWalletId, masterId } = await seedFundedSubWallet();
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId, createdByUserId: principalId,
+      rules: [{ kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo: 1_000n } }],
+    });
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId, subWalletId, kind: 'spend',
+      amountKobo: kobo(10_000n), idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: '058', vendorAccount: '0123456789', vendorResolvedName: 'MAMA',
+    });
+    const evalResult = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id, initiatingUserId: agentId, now: new Date('2026-05-03T12:00:00Z'),
+    });
+    expect(evalResult.kind).toBe('bump_pending');
+    if (evalResult.kind !== 'bump_pending') return;
+
+    const decision = await bumpWorkflowService.decide(testDb, {
+      bumpRequestId: evalResult.bumpRequestId,
+      decidedByUserId: principalId, decision: 'deny',
+      now: new Date('2026-05-03T12:05:00Z'),
+    });
+    expect(isOk(decision)).toBe(true);
+    if (!isOk(decision)) return;
+    expect(decision.value.oneShotToken).toBeNull();
+    const updatedTxn = await transactionsRepo.findById(testDb, txn.id);
+    // Lifecycle doesn't auto-fail on deny; status stays bump_pending until cancelled
+    expect(updatedTxn?.status).toBe('bump_pending');
+  });
+
+  it('principal direct spend (subWalletId=null) bypasses rule eval and goes straight to in_flight', async () => {
+    const { principalId, masterId } = await seedFundedSubWallet();
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId, subWalletId: null,
+      kind: 'spend', amountKobo: kobo(10_000n), idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: '058', vendorAccount: '0123456789', vendorResolvedName: 'MAMA',
+    });
+    const result = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id, initiatingUserId: principalId, now: new Date('2026-05-03T12:00:00Z'),
+    });
+    expect(result.kind).toBe('allow');
+    expect(result.transaction.status).toBe('in_flight');
+  });
+});

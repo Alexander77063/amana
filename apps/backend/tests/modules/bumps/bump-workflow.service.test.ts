@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { isErr, isOk } from '../../../src/lib/result';
 import { testDb, truncateAll } from '../../helpers/test-db';
 import { factories } from '../../helpers/factories';
 import { kobo } from '../../../src/lib/kobo';
@@ -59,5 +60,80 @@ describe('bumpWorkflowService.create', () => {
       now, ttlMinutes: 5,
     });
     expect(created.bumpRequest.expiresAt.getTime() - now.getTime()).toBe(5 * 60 * 1000);
+  });
+});
+
+describe('bumpWorkflowService.decide', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('approve_once → status=approved_once + one-shot token issued', async () => {
+    const { principalId, agentId, subWalletId, txnId } = await seedTxn();
+    const now = new Date('2026-05-03T12:00:00Z');
+    const created = await bumpWorkflowService.create(testDb, {
+      transactionId: txnId, subWalletId, requestedByUserId: agentId,
+      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA', now,
+    });
+    const result = await bumpWorkflowService.decide(testDb, {
+      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
+      decision: 'approve_once', now: new Date('2026-05-03T12:05:00Z'),
+    });
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.bumpRequest.status).toBe('approved_once');
+      expect(result.value.oneShotToken).not.toBeNull();
+      expect(result.value.oneShotToken?.token).toMatch(/^[a-f0-9]{48}$/);
+    }
+  });
+
+  it('deny → status=denied + no token', async () => {
+    const { principalId, agentId, subWalletId, txnId } = await seedTxn();
+    const created = await bumpWorkflowService.create(testDb, {
+      transactionId: txnId, subWalletId, requestedByUserId: agentId,
+      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
+      now: new Date('2026-05-03T12:00:00Z'),
+    });
+    const result = await bumpWorkflowService.decide(testDb, {
+      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
+      decision: 'deny', now: new Date('2026-05-03T12:05:00Z'),
+    });
+    expect(isOk(result)).toBe(true);
+    if (isOk(result)) {
+      expect(result.value.bumpRequest.status).toBe('denied');
+      expect(result.value.oneShotToken).toBeNull();
+    }
+  });
+
+  it('returns BUMP_EXPIRED when now > expiresAt', async () => {
+    const { principalId, agentId, subWalletId, txnId } = await seedTxn();
+    const created = await bumpWorkflowService.create(testDb, {
+      transactionId: txnId, subWalletId, requestedByUserId: agentId,
+      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
+      now: new Date('2026-05-03T12:00:00Z'), ttlMinutes: 5,
+    });
+    const result = await bumpWorkflowService.decide(testDb, {
+      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
+      decision: 'approve_once', now: new Date('2026-05-03T12:10:00Z'),
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('BUMP_EXPIRED');
+  });
+
+  it('returns INVALID_TRANSITION when bump is already decided', async () => {
+    const { principalId, agentId, subWalletId, txnId } = await seedTxn();
+    const created = await bumpWorkflowService.create(testDb, {
+      transactionId: txnId, subWalletId, requestedByUserId: agentId,
+      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
+      now: new Date('2026-05-03T12:00:00Z'),
+    });
+    await bumpWorkflowService.decide(testDb, {
+      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
+      decision: 'approve_once', now: new Date('2026-05-03T12:05:00Z'),
+    });
+    const result = await bumpWorkflowService.decide(testDb, {
+      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
+      decision: 'deny', now: new Date('2026-05-03T12:06:00Z'),
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('INVALID_TRANSITION');
   });
 });

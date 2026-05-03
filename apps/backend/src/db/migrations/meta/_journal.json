@@ -64,6 +64,13 @@
       "when": 1777822618564,
       "tag": "0008_idempotency",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1777822764333,
+      "tag": "0009_sticker",
+      "breakpoints": true
     }
   ]
 }

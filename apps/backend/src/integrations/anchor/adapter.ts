@@ -58,6 +58,17 @@ export class AnchorAdapter {
     );
   }
 
+  async nameEnquiry(
+    input: import('./types').AnchorNameEnquiryRequest,
+  ): Promise<import('./types').AnchorNameEnquiryResponse> {
+    const qs = `?bankCode=${encodeURIComponent(input.bankCode)}&accountNumber=${encodeURIComponent(input.accountNumber)}`;
+    return this.breaker.exec(() =>
+      this.executeWithRetry(() =>
+        this.client.get<import('./types').AnchorNameEnquiryResponse>(`/nibss/name-enquiry${qs}`),
+      ),
+    );
+  }
+
   async execIdempotent<R>(scope: string, key: string, fn: () => Promise<R>): Promise<R> {
     const cached = await this.lookupCached<R>(key);
     if (cached !== undefined) return cached;

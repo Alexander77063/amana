@@ -10,6 +10,8 @@ import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.re
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { ledgerService } from '../../../src/modules/wallet/ledger.service';
+import { bumpWorkflowService } from '../../../src/modules/bumps/bump-workflow.service';
+import { isOk } from '../../../src/lib/result';
 
 async function seedFundedSubWallet() {
   const principal = await usersRepo.insert(testDb, {
@@ -86,5 +88,44 @@ describe('lifecycleService.evaluate — happy path', () => {
     });
     const updatedTxn = await transactionsRepo.findById(testDb, txn.id);
     expect(updatedTxn?.anomalyScore).not.toBeNull();
+  });
+});
+
+describe('lifecycleService — bump path', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('rule denies → creates bump_request → principal approves → resumeAfterBump moves to in_flight', async () => {
+    const { principalId, agentId, subWalletId, masterId } = await seedFundedSubWallet();
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId, createdByUserId: principalId,
+      rules: [{ kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo: 1_000n } }],
+    });
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId, subWalletId, kind: 'spend',
+      amountKobo: kobo(10_000n), idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: '058', vendorAccount: '0123456789', vendorResolvedName: 'MAMA',
+    });
+    const evalResult = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id, initiatingUserId: agentId, now: new Date('2026-05-03T12:00:00Z'),
+    });
+    expect(evalResult.kind).toBe('bump_pending');
+    if (evalResult.kind !== 'bump_pending') return;
+
+    const decision = await bumpWorkflowService.decide(testDb, {
+      bumpRequestId: evalResult.bumpRequestId,
+      decidedByUserId: principalId,
+      decision: 'approve_once',
+      now: new Date('2026-05-03T12:05:00Z'),
+    });
+    expect(isOk(decision)).toBe(true);
+    if (!isOk(decision)) return;
+    const token = decision.value.oneShotToken?.token;
+    expect(token).toBeDefined();
+
+    const resumed = await lifecycleService.resumeAfterBump(testDb, {
+      token: token!, now: new Date('2026-05-03T12:06:00Z'),
+    });
+    expect(resumed.kind).toBe('allow');
+    expect(resumed.transaction.status).toBe('in_flight');
   });
 });

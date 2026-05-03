@@ -15,11 +15,12 @@ export const auditEvents = {
       action: 'txn.rule_eval',
       subjectKind: 'transaction',
       subjectId: input.transactionId,
-      payloadJson: {
-        ruleSetId: input.ruleSetId,
-        ruleSetVersion: input.ruleSetVersion,
-        decision: input.decision,
-      },
+      payloadJson: JSON.parse(
+        JSON.stringify(
+          { ruleSetId: input.ruleSetId, ruleSetVersion: input.ruleSetVersion, decision: input.decision },
+          (_, v) => (typeof v === 'bigint' ? v.toString() : v),
+        ),
+      ),
     };
   },
 

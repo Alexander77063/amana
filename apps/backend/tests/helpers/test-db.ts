@@ -16,9 +16,10 @@ export const testDb: PostgresJsDatabase = drizzle(queryClient);
 const TABLES_TO_TRUNCATE = [
   'postings',
   'transactions',
+  'one_shot_tokens',
   'bump_requests',
-  'rule_sets',
   'rules',
+  'rule_sets',
   'sub_wallets',
   'ledger_accounts',
   'master_wallets',

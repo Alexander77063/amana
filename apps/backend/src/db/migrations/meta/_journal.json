@@ -71,6 +71,13 @@
       "when": 1777822764333,
       "tag": "0009_sticker",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1777834442581,
+      "tag": "0010_rule_sets",
+      "breakpoints": true
     }
   ]
 }

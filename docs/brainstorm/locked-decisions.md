@@ -15,7 +15,7 @@ Controlled-spend wallet where a principal (parent or employer) funds a master wa
 
 1. **Licensing path** — Hybrid. Start on a BaaS partner; transition to own CBN license once volume justifies.
 2. **Wedge** — Household domestic-staff + family allowance, unified as a single primitive (principal funds, dependent spends within rules, principal controls).
-3. **Spend rail** — NIP transfer at MVP (QR scan / typed account / NIBSS name-enquiry confirmation). Card deferred to v1.5.
+3. **Spend rail** — NIP transfer at MVP. Vendor receives a normal NIP credit; never installs the app. Capture stack defined separately in decision #14. Card deferred to v1.5.
 4. **Authorization model** — Pre-authorized rules. Agent spends autonomously within rules. Principal gets configurable visibility (real-time receipts / daily digest / threshold alerts / anomaly alerts) and instant suspend control.
 5. **Exception flow** — In-app *"request bump"* for over-limit / out-of-rule spends — the only surviving form of the original "double-handshake" magic, used for exceptions.
 6. **Onboarding** — Hybrid: NFC tap-to-pair as the Android marquee (marketing centerpiece) + QR pairing (cross-platform, includes iPhone) + SMS deep-link for remote onboarding (kid at uni).
@@ -32,3 +32,10 @@ Controlled-spend wallet where a principal (parent or employer) funds a master wa
 11. **BaaS partner** — **Anchor** as primary (full-stack, builder-focused, modern API, supports delegated multi-user wallets). Architecture wraps BaaS in a **vendor-agnostic adapter layer** (Hexagonal / Ports-and-Adapters) so it's swappable. Bloc as future redundancy. Sudo for card issuance in v1.5.
 12. **Brand** — see `brand.md`.
 13. **Moat thesis** — Segment ownership (household-and-family fintech) + brand depth in-segment + product depth competitors can't clone in 6 months (rule engine sophistication, exception flow, anomaly detection, multi-principal) + distribution depth (schools, property managers, employer HR, community trust networks) + operational reliability. **Not moats:** better tech, lower price, nicer UX. Strategic posture: deepen brand and segment ownership before incumbents notice us.
+
+14. **Vendor capture stack** — Layered, lowest-friction-first. Money still moves via NIP in all cases (decision #3). Vendor never installs the Amana app.
+    - **A. Amana Receive sticker (NFC tap)** — vendor signs up via USSD/SMS (bank account + phone), we mail a free branded NFC sticker. Sticker holds an Amana vendor ID that resolves to the vendor's bank account on our backend. Agent taps phone to sticker → autofill. Marquee experience; doubles as a distribution flywheel ("Pay with Amana" tags in shop windows). Sticker cost ~₦50 at scale.
+    - **B. NQR / bank QR scan** — works with any existing NIBSS NQR or bank/POS QR sticker (Moniepoint, Opay, Palmpay, GTBank, etc.). Zero vendor onboarding. Covers most formal vendors today.
+    - **C. Smart recents + one-time typed account** — universal fallback; first time type with NIBSS name-enquiry confirmation, every subsequent payment is one tap from the recents list.
+    - **Skipped — D. Sound chirp / Bluetooth proximity** — recreates the merchant-onboarding problem we explicitly avoided; no clear advantage over A or B.
+    - **MVP-vs-later split:** TBD (next question).

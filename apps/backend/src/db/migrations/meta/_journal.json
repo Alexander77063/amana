@@ -29,6 +29,20 @@
       "when": 1777821761012,
       "tag": "0003_transactions",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1777822023465,
+      "tag": "0004_postings",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1777822055318,
+      "tag": "0005_postings_immutable",
+      "breakpoints": true
     }
   ]
 }

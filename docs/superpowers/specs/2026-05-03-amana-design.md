@@ -41,6 +41,8 @@ The same primitive serves two distinct segments without changing the product. Th
 
 The spend pattern is structurally identical: a principal funds, delegates spending authority to N agents within rules, and controls + audits in real-time. The brand foundation (decision #12 — *"trust before transaction"*, *"the rules you shouldn't have to argue about"*) reads naturally in both contexts.
 
+**A third pattern cuts across both segments: ad-hoc tradesman / one-off payments** — paying a mechanic, vulcaniser, electrician, plumber, casual labour. Households need it for emergency car / home repairs; SMBs need it for fleet repairs and emergency contractor calls. This is treated as a first-class flow in the agent app (§7.4 — phone-number lookup, large in-person name verification, optional photo + note + GPS, post-payment "show the recipient" screen).
+
 ### Foundational principle
 Phone-to-phone is the main thing. It is the differentiating mechanic and must remain visible in the architecture, the UX, and the brand. Card-centric or merchant-centric framings are explicitly rejected.
 
@@ -70,6 +72,7 @@ These decisions were taken during the brainstorm and are inputs to this spec, no
     - Skipped: D (sound chirp / Bluetooth) — recreates merchant-onboarding burden with no clear advantage.
     - **MVP-vs-later split:** MVP = B + C only; A ships in v1.1. Sticker-resolution backend stub (schema + lookup endpoint) ships in MVP so v1.1 is not a retrofit.
 15. **Agent attribution / NIP narration** — Outbound NIP narration carries a hashed agent reference (e.g. `AMN/AGT/abc12`) plus the principal's wallet reference. The agent's full NIN is held in our audit log only. Satisfies CBN/NFIU AML obligations without leaking domestic staff's NIN into the principal's bank-statement narration.
+16. **Ad-hoc tradesman / one-off payments** — A first-class supported pattern. Phone-number-to-account resolution added to capture path C; large in-person name verification UX; pre-defined "ad-hoc service" category with principal-set rules; optional photo/note/GPS capture at confirm time, stored in audit log; "show the recipient" post-payment screen. All MVP scope. See §7.4.
 
 ---
 
@@ -203,6 +206,9 @@ transactions
   category                 text nullable
   anomaly_score            numeric(3,2) nullable
   bump_request_id          uuid fk → bump_requests.id  -- nullable
+  agent_note               text nullable                -- §7.4 ad-hoc capture
+  geolocation              geography(point, 4326) nullable  -- WGS84 lat/lon
+  attached_media           jsonb nullable               -- array of media object refs
   created_at               timestamptz
   settled_at               timestamptz nullable
 
@@ -348,16 +354,32 @@ DRAFT  →  RULE_EVAL  →  IN_FLIGHT  →  SETTLED
 
 At MVP: **B + C only.** A ships in v1.1.
 
-### B. NQR / bank QR scan
+### 7.1 B. NQR / bank QR scan
 Works with any existing NIBSS NQR or bank/POS QR sticker (Moniepoint, Opay, Palmpay, GTBank, etc.). Zero vendor onboarding. Covers most formal vendors today.
 
-### C. Smart recents + one-time typed account
-First payment to a new vendor: type the account once, NIBSS name-enquiry confirms. Vendor is then saved to "recents" with the resolved name — every subsequent payment is one tap.
+### 7.2 C. Smart recents + one-time typed account or phone number
+Three sub-paths, all MVP:
 
-### A. Amana Receive sticker (v1.1, stubbed in MVP)
+- **Recents** — first hit on the capture screen for any vendor seen before. One tap → name + amount.
+- **Typed 10-digit account** — type the account once, pick the bank, NIBSS name-enquiry confirms. Vendor is then saved to recents with the resolved name.
+- **Phone-number lookup** — type a Nigerian phone number; NIBSS phone-lookup (via Anchor) resolves to the primary BVN-linked bank account in <1s. Cuts the ten-digit-account-friction completely for the (very common) case where the recipient quotes a phone number. Same name-enquiry confirmation.
+
+### 7.3 A. Amana Receive sticker (v1.1, stubbed in MVP)
 Vendor signs up via USSD/SMS (bank account + phone), we mail a free branded NFC sticker. Sticker holds an Amana vendor ID resolving to the vendor's bank account on our backend. Agent taps phone to sticker → autofill. Marquee experience; doubles as a distribution flywheel ("Pay with Amana" tags in shop windows).
 
 **MVP build for A:** sticker-resolution schema (`vendor_stickers` table) + internal lookup endpoint. No vendor sign-up rail, no fulfilment, no admin portal.
+
+### 7.4 Ad-hoc tradesman / one-off payments (decision #16)
+
+A major real-world Nigerian pattern, deserving first-class treatment in the agent app: paying mechanics, vulcanisers, electricians, plumbers, market traders, roadside repairs, casual labour. Often the *agent* is the one paying on behalf of the principal (driver pays the vulcaniser, house staff pays the plumber). The architecture handles them already — they're just NIP transfers — but five UX/data affordances are in MVP scope to make the pattern feel native:
+
+1. **Phone-number lookup** (covered in §7.2) is usually the right capture path here, since tradesmen quote phone numbers far more often than account numbers.
+2. **Large in-person verification UX.** On the confirm screen, the resolved account name is displayed in **big, bold type**. The agent reads it aloud; the tradesman confirms. With no prior relationship, that moment IS the trust handshake.
+3. **"Ad-hoc service" suggested category.** When the vendor is not in recents, this category is offered first. Principals can write rules around it (e.g. *"max ₦10k per ad-hoc service txn, max 3/day"*) so a runaway tradesman bill triggers the bump flow.
+4. **Optional photo + note + geolocation capture** at confirm time. The agent can attach a photo of the work, a short note ("flat tyre fixed, 3rd Mainland"), and the device's GPS coordinates. All stored in the audit log alongside the txn (see §5 — `agent_note`, `geolocation`, `attached_media` columns on `transactions`). Useful for principal visibility, dispute support, and (for SMBs) ops accountability.
+5. **"Show the recipient" post-payment screen.** After settlement, the agent can hand the phone to the tradesman to show: amount, NIBSS session ID, expected arrival window ("should appear in your bank within 30 seconds"). Closes the trust loop in person without requiring the recipient to install anything.
+
+**Why all MVP scope:** without these affordances, agents will route around Amana for ad-hoc spends (defeats the purpose) or rely on bump-bypass loopholes (defeats the controls). The architecture cost is small (a NIP-phone-lookup adapter method, three nullable columns, a couple of UX screens); the segment cost of leaving them out is large.
 
 ---
 
@@ -425,7 +447,7 @@ Anchor webhooks are HMAC-signed; any payload that fails verification is rejected
 ### Disputes
 NIP has no formal chargeback mechanism. Our flow:
 1. User raises dispute in app — picks the txn, picks reason.
-2. Internal triage against the audit log: rule decision, NIBSS session ID, vendor resolved name, anomaly score, surrounding pattern.
+2. Internal triage against the audit log: rule decision, NIBSS session ID, vendor resolved name, anomaly score, surrounding pattern. For ad-hoc service txns, also the agent's attached photo / note / geolocation if captured (§7.4).
 3. **Misdirected funds** → file recall via Anchor → recipient bank. Outcome depends on funds availability; we set expectation honestly.
 4. **Buyer-vs-seller dispute** → not our problem; we provide signed receipt and NIBSS session ID. Buyer pursues seller directly.
 5. **Suspected fraud** → suspend agent, freeze sub-wallet, escalate to security, file STR if pattern suggests.

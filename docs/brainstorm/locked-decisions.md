@@ -38,4 +38,4 @@ Controlled-spend wallet where a principal (parent or employer) funds a master wa
     - **B. NQR / bank QR scan** — works with any existing NIBSS NQR or bank/POS QR sticker (Moniepoint, Opay, Palmpay, GTBank, etc.). Zero vendor onboarding. Covers most formal vendors today.
     - **C. Smart recents + one-time typed account** — universal fallback; first time type with NIBSS name-enquiry confirmation, every subsequent payment is one tap from the recents list.
     - **Skipped — D. Sound chirp / Bluetooth proximity** — recreates the merchant-onboarding problem we explicitly avoided; no clear advantage over A or B.
-    - **MVP-vs-later split:** TBD (next question).
+    - **MVP-vs-later split:** **MVP = B + C only.** A (Amana Receive stickers) ships in v1.1 once the principal/agent side is proven and we have consumer traction to attract vendors. **Caveat:** the sticker-resolution backend endpoint (vendor-sticker UUID → bank account lookup) is built in MVP so v1.1 is not a retrofit — only the operational layer (vendor sign-up rail, fulfilment, distribution) waits.

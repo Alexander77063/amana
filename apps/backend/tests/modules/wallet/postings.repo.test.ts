@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { testDb, truncateAll } from '../../helpers/test-db';
 import { factories } from '../../helpers/factories';
+import { kobo } from '../../../src/lib/kobo';
+import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { householdsRepo } from '../../../src/modules/identity/households.repo';
+import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
+import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
+import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
 
 describe('postings table (immutability)', () => {
   beforeEach(async () => { await truncateAll(); });
@@ -43,7 +49,7 @@ describe('postings table (immutability)', () => {
     ).rejects.toThrow(/append-only/);
   });
 
-  it('exclusive-side check: a posting cannot have both debit and credit > 0', async () => {
+  it('exclusive-side check', async () => {
     const userId = factories.userId();
     const hhId = factories.householdId();
     const mwId = factories.walletId();
@@ -61,5 +67,59 @@ describe('postings table (immutability)', () => {
         VALUES (${txnId}, ${laId}, 100, 100)
       `),
     ).rejects.toThrow(/postings_exclusive_side|check/i);
+  });
+});
+
+describe('postings.repo', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('insertMany appends + accountBalance is debits - credits', async () => {
+    const principal = await usersRepo.insert(testDb, {
+      role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+    });
+    const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
+    const provisioned = await masterWalletsRepo.provision(testDb, {
+      householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    });
+    const masterLA = provisioned.ledgerAccountIds.master;
+
+    const txn1 = await transactionsRepo.insert(testDb, {
+      masterWalletId: provisioned.master.id, kind: 'topup', amountKobo: kobo(100000n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    await postingsRepo.insertMany(testDb, [
+      { transactionId: txn1.id, ledgerAccountId: masterLA, debitKobo: kobo(100000n), creditKobo: kobo(0n) },
+    ]);
+
+    const txn2 = await transactionsRepo.insert(testDb, {
+      masterWalletId: provisioned.master.id, kind: 'fee', amountKobo: kobo(2500n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    await postingsRepo.insertMany(testDb, [
+      { transactionId: txn2.id, ledgerAccountId: masterLA, debitKobo: kobo(0n), creditKobo: kobo(2500n) },
+    ]);
+
+    const bal = await postingsRepo.accountBalance(testDb, masterLA);
+    expect(bal).toBe(97500n);
+  });
+
+  it('listByTransaction returns all postings for a txn', async () => {
+    const principal = await usersRepo.insert(testDb, {
+      role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+    });
+    const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
+    const provisioned = await masterWalletsRepo.provision(testDb, {
+      householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    });
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: provisioned.master.id, kind: 'topup', amountKobo: kobo(100n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    await postingsRepo.insertMany(testDb, [
+      { transactionId: txn.id, ledgerAccountId: provisioned.ledgerAccountIds.master, debitKobo: kobo(100n), creditKobo: kobo(0n) },
+      { transactionId: txn.id, ledgerAccountId: provisioned.ledgerAccountIds.suspense, debitKobo: kobo(0n), creditKobo: kobo(100n) },
+    ]);
+    const all = await postingsRepo.listByTransaction(testDb, txn.id);
+    expect(all).toHaveLength(2);
   });
 });

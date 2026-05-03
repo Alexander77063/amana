@@ -78,6 +78,13 @@
       "when": 1777834442581,
       "tag": "0010_rule_sets",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1777834612722,
+      "tag": "0011_rules",
+      "breakpoints": true
     }
   ]
 }

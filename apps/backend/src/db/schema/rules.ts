@@ -1,4 +1,4 @@
-import { integer, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 import { subWallets } from './wallet';
 import { users } from './identity';
@@ -17,4 +17,22 @@ export const ruleSets = pgTable('rule_sets', {
     .notNull()
     .references(() => users.id, { onDelete: 'restrict' }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const ruleKindEnum = pgEnum('rule_kind', [
+  'limit',
+  'category',
+  'time_window',
+  'allowlist',
+  'anomaly_threshold',
+]);
+
+export const rules = pgTable('rules', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  ruleSetId: uuid('rule_set_id')
+    .notNull()
+    .references(() => ruleSets.id, { onDelete: 'cascade' }),
+  kind: ruleKindEnum('kind').notNull(),
+  configJson: jsonb('config_json').notNull(),
+  priority: integer('priority').notNull().default(100),
 });

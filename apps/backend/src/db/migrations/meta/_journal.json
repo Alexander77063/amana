@@ -15,6 +15,13 @@
       "when": 1777821294126,
       "tag": "0001_identity",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777821501943,
+      "tag": "0002_wallet",
+      "breakpoints": true
     }
   ]
 }

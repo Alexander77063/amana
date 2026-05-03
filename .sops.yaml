@@ -1,0 +1,11 @@
+# Encrypts files under secrets/ with the team age key.
+# Set up:
+#   1. Install age:    https://github.com/FiloSottile/age
+#   2. Install sops:   https://github.com/getsops/sops
+#   3. Generate a key: age-keygen -o age.key
+#   4. Replace the placeholder below with the public part of age.key.
+#   5. Encrypt:        sops --encrypt --in-place secrets/<file>.env
+creation_rules:
+  - path_regex: secrets/.*\.env$
+    encrypted_regex: ^.*$
+    age: "AGE_PUBLIC_KEY_PLACEHOLDER_REPLACE_BEFORE_FIRST_REAL_SECRET"

@@ -21,7 +21,17 @@
 - Mobile UI — Sub-plans 6 + 7
 - Live integration testing against Anchor sandbox — Sub-plan 8
 
-**Plan length:** ~35 tasks across 13 phases.
+**Plan length:** 32 tasks across 13 phases (Task 1 covers two schema changes; Task 12 wires reservation, narration, audit, and reverse-on-sync-failure together).
+
+**Patches applied 2026-05-04** — review found 4 blocking issues and 4 minor ones; this version of the plan incorporates all fixes:
+- **B1 (blocking).** `master_wallets.anchor_account_id` column added — NIP-out's `fromAccountId` must be Anchor's opaque internal ID, not the 10-digit NUBAN. Provisioning code (Sub-plan 2) discarded Anchor's `id`; we add the column + repo arg here.
+- **B2 (blocking).** NIP narration uses the **agent user_id** (per Decision #15), not `sub:${subWalletId}`. nip-out service now looks up the sub_wallet to get `agent_user_id`. Required for NFIU hash → NIN resolution.
+- **G1 (blocking).** Four typed audit events added — `txn.nip_out_sent`, `txn.settled`, `txn.failed_reversed`, `txn.topped_up` — and called from the matching services. Spec §10 dispute support depends on these.
+- **G2 (blocking).** E2E test (T28) now exercises `nipOutService.send` via `vi.mock` of the Anchor singleton, instead of skipping NIP-out. This is the only test that catches B1/B2 regressions.
+- **B5.** nip-out wraps the Anchor call in try/catch; on `AnchorHttpError` or a 200-but-FAILED response, it calls `reversalService.reverse` immediately rather than waiting for the recon batch.
+- **B11.** Dead `db.query?.transactions?.findFirst?.()` line in T26 removed.
+- **B15.** T20 `findTransferByReference` uses static `import { AnchorHttpError }` at the top, not dynamic `await import`.
+- **M4.** `recon-runner.ts` exit handling fixed — failure exit code no longer overridden by `.finally(process.exit(0))`.
 
 ---
 
@@ -30,8 +40,11 @@
 ```
 apps/backend/src/
 ├── db/schema/
-│   └── recents.ts                                NEW (vendor_recents)
+│   ├── recents.ts                                NEW (vendor_recents)
+│   └── wallet.ts                                 MODIFIED (master_wallets.anchor_account_id)
 ├── modules/
+│   ├── audit/
+│   │   └── events.ts                             MODIFIED (4 new event constructors for txn lifecycle)
 │   ├── vendors/
 │   │   ├── types.ts                              NEW (ResolvedVendor, ResolveError)
 │   │   ├── nqr-decoder.ts                        NEW (parse NIBSS QR string)
@@ -42,6 +55,8 @@ apps/backend/src/
 │   │   ├── recents.service.ts                    NEW (insertOrPromote + listTop)
 │   │   ├── vendor-resolution.service.ts          NEW (unified entry)
 │   │   └── index.ts                              NEW
+│   ├── wallet/
+│   │   └── master-wallets.repo.ts                MODIFIED (ProvisionInput.anchorAccountId)
 │   └── transactions/
 │       ├── lifecycle.service.ts                  EXISTS (Sub-plan 3)
 │       ├── txn-intent.service.ts                 NEW (creates DRAFT txn)
@@ -77,15 +92,22 @@ apps/backend/tests/
 
 ---
 
-## Phase A — Schema for recents (Task 1)
+## Phase A — Schema (Task 1)
 
-### Task 1: vendor_recents schema + migration
+### Task 1: vendor_recents + master_wallets.anchor_account_id schema + migrations
+
+This task lands two schema changes together so we generate one migration:
+
+1. New `vendor_recents` table for the recents capture path.
+2. New `anchor_account_id` column on `master_wallets` — Anchor's opaque internal account ID, separate from the 10-digit NUBAN we already store as `anchor_virtual_account`. This is the value that goes into `AnchorTransferRequest.fromAccountId`. Sub-plan 2 provisioned virtual accounts via `adapter.provisionVirtualAccount(...)` which returned both `id` and `accountNumber`; only the latter was persisted. We fix that now.
 
 **Files:**
 - Create: `apps/backend/src/db/schema/recents.ts`
+- Modify: `apps/backend/src/db/schema/wallet.ts` (add `anchorAccountId` column on `masterWallets`)
 - Modify: `apps/backend/src/db/schema/index.ts`
+- Modify: `apps/backend/src/modules/wallet/master-wallets.repo.ts` (add `anchorAccountId` to `ProvisionInput`)
 - Modify: `apps/backend/tests/helpers/test-db.ts` (add `vendor_recents` to TABLES_TO_TRUNCATE)
-- Generated: `apps/backend/src/db/migrations/0014_recents.sql`
+- Generated: `apps/backend/src/db/migrations/0014_recents_and_anchor_account_id.sql`
 
 > **drizzle-kit 0.25 reminders** (carried from Sub-plan 2/3): BigInt defaults need `.default(sql\`0\`)`; `check()` not emitted; hand-rolled migrations need a journal entry.
 
@@ -93,7 +115,6 @@ apps/backend/tests/
 
 ```ts
 import { pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
-import { sql } from 'drizzle-orm';
 import { subWallets } from './wallet';
 
 export const vendorRecents = pgTable(
@@ -116,21 +137,49 @@ export const vendorRecents = pgTable(
 
 Vendor identity is `(bankCode, accountNumber)`. The composite primary key (sub_wallet_id + bank_code + account_number) gives us upsert semantics for free — promote on conflict.
 
-- [ ] **Step 2: Append `export * from './recents';` to `apps/backend/src/db/schema/index.ts`**
+- [ ] **Step 2: Add `anchorAccountId` to `masterWallets` in `apps/backend/src/db/schema/wallet.ts`**
 
-- [ ] **Step 3: Update `apps/backend/tests/helpers/test-db.ts` `TABLES_TO_TRUNCATE`** — add `'vendor_recents'` BEFORE `'sub_wallets'` (FK dependency).
+Find the `masterWallets` table definition and add a new column AFTER `anchorBankCode`:
 
-- [ ] **Step 4: Generate + apply**
+```ts
+  anchorAccountId: text('anchor_account_id').notNull(),
+```
+
+The column is `notNull()` — every master_wallet must have an Anchor-side account ID. Real provisioning uses the value Anchor returns from `/virtual-accounts`. Tests use a fixed string like `'anchor-acct-test'`.
+
+- [ ] **Step 3: Update `apps/backend/src/modules/wallet/master-wallets.repo.ts`**
+
+Extend `ProvisionInput` and the `.provision()` insert to include `anchorAccountId`:
+
+```ts
+export type ProvisionInput = {
+  householdId: string;
+  anchorVirtualAccount: string;
+  anchorBankCode: string;
+  anchorAccountId: string;
+};
+```
+
+Inside `.provision()`, the `.values({...})` block already passes the input fields through; just add `anchorAccountId: input.anchorAccountId,` to the values literal.
+
+- [ ] **Step 4: Append `export * from './recents';` to `apps/backend/src/db/schema/index.ts`**
+
+- [ ] **Step 5: Update `apps/backend/tests/helpers/test-db.ts` `TABLES_TO_TRUNCATE`** — add `'vendor_recents'` BEFORE `'sub_wallets'` (FK dependency).
+
+- [ ] **Step 6: Generate + apply migration**
 
 ```powershell
 docker compose up -d
 Start-Sleep -Seconds 4
-pnpm --filter @amana/backend exec drizzle-kit generate --name recents
+pnpm --filter @amana/backend exec drizzle-kit generate --name recents_and_anchor_account_id
 pnpm --filter @amana/backend db:migrate
 docker compose exec postgres psql -U amana -d amana_dev -c "\d+ vendor_recents"
+docker compose exec postgres psql -U amana -d amana_dev -c "\d+ master_wallets"
 ```
 
-- [ ] **Step 5: Schema smoke test `apps/backend/tests/modules/vendors/recents.repo.test.ts`** (just schema for now)
+If drizzle-kit generates the column add as `ALTER TABLE master_wallets ADD COLUMN anchor_account_id text NOT NULL;` without a default, that will fail on existing rows. There **are** no existing rows in dev (we tear down between runs), so it works. For production we'd backfill first; not a concern at MVP.
+
+- [ ] **Step 7: Schema smoke test `apps/backend/tests/modules/vendors/recents.repo.test.ts`** (just schema for now)
 
 ```ts
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -150,17 +199,27 @@ describe('vendor_recents (schema)', () => {
       'account_name', 'last_used_at', 'first_seen_at',
     ]);
   });
+
+  it('master_wallets has anchor_account_id column', async () => {
+    const cols = await testDb.execute<{ column_name: string }>(sql`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'master_wallets' AND column_name = 'anchor_account_id'
+    `);
+    expect(cols.length).toBe(1);
+  });
 });
 ```
 
-- [ ] **Step 6: Run + commit**
+- [ ] **Step 8: Run + commit**
 
 ```powershell
 pnpm --filter @amana/backend test tests/modules/vendors/recents.repo.test.ts
 docker compose down
-git -C "C:/Users/alex_/amana" add apps/backend/src/db apps/backend/tests/helpers/test-db.ts apps/backend/tests/modules/vendors
-git -C "C:/Users/alex_/amana" commit -m "feat(db): vendor_recents schema (composite PK on sub_wallet+bank+account)"
+git -C "C:/Users/alex_/amana" add apps/backend/src/db apps/backend/src/modules/wallet/master-wallets.repo.ts apps/backend/tests/helpers/test-db.ts apps/backend/tests/modules/vendors
+git -C "C:/Users/alex_/amana" commit -m "feat(db): vendor_recents schema + master_wallets.anchor_account_id (Anchor opaque ID for fromAccountId)"
 ```
+
+> **Heads-up for downstream tasks (T7-T28):** every test seed helper that calls `masterWalletsRepo.provision({...})` must now include `anchorAccountId: 'anchor-acct-test'` (or any unique fixed string per test). The helpers in this plan have all been updated.
 
 ---
 
@@ -842,6 +901,7 @@ async function seedSubWallet(): Promise<string> {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -975,6 +1035,7 @@ async function seedSubWallet(): Promise<string> {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -1103,6 +1164,7 @@ async function seedSubWallet(): Promise<string> {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -1359,6 +1421,7 @@ async function seedSubWallet() {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -1440,10 +1503,110 @@ git -C "C:/Users/alex_/amana" commit -m "test(txn): txn-intent.service.create co
 
 ### Task 12: nip-out.service.send
 
-Reserves funds in the ledger (debit sub-wallet OR master if principal-direct, credit suspense), then calls Anchor's transfer endpoint with idempotency key. The transaction stays in `IN_FLIGHT` afterwards; the webhook handler (Phase G/H) will finalise it.
+Reserves funds in the ledger (debit sub-wallet OR master if principal-direct, credit suspense), then calls Anchor's transfer endpoint with idempotency key. On a synchronous Anchor failure (HTTP 4xx/5xx after retries, OR a 200 response with `status='FAILED'`), reverses the reservation and marks the txn `failed` immediately — no waiting for recon. On `PENDING` or `COMPLETED`, the txn stays in `IN_FLIGHT`; the webhook handler (Phase G/H) finalises it. Audit-logs `txn.nip_out_sent` either way.
 
 **Files:**
+- Modify: `apps/backend/src/modules/audit/events.ts` (add 4 typed event constructors used here + in T14/T16/T18)
 - Create: `apps/backend/src/modules/transactions/nip-out.service.ts`
+
+- [ ] **Step 0: Extend `apps/backend/src/modules/audit/events.ts`**
+
+Sub-plan 3 added `txnRuleEval`, `bumpRequested`, `bumpDecided`, `anomalyScored`. Add four more — used by nip-out (this task), settlement (T14), reversal (T16), and topup (T18). Spec §10 disputes need these on the audit timeline; without them, recovering a txn's history requires joining partner-event audit rows to txn IDs, which is brittle. The return type is `AuditEntry` (already imported from `'./audit.repo'` at the top of `events.ts`); follow the existing constructors' style for bigint fields — convert to string inline (`.toString()`) when stuffed into `payloadJson`, since drizzle can't serialise raw bigints into JSONB.
+
+Append (do not replace) these constructors inside the `auditEvents` object in `events.ts`:
+
+```ts
+  txnNipOutSent(input: {
+    transactionId: string;
+    actorUserId: string | null;
+    status: 'PENDING' | 'COMPLETED' | 'FAILED';
+    anchorTransferId: string | null;
+    reason: string | null;
+  }): AuditEntry {
+    return {
+      actorKind: input.actorUserId === null ? 'system' : 'user',
+      actorUserId: input.actorUserId,
+      action: 'txn.nip_out_sent',
+      subjectKind: 'transaction',
+      subjectId: input.transactionId,
+      payloadJson: {
+        status: input.status,
+        anchorTransferId: input.anchorTransferId,
+        reason: input.reason,
+      },
+    };
+  },
+
+  txnSettled(input: {
+    transactionId: string;
+    nibssSessionId: string | null;
+    feeKobo: bigint;
+    settledAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'partner',
+      actorUserId: null,
+      action: 'txn.settled',
+      subjectKind: 'transaction',
+      subjectId: input.transactionId,
+      payloadJson: {
+        nibssSessionId: input.nibssSessionId,
+        feeKobo: input.feeKobo.toString(),
+        settledAt: input.settledAt.toISOString(),
+      },
+    };
+  },
+
+  txnFailedReversed(input: {
+    transactionId: string;
+    reversalTransactionId: string;
+    reason: string | null;
+    failedAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'system',
+      actorUserId: null,
+      action: 'txn.failed_reversed',
+      subjectKind: 'transaction',
+      subjectId: input.transactionId,
+      payloadJson: {
+        reversalTransactionId: input.reversalTransactionId,
+        reason: input.reason,
+        failedAt: input.failedAt.toISOString(),
+      },
+    };
+  },
+
+  txnToppedUp(input: {
+    transactionId: string;
+    masterWalletId: string;
+    amountKobo: bigint;
+    nibssSessionId: string;
+    senderBankCode: string;
+    senderAccountNumber: string;
+    senderAccountName: string;
+    receivedAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'partner',
+      actorUserId: null,
+      action: 'txn.topped_up',
+      subjectKind: 'transaction',
+      subjectId: input.transactionId,
+      payloadJson: {
+        masterWalletId: input.masterWalletId,
+        amountKobo: input.amountKobo.toString(),
+        nibssSessionId: input.nibssSessionId,
+        senderBankCode: input.senderBankCode,
+        senderAccountNumber: input.senderAccountNumber,
+        senderAccountName: input.senderAccountName,
+        receivedAt: input.receivedAt.toISOString(),
+      },
+    };
+  },
+```
+
+All four follow the Sub-plan 3 patterns: `actorKind: 'system' | 'user' | 'partner'`, optional `actorUserId`, `subjectKind: 'transaction'` for txn-scoped events, bigints serialised to strings before they reach JSONB.
 
 - [ ] **Step 1: Write `apps/backend/src/modules/transactions/nip-out.service.ts`**
 
@@ -1451,13 +1614,18 @@ Reserves funds in the ledger (debit sub-wallet OR master if principal-direct, cr
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
+import { AnchorHttpError } from '../../integrations/anchor/client';
 import { selectNarration } from '../../integrations/anchor/narration';
 import type { AnchorTransferResponse } from '../../integrations/anchor/types';
-import { kobo, type Kobo } from '../../lib/kobo';
+import { kobo } from '../../lib/kobo';
 import { masterWallets } from '../../db/schema';
+import { auditRepo } from '../audit/audit.repo';
+import { auditEvents } from '../audit/events';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
+import { subWalletsRepo } from '../wallet/sub-wallets.repo';
 import { transactionsRepo } from '../wallet/transactions.repo';
+import { reversalService } from './reversal.service';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -1469,8 +1637,10 @@ export type SendInput = {
 };
 
 export type SendOutput = {
-  anchorTransferId: string;
+  anchorTransferId: string | null;
   status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  /** Set when Anchor synchronously rejected the call AND we already reversed locally. */
+  reversed?: boolean;
 };
 
 export const nipOutService = {
@@ -1509,37 +1679,102 @@ export const nipOutService = {
       { ledgerAccountId: suspenseLA.id, debitKobo: kobo(0n), creditKobo: amount },
     ]);
 
-    // Look up the master wallet's anchor virtual account ID for the from-side of the transfer.
+    // Look up the master wallet's Anchor account ID (opaque) for the from-side of the transfer.
     const [mw] = await db.select().from(masterWallets).where(eq(masterWallets.id, txn.masterWalletId)).limit(1);
     if (!mw) throw new Error(`master_wallet ${txn.masterWalletId} disappeared`);
 
-    // Phase 2: call Anchor.
+    // Decision #15: hashed reference is derived from the AGENT's user_id, not the sub-wallet.
+    // For principal-direct (subWalletId null), narration uses the simpler `AMN/<household>` form.
+    let agentUserId: string | null = null;
+    if (txn.subWalletId) {
+      const sub = await subWalletsRepo.findById(db, txn.subWalletId);
+      if (!sub) throw new Error(`sub_wallet ${txn.subWalletId} not found`);
+      agentUserId = sub.agentUserId;
+    }
     const narration = selectNarration({
       householdRef: input.householdRef,
-      // For principal-direct (subWalletId null), narration uses simpler form.
-      agentUserId: txn.subWalletId ? `sub:${txn.subWalletId}` : null,
+      agentUserId,
     });
 
-    const response: AnchorTransferResponse = await adapter.transfer(
-      {
-        amountKobo: amount,
-        fromAccountId: mw.anchorVirtualAccount, // Anchor uses account ID; this is its identifier in our wallet record
-        toBankCode: txn.vendorBankCode,
-        toAccountNumber: txn.vendorAccount,
-        narration,
-        reference: txn.idempotencyKey,
-      },
-      txn.idempotencyKey,
-    );
+    // Phase 2: call Anchor — wrap in try/catch so synchronous failures reverse cleanly.
+    let response: AnchorTransferResponse;
+    try {
+      response = await adapter.transfer(
+        {
+          amountKobo: amount,
+          fromAccountId: mw.anchorAccountId,
+          toBankCode: txn.vendorBankCode,
+          toAccountNumber: txn.vendorAccount,
+          narration,
+          reference: txn.idempotencyKey,
+        },
+        txn.idempotencyKey,
+      );
+    } catch (e) {
+      // Synchronous Anchor failure (network, 4xx, exhausted retries on 5xx) → reverse + fail.
+      // Per spec §10: "NIP rejected → Reverse suspense, mark FAILED, retry once allowed."
+      const reason = e instanceof AnchorHttpError
+        ? `Anchor HTTP ${e.status}`
+        : `Anchor error: ${(e as Error).message}`;
+      await reversalService.reverse(db, {
+        transactionId: txn.id,
+        reason,
+        failedAt: input.now,
+      });
+      await auditRepo.append(
+        db,
+        auditEvents.txnNipOutSent({
+          transactionId: txn.id,
+          actorUserId: agentUserId,
+          status: 'FAILED',
+          anchorTransferId: null,
+          reason,
+        }),
+      );
+      return { anchorTransferId: null, status: 'FAILED', reversed: true };
+    }
 
     if (response.nibssSessionId) {
       await transactionsRepo.setNibssSessionId(db, txn.id, response.nibssSessionId);
     }
 
+    // 200 OK with status='FAILED' is also a synchronous failure — handle the same way.
+    if (response.status === 'FAILED') {
+      await reversalService.reverse(db, {
+        transactionId: txn.id,
+        reason: response.failureReason ?? 'Anchor returned status=FAILED',
+        failedAt: input.now,
+      });
+      await auditRepo.append(
+        db,
+        auditEvents.txnNipOutSent({
+          transactionId: txn.id,
+          actorUserId: agentUserId,
+          status: 'FAILED',
+          anchorTransferId: response.id,
+          reason: response.failureReason ?? null,
+        }),
+      );
+      return { anchorTransferId: response.id, status: 'FAILED', reversed: true };
+    }
+
+    await auditRepo.append(
+      db,
+      auditEvents.txnNipOutSent({
+        transactionId: txn.id,
+        actorUserId: agentUserId,
+        status: response.status,
+        anchorTransferId: response.id,
+        reason: null,
+      }),
+    );
+
     return { anchorTransferId: response.id, status: response.status };
   },
 };
 ```
+
+> **Why we need `reversalService` here even though the webhook also reverses on `transfer.failed`:** the webhook only fires when Anchor accepts the request and later changes its mind. A synchronous reject (HTTP 4xx/5xx, or 200-with-status-FAILED) never produces a webhook for that transfer ID. Without this try/catch, the reservation would sit in suspense until the 5-min recon batch unstuck it. Spec §10 wants immediate reversal.
 
 - [ ] **Step 2: Verify + commit (test in T13)**
 
@@ -1582,6 +1817,7 @@ async function seedFundedSubWallet() {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -1693,6 +1929,63 @@ describe('nipOutService.send', () => {
     });
     expect(result.status).toBe('PENDING');
   });
+
+  it('reverses immediately on Anchor 4xx (sync failure path, B5)', async () => {
+    const { masterId, subWalletId, subLA, householdId } = await seedFundedSubWallet();
+    const txn = await txnIntentService.create(testDb, {
+      masterWalletId: masterId, subWalletId,
+      amountKobo: kobo(5_000n), idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: '058', vendorAccountNumber: '0123456789',
+      vendorResolvedName: 'M', category: null, agentNote: null,
+    });
+    await transactionsRepo.setStatus(testDb, txn.id, 'in_flight');
+
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response('{"error":"invalid_account"}',
+        { status: 400, headers: { 'content-type': 'application/json' } }),
+    );
+
+    const result = await nipOutService.send(testDb, makeAdapter(fetchSpy), {
+      transactionId: txn.id, householdRef: householdId, now: new Date('2026-05-03T12:00:00Z'),
+    });
+    expect(result.status).toBe('FAILED');
+    expect(result.reversed).toBe(true);
+    expect(result.anchorTransferId).toBeNull();
+
+    // Sub-wallet balance restored — reservation reversed.
+    expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(100_000n);
+    const final = await transactionsRepo.findById(testDb, txn.id);
+    expect(final?.status).toBe('failed');
+  });
+
+  it('reverses on a 200 response with status=FAILED (B5 second branch)', async () => {
+    const { masterId, subWalletId, subLA, householdId } = await seedFundedSubWallet();
+    const txn = await txnIntentService.create(testDb, {
+      masterWalletId: masterId, subWalletId,
+      amountKobo: kobo(5_000n), idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: '058', vendorAccountNumber: '0123456789',
+      vendorResolvedName: 'M', category: null, agentNote: null,
+    });
+    await transactionsRepo.setStatus(testDb, txn.id, 'in_flight');
+
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({
+        id: 'tr-3', status: 'FAILED', reference: txn.idempotencyKey,
+        failureReason: 'beneficiary account closed',
+      }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+
+    const result = await nipOutService.send(testDb, makeAdapter(fetchSpy), {
+      transactionId: txn.id, householdRef: householdId, now: new Date('2026-05-03T12:00:00Z'),
+    });
+    expect(result.status).toBe('FAILED');
+    expect(result.reversed).toBe(true);
+    expect(result.anchorTransferId).toBe('tr-3');
+
+    expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(100_000n);
+    const final = await transactionsRepo.findById(testDb, txn.id);
+    expect(final?.status).toBe('failed');
+  });
 });
 ```
 
@@ -1704,7 +1997,7 @@ Start-Sleep -Seconds 4
 pnpm --filter @amana/backend test tests/modules/transactions/nip-out.service.test.ts
 docker compose down
 git -C "C:/Users/alex_/amana" add apps/backend/tests/modules/transactions/nip-out.service.test.ts
-git -C "C:/Users/alex_/amana" commit -m "test(txn): nip-out.service.send (reservation balances + idempotency + principal-direct)"
+git -C "C:/Users/alex_/amana" commit -m "test(txn): nip-out.service.send (reservation + idempotency + principal-direct + sync-failure reverse path)"
 ```
 
 ---
@@ -1725,6 +2018,8 @@ The fee at MVP is a flat ₦25 (= 2500 kobo) per outbound NIP, per Decision #10.
 ```ts
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { kobo } from '../../lib/kobo';
+import { auditRepo } from '../audit/audit.repo';
+import { auditEvents } from '../audit/events';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { transactionsRepo } from '../wallet/transactions.repo';
@@ -1793,6 +2088,16 @@ export const settlementService = {
         await transactionsRepo.setNibssSessionId(txDb, txn.id, input.nibssSessionId);
       }
       await transactionsRepo.setStatus(txDb, txn.id, 'settled', input.settledAt);
+
+      await auditRepo.append(
+        txDb,
+        auditEvents.txnSettled({
+          transactionId: txn.id,
+          nibssSessionId: input.nibssSessionId,
+          feeKobo: NIP_FEE_KOBO,
+          settledAt: input.settledAt,
+        }),
+      );
     });
   },
 };
@@ -1840,6 +2145,7 @@ async function seedAndSendNip() {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -1960,6 +2266,8 @@ Called from the `transfer.failed` webhook handler. Mirrors the reservation posti
 ```ts
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { kobo } from '../../lib/kobo';
+import { auditRepo } from '../audit/audit.repo';
+import { auditEvents } from '../audit/events';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { transactionsRepo } from '../wallet/transactions.repo';
@@ -1968,7 +2276,7 @@ type DbOrTx = PostgresJsDatabase;
 
 export type ReverseInput = {
   transactionId: string;
-  /** Optional human-readable reason from Anchor; persisted via narration if needed (audit log later). */
+  /** Optional human-readable reason from Anchor; surfaced in the audit log. */
   reason: string | null;
   failedAt: Date;
 };
@@ -2013,6 +2321,16 @@ export const reversalService = {
 
       // Mark original txn failed.
       await transactionsRepo.setStatus(txDb, txn.id, 'failed', input.failedAt);
+
+      await auditRepo.append(
+        txDb,
+        auditEvents.txnFailedReversed({
+          transactionId: txn.id,
+          reversalTransactionId: reversalTxn.id,
+          reason: input.reason,
+          failedAt: input.failedAt,
+        }),
+      );
     });
   },
 };
@@ -2060,6 +2378,7 @@ async function seedAndSendNip() {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -2154,11 +2473,15 @@ Inbound NIP credits to the master virtual account land here via the `virtual_acc
 
 - [ ] **Step 1: Write `apps/backend/src/modules/transactions/topup.service.ts`**
 
+> **Note on `virtualAccountId`:** Anchor's `virtual_account.credited` webhook delivers `virtualAccountId` as Anchor's opaque internal ID (the same `id` we now persist as `master_wallets.anchor_account_id`, per Task 1). We look up by that. Earlier wording said NUBAN — that was wrong; the topup test in T19 also uses the same Anchor-side identifier consistently.
+
 ```ts
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { masterWallets } from '../../db/schema';
 import { kobo, type Kobo } from '../../lib/kobo';
+import { auditRepo } from '../audit/audit.repo';
+import { auditEvents } from '../audit/events';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { transactionsRepo } from '../wallet/transactions.repo';
@@ -2166,7 +2489,7 @@ import { transactionsRepo } from '../wallet/transactions.repo';
 type DbOrTx = PostgresJsDatabase;
 
 export type HandleTopupInput = {
-  /** Anchor virtual account ID that received the credit. We resolve master_wallet by this. */
+  /** Anchor's opaque internal account ID (matches `master_wallets.anchor_account_id`). */
   virtualAccountId: string;
   amountKobo: Kobo;
   nibssSessionId: string;
@@ -2188,7 +2511,7 @@ export const topupService = {
       const [mw] = await txDb
         .select()
         .from(masterWallets)
-        .where(eq(masterWallets.anchorVirtualAccount, input.virtualAccountId))
+        .where(eq(masterWallets.anchorAccountId, input.virtualAccountId))
         .limit(1);
       if (!mw) return { kind: 'unknown_account' as const };
 
@@ -2224,6 +2547,21 @@ export const topupService = {
       ]);
 
       await transactionsRepo.setStatus(txDb, txn.id, 'settled', input.receivedAt);
+
+      await auditRepo.append(
+        txDb,
+        auditEvents.txnToppedUp({
+          transactionId: txn.id,
+          masterWalletId: mw.id,
+          amountKobo: input.amountKobo as bigint,
+          nibssSessionId: input.nibssSessionId,
+          senderBankCode: input.senderBankCode,
+          senderAccountNumber: input.senderAccountNumber,
+          senderAccountName: input.senderAccountName,
+          receivedAt: input.receivedAt,
+        }),
+      );
+
       return { kind: 'created' as const, transactionId: txn.id };
     });
   },
@@ -2265,8 +2603,9 @@ async function seedMaster() {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '9999000099', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-9999',
   });
-  return { masterId: mw.master.id, masterLA: mw.ledgerAccountIds.master, va: '9999000099' };
+  return { masterId: mw.master.id, masterLA: mw.ledgerAccountIds.master, va: 'anchor-acct-9999' };
 }
 
 describe('topupService.handle', () => {
@@ -2340,7 +2679,7 @@ We need a new method on the Anchor adapter to query transfer status. Add it inli
 
 - [ ] **Step 1: Append `findTransferByReference` to `apps/backend/src/integrations/anchor/adapter.ts`**
 
-Inside the `AnchorAdapter` class, after `phoneLookup`:
+`adapter.ts` already imports `AnchorHttpError` at the top — use the static import, not a dynamic one. Inside the `AnchorAdapter` class, after `phoneLookup`:
 
 ```ts
   async findTransferByReference(
@@ -2354,15 +2693,13 @@ Inside the `AnchorAdapter` class, after `phoneLookup`:
         ),
       );
     } catch (e) {
-      if (e instanceof (await import('./client')).AnchorHttpError && e.status === 404) {
+      if (e instanceof AnchorHttpError && e.status === 404) {
         return null;
       }
       throw e;
     }
   }
 ```
-
-(For the dynamic import: we can also just `import { AnchorHttpError } from './client'` at the top of the file and use it directly. The dynamic form keeps imports concise; pick whichever passes typecheck.)
 
 - [ ] **Step 2: Write `apps/backend/src/modules/transactions/reconciliation.service.ts`**
 
@@ -2487,6 +2824,7 @@ async function seedStuckTxn(createdAtIso: string) {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -2580,15 +2918,13 @@ describe('reconciliationService.sweep', () => {
 - [ ] **Step 2: Write `apps/backend/scripts/recon-runner.ts`**
 
 ```ts
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
 import { db } from '../src/db/client';
 import { reconciliationService } from '../src/modules/transactions/reconciliation.service';
 import { AnchorAdapter } from '../src/integrations/anchor/adapter';
 import { AnchorClient } from '../src/integrations/anchor/client';
 import { env } from '../src/env';
 
-async function main() {
+async function main(): Promise<void> {
   const adapter = new AnchorAdapter({
     db,
     client: new AnchorClient({ baseUrl: env.ANCHOR_API_BASE_URL, apiKey: env.ANCHOR_API_KEY }),
@@ -2601,15 +2937,16 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error('recon-runner failed:', e);
-  process.exit(1);
-}).finally(() => process.exit(0));
-
-void dirname;
-void resolve;
-void fileURLToPath; // keep imports for future path-resolution needs
+main().then(
+  () => process.exit(0),
+  (e) => {
+    console.error('recon-runner failed:', e);
+    process.exit(1);
+  },
+);
 ```
+
+> **Why not `.catch(...).finally(process.exit(0))`:** `finally` runs even after `.catch`, and a later `process.exit(0)` overrides the failure exit code from `.catch`. CI would never see recon failures. The `.then(success, failure)` form gives each branch its own terminal exit.
 
 - [ ] **Step 3: Run + commit**
 
@@ -2786,6 +3123,7 @@ async function seedInFlightTxn() {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: 'VA-9999', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-9999',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -2814,7 +3152,9 @@ async function seedInFlightTxn() {
     { ledgerAccountId: sw.ledgerAccountId, debitKobo: kobo(5_000n), creditKobo: kobo(0n) },
     { ledgerAccountId: mw.ledgerAccountIds.suspense, debitKobo: kobo(0n), creditKobo: kobo(5_000n) },
   ]);
-  return { txnId: txn.id, virtualAccount: 'VA-9999', subLA: sw.ledgerAccountId };
+  // `virtualAccount` is what the topup webhook payload's `virtualAccountId` field carries —
+  // Anchor's opaque internal ID, which we now store as anchor_account_id (Task 1).
+  return { txnId: txn.id, virtualAccount: 'anchor-acct-9999', subLA: sw.ledgerAccountId };
 }
 
 describe('POST /webhooks/anchor — dispatch', () => {
@@ -3109,6 +3449,7 @@ async function seedSubWallet() {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -3203,8 +3544,10 @@ The four endpoints the agent app needs to drive a spend:
 - [ ] **Step 1: Write `apps/backend/src/routes/transactions.ts`**
 
 ```ts
+import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { db } from '../db/client';
+import { transactions } from '../db/schema';
 import { anchorAdapterSingleton } from '../integrations/anchor';
 import { actor, type Actor } from '../middleware/actor';
 import { kobo } from '../lib/kobo';
@@ -3258,11 +3601,7 @@ export const transactionsRoute = new Hono()
   })
   .post('/:id/send', async (c) => {
     const id = c.req.param('id');
-    // Look up household ref for narration
-    const txn = await db.query?.transactions?.findFirst?.({ where: (t, { eq }) => eq(t.id, id) });
-    // Drizzle's relational API may not be enabled; fall back to raw query.
-    const { transactions } = await import('../db/schema');
-    const { eq } = await import('drizzle-orm');
+    // Look up the txn + household for narration.
     const [row] = await db.select().from(transactions).where(eq(transactions.id, id)).limit(1);
     if (!row) return c.json({ error: 'not_found' }, 404);
     const mw = await masterWalletsRepo.findById(db, row.masterWalletId);
@@ -3285,7 +3624,6 @@ export const transactionsRoute = new Hono()
   });
 ```
 
-(The `db.query?.transactions?.findFirst?.()` line is a no-op fallback — actual lookup uses the explicit `db.select().from()` below it. Keep both lines as written; the optional-chain fallback documents intent.)
 
 - [ ] **Step 2: Mount in `server.ts`**
 
@@ -3317,6 +3655,7 @@ async function seedFundedSubWallet() {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -3478,6 +3817,7 @@ async function seedBump() {
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
     householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
     role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -3569,8 +3909,10 @@ Single test that walks: intent → evaluate (denies + creates bump) → bump dec
 
 - [ ] **Step 1: Write the test**
 
+The e2e test exercises **every** route in the spend pathway, including `POST /transactions/:id/send`. We mock `anchorAdapterSingleton` (the singleton the route imports) so the call returns a fake `PENDING` response without hitting the network. This catches B1 (wrong `fromAccountId`), B2 (wrong narration tag), and B5 (sync-failure handling) regressions — they would all only show up here if `send` ran for real.
+
 ```ts
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
 import { testDb, truncateAll } from '../helpers/test-db';
 import { factories } from '../helpers/factories';
@@ -3583,24 +3925,46 @@ import { usersRepo } from '../../src/modules/identity/users.repo';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
 import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
+import { hashAgentReference } from '../../src/integrations/anchor/narration';
 
 const SECRET = 'whsec_e2e';
 const sign = (body: string) => createHmac('sha256', SECRET).update(body).digest('hex');
 
-describe('e2e: intent → evaluate → bump → resume → settle', () => {
+// Capture the args the route passes through to adapter.transfer; assert on them
+// to lock B1 (fromAccountId = anchor opaque ID, not NUBAN) and B2 (narration tag = hash of
+// AGENT user_id, not sub-wallet id).
+const transferSpy = vi.fn();
+
+vi.mock('../../src/integrations/anchor', async () => {
+  const actual = await vi.importActual<typeof import('../../src/integrations/anchor')>(
+    '../../src/integrations/anchor',
+  );
+  return {
+    ...actual,
+    anchorAdapterSingleton: {
+      transfer: transferSpy,
+      // The route only uses `transfer` from the singleton; other methods unused here.
+    },
+  };
+});
+
+describe('e2e: intent → evaluate → bump → resume → send → settle', () => {
   beforeEach(async () => {
     await truncateAll();
     process.env.ANCHOR_WEBHOOK_SECRET = SECRET;
+    transferSpy.mockReset();
   });
 
-  it('walks the full bump-and-settle path', async () => {
+  it('walks the full bump-and-settle path through the actual nip-out.send call', async () => {
     // Seed
     const principal = await usersRepo.insert(testDb, {
       role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
     });
     const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
+    const ANCHOR_ACCT = 'anchor-acct-e2e-001';
     const mw = await masterWalletsRepo.provision(testDb, {
       householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+      anchorAccountId: ANCHOR_ACCT,
     });
     const agent = await usersRepo.insert(testDb, {
       role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
@@ -3625,6 +3989,11 @@ describe('e2e: intent → evaluate → bump → resume → settle', () => {
     const idempotencyKey = factories.idempotencyKey();
     const agentHeaders = { 'content-type': 'application/json', 'x-actor-user-id': agent.id, 'x-actor-role': 'agent' };
     const principalHeaders = { 'content-type': 'application/json', 'x-actor-user-id': principal.id, 'x-actor-role': 'principal' };
+
+    // Pre-arm the Anchor mock: route the eventual send call to a PENDING response.
+    transferSpy.mockResolvedValue({
+      id: 'tr-e2e-1', status: 'PENDING', reference: idempotencyKey,
+    });
 
     // 1. Intent
     const intentRes = await app.request('/transactions/intent', {
@@ -3652,7 +4021,7 @@ describe('e2e: intent → evaluate → bump → resume → settle', () => {
     });
     const { oneShotToken } = await decideRes.json() as { oneShotToken: string };
 
-    // 4. Resume after bump
+    // 4. Resume after bump (txn → in_flight)
     const resumeRes = await app.request(`/transactions/${transactionId}/resume-after-bump`, {
       method: 'POST', headers: agentHeaders,
       body: JSON.stringify({ token: oneShotToken }),
@@ -3660,14 +4029,23 @@ describe('e2e: intent → evaluate → bump → resume → settle', () => {
     const resumeBody = await resumeRes.json() as { status: string };
     expect(resumeBody.status).toBe('in_flight');
 
-    // (Skipping POST /:id/send because it would call Anchor; the lifecycle resumed the txn.
-    // Manually post a reservation to simulate what nip-out.send would have done.)
-    await ledgerService.writeDoubleEntry(testDb, transactionId, [
-      { ledgerAccountId: sw.ledgerAccountId, debitKobo: kobo(10_000n), creditKobo: kobo(0n) },
-      { ledgerAccountId: mw.ledgerAccountIds.suspense, debitKobo: kobo(0n), creditKobo: kobo(10_000n) },
-    ]);
+    // 5. Send — exercises the real nip-out.service through the route, hitting the mocked adapter.
+    const sendRes = await app.request(`/transactions/${transactionId}/send`, {
+      method: 'POST', headers: agentHeaders,
+    });
+    expect(sendRes.status).toBe(202);
 
-    // 5. Mock webhook: transfer.completed
+    // B1 + B2 assertions: lock the args we actually pass to Anchor.
+    expect(transferSpy).toHaveBeenCalledTimes(1);
+    const [transferArg, idempArg] = transferSpy.mock.calls[0] as [
+      Parameters<typeof transferSpy>[0],
+      string,
+    ];
+    expect(transferArg.fromAccountId).toBe(ANCHOR_ACCT); // B1: opaque Anchor ID, not NUBAN
+    expect(transferArg.narration).toBe(`AMN/AGT/${hashAgentReference(agent.id)}/${hh.id}`); // B2: hash of agent user_id
+    expect(idempArg).toBe(idempotencyKey);
+
+    // 6. Webhook: transfer.completed
     const webhookBody = JSON.stringify({
       id: 'evt-e2e-1', type: 'transfer.completed', createdAt: '2026-05-03T12:00:30Z',
       data: { transferId: 'tr-e2e-1', reference: idempotencyKey, status: 'COMPLETED', nibssSessionId: 'sess-e2e' },

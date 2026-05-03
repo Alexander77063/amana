@@ -16,10 +16,12 @@
     "@amana/types": "workspace:*",
     "@amana/validation": "workspace:*",
     "@hono/node-server": "1.13.2",
-    "hono": "4.6.5"
+    "hono": "4.6.5",
+    "pino": "9.5.0"
   },
   "devDependencies": {
     "@types/node": "20.16.11",
+    "pino-pretty": "11.2.2",
     "tsx": "4.19.1",
     "typescript": "5.5.4",
     "vitest": "2.1.2"

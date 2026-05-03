@@ -92,6 +92,13 @@
       "when": 1777835269934,
       "tag": "0012_bumps",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1777835376677,
+      "tag": "0013_transactions_bump_fk",
+      "breakpoints": true
     }
   ]
 }

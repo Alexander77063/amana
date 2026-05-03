@@ -121,4 +121,15 @@ describe('transactions.repo', () => {
     expect(found?.settledAt?.toISOString()).toBe(settledAt.toISOString());
     expect(found?.nibssSessionId).toMatch(/^\d+$/);
   });
+
+  it('rejects a transaction with bump_request_id pointing at nonexistent row', async () => {
+    const { masterId } = await seedMaster();
+    const bogusBumpId = factories.txnId();
+    await expect(
+      testDb.execute(sql`
+        INSERT INTO transactions (master_wallet_id, kind, amount_kobo, idempotency_key, bump_request_id)
+        VALUES (${masterId}, 'spend', 100, ${factories.idempotencyKey()}, ${bogusBumpId})
+      `),
+    ).rejects.toThrow(/foreign key/i);
+  });
 });

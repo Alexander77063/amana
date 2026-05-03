@@ -1,7 +1,7 @@
-import { integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { subWallets } from './wallet';
+import { integer, jsonb, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './identity';
+import { subWallets } from './wallet';
 
 export const ruleSetStatusEnum = pgEnum('rule_set_status', ['active', 'superseded']);
 

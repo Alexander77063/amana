@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { kobo } from '../../../../src/lib/kobo';
 import { evaluateTimeWindow } from '../../../../src/modules/rules/evaluators/time-window';
 import type { TimeWindowRuleConfig, TxnIntent } from '../../../../src/modules/rules/types';
-import { kobo } from '../../../../src/lib/kobo';
 
 const intent = (iso: string): TxnIntent => ({
   amountKobo: kobo(0n),

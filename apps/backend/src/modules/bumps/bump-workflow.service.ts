@@ -2,12 +2,12 @@ import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { transactions } from '../../db/schema';
-import { transactionsRepo } from '../wallet/transactions.repo';
-import { bumpRequestsRepo, type BumpRequestRow } from './bump-requests.repo';
-import { oneShotTokensRepo, type OneShotTokenRow } from './one-shot-tokens.repo';
-import { transition, type BumpEvent } from './state-machine';
-import { err, ok, type Result } from '../../lib/result';
 import type { Kobo } from '../../lib/kobo';
+import { type Result, err, ok } from '../../lib/result';
+import { transactionsRepo } from '../wallet/transactions.repo';
+import { type BumpRequestRow, bumpRequestsRepo } from './bump-requests.repo';
+import { type OneShotTokenRow, oneShotTokensRepo } from './one-shot-tokens.repo';
+import { type BumpEvent, transition } from './state-machine';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -115,24 +115,14 @@ export const bumpWorkflowService = {
         if (next.kind === 'ok') {
           // Schema requires decidedByUserId to be a real user; reuse requestedByUserId
           // (semantically: "auto-decided on agent's behalf by the system")
-          await bumpRequestsRepo.setDecision(
-            txDb,
-            row.id,
-            next.value,
-            row.requestedByUserId,
-            now,
-          );
+          await bumpRequestsRepo.setDecision(txDb, row.id, next.value, row.requestedByUserId, now);
         }
       }
       return { expiredCount: expired.length };
     });
   },
 
-  async consumeToken(
-    db: DbOrTx,
-    token: string,
-    now: Date,
-  ): Promise<BumpRequestRow | null> {
+  async consumeToken(db: DbOrTx, token: string, now: Date): Promise<BumpRequestRow | null> {
     return db.transaction(async (tx) => {
       const txDb = tx as DbOrTx;
       const consumed = await oneShotTokensRepo.tryConsume(txDb, token, now);

@@ -1,4 +1,9 @@
-export { bumpRequestsRepo, type BumpRequestRow, type BumpStatus, type NewBumpRequest } from './bump-requests.repo';
+export {
+  bumpRequestsRepo,
+  type BumpRequestRow,
+  type BumpStatus,
+  type NewBumpRequest,
+} from './bump-requests.repo';
 export { oneShotTokensRepo, type OneShotTokenRow } from './one-shot-tokens.repo';
 export { transition, type BumpEvent, type BumpState, type TransitionError } from './state-machine';
 export {

@@ -17,7 +17,9 @@ export const rulesRepo = {
     const values = input.map((r) => ({
       ruleSetId,
       kind: r.kind,
-      configJson: JSON.parse(JSON.stringify(r.config, (_, v) => typeof v === 'bigint' ? v.toString() : v)),
+      configJson: JSON.parse(
+        JSON.stringify(r.config, (_, v) => (typeof v === 'bigint' ? v.toString() : v)),
+      ),
       priority: r.priority,
     }));
     return db.insert(rules).values(values).returning();

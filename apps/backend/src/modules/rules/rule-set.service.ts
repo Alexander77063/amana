@@ -1,7 +1,7 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import type { Rule } from './types';
 import { ruleSetsRepo } from './rule-sets.repo';
 import { rulesRepo } from './rules.repo';
+import type { Rule } from './types';
 
 type DbOrTx = PostgresJsDatabase;
 

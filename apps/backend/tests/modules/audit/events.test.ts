@@ -4,7 +4,10 @@ import { auditEvents } from '../../../src/modules/audit/events';
 describe('auditEvents', () => {
   it('txnRuleEval has the expected shape', () => {
     const e = auditEvents.txnRuleEval({
-      transactionId: 't1', actorUserId: 'u1', ruleSetId: 'rs1', ruleSetVersion: 2,
+      transactionId: 't1',
+      actorUserId: 'u1',
+      ruleSetId: 'rs1',
+      ruleSetVersion: 2,
       decision: { kind: 'allow' },
     });
     expect(e.action).toBe('txn.rule_eval');
@@ -15,8 +18,11 @@ describe('auditEvents', () => {
 
   it('bumpRequested serializes amountKobo as string for JSONB safety', () => {
     const e = auditEvents.bumpRequested({
-      bumpRequestId: 'b1', transactionId: 't1', actorUserId: 'u1',
-      amountKobo: 50000n, vendorResolvedName: 'MAMA',
+      bumpRequestId: 'b1',
+      transactionId: 't1',
+      actorUserId: 'u1',
+      amountKobo: 50000n,
+      vendorResolvedName: 'MAMA',
     });
     expect((e.payloadJson as { amountKobo: string }).amountKobo).toBe('50000');
   });

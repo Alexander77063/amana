@@ -1,9 +1,6 @@
 import type { CategoryRuleConfig, DenialReason, TxnIntent } from '../types';
 
-export function evaluateCategory(
-  cfg: CategoryRuleConfig,
-  intent: TxnIntent,
-): DenialReason | null {
+export function evaluateCategory(cfg: CategoryRuleConfig, intent: TxnIntent): DenialReason | null {
   const category = intent.category;
   const inList = category !== null && cfg.categories.includes(category);
 

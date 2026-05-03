@@ -1,17 +1,17 @@
-import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { sql } from 'drizzle-orm';
-import { kobo, type Kobo } from '../../lib/kobo';
-import { transactionsRepo, type TransactionRow } from '../wallet/transactions.repo';
-import { postingsRepo } from '../wallet/postings.repo';
-import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
-import { evaluate } from '../rules/engine';
-import { fetchActiveRuleSet } from '../rules/rule-set.fetcher';
-import type { Decision, TxnIntent } from '../rules/types';
+import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { type Kobo, kobo } from '../../lib/kobo';
 import { anomalyService } from '../anomaly/anomaly.service';
 import { loadHistoryForSubWallet } from '../anomaly/history.loader';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
 import { bumpWorkflowService } from '../bumps/bump-workflow.service';
+import { evaluate } from '../rules/engine';
+import { fetchActiveRuleSet } from '../rules/rule-set.fetcher';
+import type { Decision, TxnIntent } from '../rules/types';
+import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
+import { postingsRepo } from '../wallet/postings.repo';
+import { type TransactionRow, transactionsRepo } from '../wallet/transactions.repo';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -83,25 +83,40 @@ export const lifecycleService = {
     const history = await loadHistoryForSubWallet(db, txn.subWalletId, input.now);
     const anomaly = anomalyService.score(intent, history);
 
-    await db.execute(sql`UPDATE transactions SET anomaly_score = ${anomaly.score} WHERE id = ${txn.id}`);
-    await auditRepo.append(db, auditEvents.anomalyScored({
-      transactionId: txn.id, score: anomaly.score, features: anomaly.features,
-    }));
+    await db.execute(
+      sql`UPDATE transactions SET anomaly_score = ${anomaly.score} WHERE id = ${txn.id}`,
+    );
+    await auditRepo.append(
+      db,
+      auditEvents.anomalyScored({
+        transactionId: txn.id,
+        score: anomaly.score,
+        features: anomaly.features,
+      }),
+    );
 
     const ruleSet = await fetchActiveRuleSet(db, txn.subWalletId);
     const decision: Decision = ruleSet
       ? evaluate(intent, ruleSet, {
-          ledger: { subWalletAvailableKobo: subBalance, spentLast24hKobo: spent24, spentLast30dKobo: spent30d },
+          ledger: {
+            subWalletAvailableKobo: subBalance,
+            spentLast24hKobo: spent24,
+            spentLast30dKobo: spent30d,
+          },
           anomalyScore: anomaly.score,
         })
       : { kind: 'allow' };
 
-    await auditRepo.append(db, auditEvents.txnRuleEval({
-      transactionId: txn.id, actorUserId: input.initiatingUserId,
-      ruleSetId: ruleSet?.id ?? '00000000-0000-0000-0000-000000000000',
-      ruleSetVersion: ruleSet?.version ?? 0,
-      decision,
-    }));
+    await auditRepo.append(
+      db,
+      auditEvents.txnRuleEval({
+        transactionId: txn.id,
+        actorUserId: input.initiatingUserId,
+        ruleSetId: ruleSet?.id ?? '00000000-0000-0000-0000-000000000000',
+        ruleSetVersion: ruleSet?.version ?? 0,
+        decision,
+      }),
+    );
 
     if (decision.kind === 'allow') {
       await transactionsRepo.setStatus(db, txn.id, 'in_flight');
@@ -117,21 +132,21 @@ export const lifecycleService = {
       vendorResolvedName: intent.vendorResolvedName ?? 'Unknown vendor',
       now: input.now,
     });
-    await auditRepo.append(db, auditEvents.bumpRequested({
-      bumpRequestId: bump.bumpRequest.id,
-      transactionId: txn.id,
-      actorUserId: input.initiatingUserId,
-      amountKobo: intent.amountKobo,
-      vendorResolvedName: intent.vendorResolvedName ?? 'Unknown vendor',
-    }));
+    await auditRepo.append(
+      db,
+      auditEvents.bumpRequested({
+        bumpRequestId: bump.bumpRequest.id,
+        transactionId: txn.id,
+        actorUserId: input.initiatingUserId,
+        amountKobo: intent.amountKobo,
+        vendorResolvedName: intent.vendorResolvedName ?? 'Unknown vendor',
+      }),
+    );
     const updated = (await transactionsRepo.findById(db, txn.id))!;
     return { kind: 'bump_pending', transaction: updated, bumpRequestId: bump.bumpRequest.id };
   },
 
-  async resumeAfterBump(
-    db: DbOrTx,
-    input: { token: string; now: Date },
-  ): Promise<EvaluateOutput> {
+  async resumeAfterBump(db: DbOrTx, input: { token: string; now: Date }): Promise<EvaluateOutput> {
     const bump = await bumpWorkflowService.consumeToken(db, input.token, input.now);
     if (!bump) throw new Error('invalid or already-consumed token');
     if (bump.status !== 'approved_once' && bump.status !== 'raise_limit') {

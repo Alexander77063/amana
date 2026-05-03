@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateLimit } from '../../../../src/modules/rules/evaluators/limit';
-import type { LimitRuleConfig, LedgerSnapshot, TxnIntent } from '../../../../src/modules/rules/types';
 import { kobo } from '../../../../src/lib/kobo';
+import { evaluateLimit } from '../../../../src/modules/rules/evaluators/limit';
+import type {
+  LedgerSnapshot,
+  LimitRuleConfig,
+  TxnIntent,
+} from '../../../../src/modules/rules/types';
 
 const intent = (amount: bigint): TxnIntent => ({
   amountKobo: kobo(amount),
@@ -22,7 +26,9 @@ const ledger = (overrides: Partial<LedgerSnapshot> = {}): LedgerSnapshot => ({
 describe('evaluateLimit', () => {
   it('allows when daily total stays under cap', () => {
     const cfg: LimitRuleConfig = { windowKind: 'daily', maxKobo: 50_000n };
-    expect(evaluateLimit(cfg, intent(10_000n), ledger({ spentLast24hKobo: kobo(20_000n) }))).toBeNull();
+    expect(
+      evaluateLimit(cfg, intent(10_000n), ledger({ spentLast24hKobo: kobo(20_000n) })),
+    ).toBeNull();
   });
 
   it('denies when daily total would exceed cap', () => {
@@ -38,7 +44,11 @@ describe('evaluateLimit', () => {
 
   it('denies when balance is insufficient (separate code from limit)', () => {
     const cfg: LimitRuleConfig = { windowKind: 'daily', maxKobo: 1_000_000n };
-    const r = evaluateLimit(cfg, intent(200_000n), ledger({ subWalletAvailableKobo: kobo(50_000n) }));
+    const r = evaluateLimit(
+      cfg,
+      intent(200_000n),
+      ledger({ subWalletAvailableKobo: kobo(50_000n) }),
+    );
     expect(r?.code).toBe('INSUFFICIENT_FUNDS');
   });
 
@@ -50,6 +60,8 @@ describe('evaluateLimit', () => {
 
   it('returns null (no denial) when amount exactly equals remaining headroom', () => {
     const cfg: LimitRuleConfig = { windowKind: 'daily', maxKobo: 50_000n };
-    expect(evaluateLimit(cfg, intent(30_000n), ledger({ spentLast24hKobo: kobo(20_000n) }))).toBeNull();
+    expect(
+      evaluateLimit(cfg, intent(30_000n), ledger({ spentLast24hKobo: kobo(20_000n) })),
+    ).toBeNull();
   });
 });

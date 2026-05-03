@@ -1,6 +1,6 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { ruleSetsRepo } from './rule-sets.repo';
-import { rulesRepo, type RuleRow } from './rules.repo';
+import { type RuleRow, rulesRepo } from './rules.repo';
 import type { Rule, RuleSet } from './types';
 
 type DbOrTx = PostgresJsDatabase;
@@ -30,7 +30,12 @@ function rowToRule(row: RuleRow): Rule {
     case 'allowlist':
       return { id: row.id, kind: 'allowlist', priority: row.priority, config: config as never };
     case 'anomaly_threshold':
-      return { id: row.id, kind: 'anomaly_threshold', priority: row.priority, config: config as never };
+      return {
+        id: row.id,
+        kind: 'anomaly_threshold',
+        priority: row.priority,
+        config: config as never,
+      };
   }
 }
 

@@ -11,8 +11,7 @@ export function evaluateAllowlist(
 
   const name = intent.vendorResolvedName?.toLowerCase() ?? '';
   const nameMatch =
-    name.length > 0 &&
-    (cfg.nameSubstrings ?? []).some((s) => name.includes(s.toLowerCase()));
+    name.length > 0 && (cfg.nameSubstrings ?? []).some((s) => name.includes(s.toLowerCase()));
   if (nameMatch) return null;
 
   return { code: 'NOT_IN_ALLOWLIST' };

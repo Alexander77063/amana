@@ -1,47 +1,69 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { isErr, isOk } from '../../../src/lib/result';
-import { testDb, truncateAll } from '../../helpers/test-db';
-import { factories } from '../../helpers/factories';
 import { kobo } from '../../../src/lib/kobo';
+import { isErr, isOk } from '../../../src/lib/result';
 import { bumpWorkflowService } from '../../../src/modules/bumps/bump-workflow.service';
-import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
+import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
+import { factories } from '../../helpers/factories';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 async function seedTxn() {
   const principal = await usersRepo.insert(testDb, {
-    role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+    role: 'principal',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '2',
+    bvn: factories.bvn(),
   });
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
-    householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    householdId: hh.id,
+    anchorVirtualAccount: '1234567890',
+    anchorBankCode: '058',
   });
   const agent = await usersRepo.insert(testDb, {
-    role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+    role: 'agent',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '1',
   });
   const sw = await subWalletsRepo.provision(testDb, {
-    masterWalletId: mw.master.id, agentUserId: agent.id, name: 'Driver',
+    masterWalletId: mw.master.id,
+    agentUserId: agent.id,
+    name: 'Driver',
   });
   const txn = await transactionsRepo.insert(testDb, {
-    masterWalletId: mw.master.id, subWalletId: sw.sub.id,
-    kind: 'spend', amountKobo: kobo(50_000n), idempotencyKey: factories.idempotencyKey(),
+    masterWalletId: mw.master.id,
+    subWalletId: sw.sub.id,
+    kind: 'spend',
+    amountKobo: kobo(50_000n),
+    idempotencyKey: factories.idempotencyKey(),
   });
   return {
-    principalId: principal.id, agentId: agent.id, subWalletId: sw.sub.id, txnId: txn.id,
+    principalId: principal.id,
+    agentId: agent.id,
+    subWalletId: sw.sub.id,
+    txnId: txn.id,
   };
 }
 
 describe('bumpWorkflowService.create', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('creates a pending bump_request + sets transaction.status=bump_pending + sets transaction.bump_request_id', async () => {
     const { agentId, subWalletId, txnId } = await seedTxn();
     const now = new Date('2026-05-03T12:00:00Z');
     const created = await bumpWorkflowService.create(testDb, {
-      transactionId: txnId, subWalletId, requestedByUserId: agentId,
-      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
+      transactionId: txnId,
+      subWalletId,
+      requestedByUserId: agentId,
+      amountKobo: kobo(50_000n),
+      vendorResolvedName: 'MAMA',
       now,
     });
     expect(created.bumpRequest.status).toBe('pending');
@@ -55,27 +77,39 @@ describe('bumpWorkflowService.create', () => {
     const { agentId, subWalletId, txnId } = await seedTxn();
     const now = new Date('2026-05-03T12:00:00Z');
     const created = await bumpWorkflowService.create(testDb, {
-      transactionId: txnId, subWalletId, requestedByUserId: agentId,
-      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
-      now, ttlMinutes: 5,
+      transactionId: txnId,
+      subWalletId,
+      requestedByUserId: agentId,
+      amountKobo: kobo(50_000n),
+      vendorResolvedName: 'MAMA',
+      now,
+      ttlMinutes: 5,
     });
     expect(created.bumpRequest.expiresAt.getTime() - now.getTime()).toBe(5 * 60 * 1000);
   });
 });
 
 describe('bumpWorkflowService.decide', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('approve_once → status=approved_once + one-shot token issued', async () => {
     const { principalId, agentId, subWalletId, txnId } = await seedTxn();
     const now = new Date('2026-05-03T12:00:00Z');
     const created = await bumpWorkflowService.create(testDb, {
-      transactionId: txnId, subWalletId, requestedByUserId: agentId,
-      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA', now,
+      transactionId: txnId,
+      subWalletId,
+      requestedByUserId: agentId,
+      amountKobo: kobo(50_000n),
+      vendorResolvedName: 'MAMA',
+      now,
     });
     const result = await bumpWorkflowService.decide(testDb, {
-      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
-      decision: 'approve_once', now: new Date('2026-05-03T12:05:00Z'),
+      bumpRequestId: created.bumpRequest.id,
+      decidedByUserId: principalId,
+      decision: 'approve_once',
+      now: new Date('2026-05-03T12:05:00Z'),
     });
     expect(isOk(result)).toBe(true);
     if (isOk(result)) {
@@ -88,13 +122,18 @@ describe('bumpWorkflowService.decide', () => {
   it('deny → status=denied + no token', async () => {
     const { principalId, agentId, subWalletId, txnId } = await seedTxn();
     const created = await bumpWorkflowService.create(testDb, {
-      transactionId: txnId, subWalletId, requestedByUserId: agentId,
-      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
+      transactionId: txnId,
+      subWalletId,
+      requestedByUserId: agentId,
+      amountKobo: kobo(50_000n),
+      vendorResolvedName: 'MAMA',
       now: new Date('2026-05-03T12:00:00Z'),
     });
     const result = await bumpWorkflowService.decide(testDb, {
-      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
-      decision: 'deny', now: new Date('2026-05-03T12:05:00Z'),
+      bumpRequestId: created.bumpRequest.id,
+      decidedByUserId: principalId,
+      decision: 'deny',
+      now: new Date('2026-05-03T12:05:00Z'),
     });
     expect(isOk(result)).toBe(true);
     if (isOk(result)) {
@@ -106,13 +145,19 @@ describe('bumpWorkflowService.decide', () => {
   it('returns BUMP_EXPIRED when now > expiresAt', async () => {
     const { principalId, agentId, subWalletId, txnId } = await seedTxn();
     const created = await bumpWorkflowService.create(testDb, {
-      transactionId: txnId, subWalletId, requestedByUserId: agentId,
-      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
-      now: new Date('2026-05-03T12:00:00Z'), ttlMinutes: 5,
+      transactionId: txnId,
+      subWalletId,
+      requestedByUserId: agentId,
+      amountKobo: kobo(50_000n),
+      vendorResolvedName: 'MAMA',
+      now: new Date('2026-05-03T12:00:00Z'),
+      ttlMinutes: 5,
     });
     const result = await bumpWorkflowService.decide(testDb, {
-      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
-      decision: 'approve_once', now: new Date('2026-05-03T12:10:00Z'),
+      bumpRequestId: created.bumpRequest.id,
+      decidedByUserId: principalId,
+      decision: 'approve_once',
+      now: new Date('2026-05-03T12:10:00Z'),
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('BUMP_EXPIRED');
@@ -121,17 +166,24 @@ describe('bumpWorkflowService.decide', () => {
   it('returns INVALID_TRANSITION when bump is already decided', async () => {
     const { principalId, agentId, subWalletId, txnId } = await seedTxn();
     const created = await bumpWorkflowService.create(testDb, {
-      transactionId: txnId, subWalletId, requestedByUserId: agentId,
-      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
+      transactionId: txnId,
+      subWalletId,
+      requestedByUserId: agentId,
+      amountKobo: kobo(50_000n),
+      vendorResolvedName: 'MAMA',
       now: new Date('2026-05-03T12:00:00Z'),
     });
     await bumpWorkflowService.decide(testDb, {
-      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
-      decision: 'approve_once', now: new Date('2026-05-03T12:05:00Z'),
+      bumpRequestId: created.bumpRequest.id,
+      decidedByUserId: principalId,
+      decision: 'approve_once',
+      now: new Date('2026-05-03T12:05:00Z'),
     });
     const result = await bumpWorkflowService.decide(testDb, {
-      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
-      decision: 'deny', now: new Date('2026-05-03T12:06:00Z'),
+      bumpRequestId: created.bumpRequest.id,
+      decidedByUserId: principalId,
+      decision: 'deny',
+      now: new Date('2026-05-03T12:06:00Z'),
     });
     expect(isErr(result)).toBe(true);
     if (isErr(result)) expect(result.error.code).toBe('INVALID_TRANSITION');
@@ -139,14 +191,20 @@ describe('bumpWorkflowService.decide', () => {
 });
 
 describe('bumpWorkflowService.sweepExpired', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('marks all pending bumps past expiresAt as expired', async () => {
     const { agentId, subWalletId, txnId } = await seedTxn();
     await bumpWorkflowService.create(testDb, {
-      transactionId: txnId, subWalletId, requestedByUserId: agentId,
-      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
-      now: new Date('2026-05-03T12:00:00Z'), ttlMinutes: 5,
+      transactionId: txnId,
+      subWalletId,
+      requestedByUserId: agentId,
+      amountKobo: kobo(50_000n),
+      vendorResolvedName: 'MAMA',
+      now: new Date('2026-05-03T12:00:00Z'),
+      ttlMinutes: 5,
     });
     const out = await bumpWorkflowService.sweepExpired(testDb, new Date('2026-05-03T12:10:00Z'));
     expect(out.expiredCount).toBe(1);
@@ -159,26 +217,41 @@ describe('bumpWorkflowService.sweepExpired', () => {
 });
 
 describe('bumpWorkflowService.consumeToken', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('returns the bump_request the first time and null the second', async () => {
     const { principalId, agentId, subWalletId, txnId } = await seedTxn();
     const created = await bumpWorkflowService.create(testDb, {
-      transactionId: txnId, subWalletId, requestedByUserId: agentId,
-      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
+      transactionId: txnId,
+      subWalletId,
+      requestedByUserId: agentId,
+      amountKobo: kobo(50_000n),
+      vendorResolvedName: 'MAMA',
       now: new Date('2026-05-03T12:00:00Z'),
     });
     const decision = await bumpWorkflowService.decide(testDb, {
-      bumpRequestId: created.bumpRequest.id, decidedByUserId: principalId,
-      decision: 'approve_once', now: new Date('2026-05-03T12:05:00Z'),
+      bumpRequestId: created.bumpRequest.id,
+      decidedByUserId: principalId,
+      decision: 'approve_once',
+      now: new Date('2026-05-03T12:05:00Z'),
     });
     const tok = isOk(decision) ? decision.value.oneShotToken?.token : undefined;
     expect(tok).toBeDefined();
 
-    const first = await bumpWorkflowService.consumeToken(testDb, tok!, new Date('2026-05-03T12:06:00Z'));
+    const first = await bumpWorkflowService.consumeToken(
+      testDb,
+      tok!,
+      new Date('2026-05-03T12:06:00Z'),
+    );
     expect(first?.id).toBe(created.bumpRequest.id);
 
-    const second = await bumpWorkflowService.consumeToken(testDb, tok!, new Date('2026-05-03T12:07:00Z'));
+    const second = await bumpWorkflowService.consumeToken(
+      testDb,
+      tok!,
+      new Date('2026-05-03T12:07:00Z'),
+    );
     expect(second).toBeNull();
   });
 

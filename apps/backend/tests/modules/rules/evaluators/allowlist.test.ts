@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { kobo } from '../../../../src/lib/kobo';
 import { evaluateAllowlist } from '../../../../src/modules/rules/evaluators/allowlist';
 import type { AllowlistRuleConfig, TxnIntent } from '../../../../src/modules/rules/types';
-import { kobo } from '../../../../src/lib/kobo';
 
 const intent = (overrides: Partial<TxnIntent> = {}): TxnIntent => ({
   amountKobo: kobo(0n),
@@ -18,7 +18,10 @@ describe('evaluateAllowlist', () => {
     const cfg: AllowlistRuleConfig = {
       accounts: [{ bankCode: '058', accountNumber: '0123456789' }],
     };
-    const r = evaluateAllowlist(cfg, intent({ vendorBankCode: '058', vendorAccountNumber: '0123456789' }));
+    const r = evaluateAllowlist(
+      cfg,
+      intent({ vendorBankCode: '058', vendorAccountNumber: '0123456789' }),
+    );
     expect(r).toBeNull();
   });
 
@@ -27,10 +30,14 @@ describe('evaluateAllowlist', () => {
       accounts: [{ bankCode: '058', accountNumber: '0123456789' }],
       nameSubstrings: ['MAMA'],
     };
-    const r = evaluateAllowlist(cfg, intent({
-      vendorBankCode: '058', vendorAccountNumber: '9999999999',
-      vendorResolvedName: 'JOHN DOE',
-    }));
+    const r = evaluateAllowlist(
+      cfg,
+      intent({
+        vendorBankCode: '058',
+        vendorAccountNumber: '9999999999',
+        vendorResolvedName: 'JOHN DOE',
+      }),
+    );
     expect(r?.code).toBe('NOT_IN_ALLOWLIST');
   });
 

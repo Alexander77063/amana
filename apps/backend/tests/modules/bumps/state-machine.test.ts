@@ -1,10 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { transition, type BumpEvent, type BumpState } from '../../../src/modules/bumps/state-machine';
 import { isErr, isOk } from '../../../src/lib/result';
+import {
+  type BumpEvent,
+  type BumpState,
+  transition,
+} from '../../../src/modules/bumps/state-machine';
 
 describe('bump state machine', () => {
   it('pending → approved_once on approve_once', () => {
-    const r = transition('pending' satisfies BumpState, { kind: 'approve_once' } satisfies BumpEvent);
+    const r = transition(
+      'pending' satisfies BumpState,
+      { kind: 'approve_once' } satisfies BumpEvent,
+    );
     expect(isOk(r)).toBe(true);
     if (isOk(r)) expect(r.value).toBe('approved_once');
   });

@@ -1,8 +1,8 @@
 import { sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { auditRepo } from '../../../src/modules/audit/audit.repo';
-import { factories } from '../../helpers/factories';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('audit_log (immutability)', () => {

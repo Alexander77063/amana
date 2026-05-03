@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { kobo } from '../../../../src/lib/kobo';
 import { evaluateCategory } from '../../../../src/modules/rules/evaluators/category';
 import type { CategoryRuleConfig, TxnIntent } from '../../../../src/modules/rules/types';
-import { kobo } from '../../../../src/lib/kobo';
 
 const intent = (category: string | null): TxnIntent => ({
   amountKobo: kobo(0n),

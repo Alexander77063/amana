@@ -3,13 +3,16 @@ import { evaluateAnomalyThreshold } from './evaluators/anomaly-threshold';
 import { evaluateCategory } from './evaluators/category';
 import { evaluateLimit } from './evaluators/limit';
 import { evaluateTimeWindow } from './evaluators/time-window';
-import type { Decision, DenialReason, Rule, RuleEvaluationContext, RuleSet, TxnIntent } from './types';
+import type {
+  Decision,
+  DenialReason,
+  Rule,
+  RuleEvaluationContext,
+  RuleSet,
+  TxnIntent,
+} from './types';
 
-function evalRule(
-  rule: Rule,
-  intent: TxnIntent,
-  ctx: RuleEvaluationContext,
-): DenialReason | null {
+function evalRule(rule: Rule, intent: TxnIntent, ctx: RuleEvaluationContext): DenialReason | null {
   switch (rule.kind) {
     case 'limit':
       return evaluateLimit(rule.config, intent, ctx.ledger);

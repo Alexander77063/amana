@@ -1,5 +1,5 @@
-import type { AuditEntry } from './audit.repo';
 import type { Decision } from '../rules/types';
+import type { AuditEntry } from './audit.repo';
 
 export const auditEvents = {
   txnRuleEval(input: {
@@ -17,7 +17,11 @@ export const auditEvents = {
       subjectId: input.transactionId,
       payloadJson: JSON.parse(
         JSON.stringify(
-          { ruleSetId: input.ruleSetId, ruleSetVersion: input.ruleSetVersion, decision: input.decision },
+          {
+            ruleSetId: input.ruleSetId,
+            ruleSetVersion: input.ruleSetVersion,
+            decision: input.decision,
+          },
           (_, v) => (typeof v === 'bigint' ? v.toString() : v),
         ),
       ),

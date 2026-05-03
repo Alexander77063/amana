@@ -1,4 +1,4 @@
-import { err, ok, type Result } from '../../lib/result';
+import { type Result, err, ok } from '../../lib/result';
 
 export type BumpState = 'pending' | 'approved_once' | 'raise_limit' | 'denied' | 'expired';
 
@@ -11,10 +11,7 @@ export type BumpEvent =
 
 export type TransitionError = { code: 'INVALID_TRANSITION'; from: BumpState; event: BumpEvent };
 
-export function transition(
-  state: BumpState,
-  event: BumpEvent,
-): Result<BumpState, TransitionError> {
+export function transition(state: BumpState, event: BumpEvent): Result<BumpState, TransitionError> {
   if (state !== 'pending') {
     return err({ code: 'INVALID_TRANSITION', from: state, event });
   }

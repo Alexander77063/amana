@@ -1,7 +1,7 @@
 import { amountZscore } from './features/amount-zscore';
 import { hourOfDay } from './features/hour-of-day';
-import { vendorNovelty } from './features/vendor-novelty';
 import { velocity } from './features/velocity';
+import { vendorNovelty } from './features/vendor-novelty';
 import type { AnomalyHistory, AnomalyResult, ScoringIntent } from './types';
 
 export type FeatureWeights = {

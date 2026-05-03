@@ -1,8 +1,8 @@
-import { bigint, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
-import { subWallets } from './wallet';
-import { transactions } from './transactions';
+import { bigint, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './identity';
+import { transactions } from './transactions';
+import { subWallets } from './wallet';
 
 export const bumpStatusEnum = pgEnum('bump_status', [
   'pending',

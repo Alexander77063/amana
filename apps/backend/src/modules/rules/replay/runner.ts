@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
-import { evaluate } from '../engine';
-import type { CaseRecord } from './capture';
-import type { Decision } from '../types';
 import { kobo } from '../../../lib/kobo';
+import { evaluate } from '../engine';
+import type { Decision } from '../types';
+import type { CaseRecord } from './capture';
 
 export interface ReplayResult {
   matched: number;
@@ -27,7 +27,9 @@ function reviver(key: string, value: unknown): unknown {
 function castRecord(raw: unknown): CaseRecord {
   const r = raw as CaseRecord;
   r.intent.amountKobo = kobo(r.intent.amountKobo as unknown as bigint);
-  r.ctx.ledger.subWalletAvailableKobo = kobo(r.ctx.ledger.subWalletAvailableKobo as unknown as bigint);
+  r.ctx.ledger.subWalletAvailableKobo = kobo(
+    r.ctx.ledger.subWalletAvailableKobo as unknown as bigint,
+  );
   r.ctx.ledger.spentLast24hKobo = kobo(r.ctx.ledger.spentLast24hKobo as unknown as bigint);
   r.ctx.ledger.spentLast30dKobo = kobo(r.ctx.ledger.spentLast30dKobo as unknown as bigint);
   return r;

@@ -43,6 +43,8 @@ The spend pattern is structurally identical: a principal funds, delegates spendi
 
 **A third pattern cuts across both segments: ad-hoc tradesman / one-off payments** — paying a mechanic, vulcaniser, electrician, plumber, casual labour. Households need it for emergency car / home repairs; SMBs need it for fleet repairs and emergency contractor calls. This is treated as a first-class flow in the agent app (§7.4 — phone-number lookup, large in-person name verification, optional photo + note + GPS, post-payment "show the recipient" screen).
 
+**The principal is a first-class spender too, not just a controller** (decision #17). In most households the principal is the heaviest spender — rent, utilities, school fees, large purchases. In SMBs the owner often handles supplier payments and larger one-offs while delegating petty/operational spend to staff. The Principal App therefore exposes the full vendor-capture stack (NQR scan, phone lookup, typed account, recents) and the ad-hoc tradesman flow. Principal direct spend bypasses the rule engine and bump flow (the principal has full authority over their own funds) but anomaly scoring and the audit log still apply.
+
 ### Foundational principle
 Phone-to-phone is the main thing. It is the differentiating mechanic and must remain visible in the architecture, the UX, and the brand. Card-centric or merchant-centric framings are explicitly rejected.
 
@@ -73,6 +75,7 @@ These decisions were taken during the brainstorm and are inputs to this spec, no
     - **MVP-vs-later split:** MVP = B + C only; A ships in v1.1. Sticker-resolution backend stub (schema + lookup endpoint) ships in MVP so v1.1 is not a retrofit.
 15. **Agent attribution / NIP narration** — Outbound NIP narration carries a hashed agent reference (e.g. `AMN/AGT/abc12`) plus the principal's wallet reference. The agent's full NIN is held in our audit log only. Satisfies CBN/NFIU AML obligations without leaking domestic staff's NIN into the principal's bank-statement narration.
 16. **Ad-hoc tradesman / one-off payments** — A first-class supported pattern. Phone-number-to-account resolution added to capture path C; large in-person name verification UX; pre-defined "ad-hoc service" category with principal-set rules; optional photo/note/GPS capture at confirm time, stored in audit log; "show the recipient" post-payment screen. All MVP scope. See §7.4.
+17. **Principal direct payments** — Principal can pay directly from the master wallet through the Principal App, using the same vendor-capture stack as agents. Direct spend has `sub_wallet_id = NULL`; rule engine and bump flow skipped (principal has full authority); anomaly scoring still runs; narration uses a simpler `AMN/[household ref]` form. MVP scope. See §6 lifecycle and §7 capture.
 
 ---
 
@@ -118,7 +121,7 @@ The MVP backend is **7 modules** + **2 client apps** + **2 partner integrations*
 
 ### Client apps
 
-- **8. Principal App (iOS + Android)** — master wallet view, sub-wallet creation, rule editor, real-time activity feed, bump approvals, suspend/resume agents, statement export, KYC upgrade flow.
+- **8. Principal App (iOS + Android)** — master wallet view, **direct payments from master wallet** (full vendor-capture stack: NQR scan, phone lookup, typed account, recents, ad-hoc tradesman flow per §7.4 — see decision #17), sub-wallet creation, rule editor, real-time activity feed, bump approvals, suspend/resume agents, statement export, KYC upgrade flow.
 - **9. Agent App (iOS + Android)** — sub-wallet view, NQR scan, typed-account flow with NIBSS name enquiry, recents list, request-bump, receipts. NFC pairing to principal phone in MVP; NFC sticker tap-read in v1.1.
 
 ### Partner integrations (behind the adapter)
@@ -328,6 +331,16 @@ DRAFT  →  RULE_EVAL  →  IN_FLIGHT  →  SETTLED
 - `IN_FLIGHT → FAILED` on Anchor failure webhook OR on reconciliation timeout (Anchor status query confirms failure); suspense reversed.
 - `SETTLED → REVERSED` only via inbound NIP refund (re-credits originating sub-wallet) or successful recall request — never automatic.
 
+### Principal direct spend (decision #17)
+
+When the principal pays directly from the master wallet (`sub_wallet_id IS NULL`), the lifecycle is the same shape but degenerate:
+
+- `DRAFT → RULE_EVAL` on principal confirm.
+- `RULE_EVAL` short-circuits to **ALLOW** without evaluating rules (principal has full authority over their own funds). Anomaly scoring still runs and writes an audit-log entry; if score ≥ 0.85 a high-priority alert fires to the principal's secondary channel (e.g. email) but the txn is **not** auto-blocked.
+- `BUMP_PENDING` is unreachable — principal does not bump themselves.
+- `IN_FLIGHT → SETTLED / FAILED / REVERSED` work identically to the agent path.
+- Ledger postings: debit a master-wallet ledger account, credit suspense; on settle, credit the external counter-account. No sub-wallet entry involved.
+
 ### Happy path (vendor payment, end-to-end)
 
 1. **Agent captures vendor** — NQR scan, typed account, or recents pick.
@@ -350,7 +363,7 @@ DRAFT  →  RULE_EVAL  →  IN_FLIGHT  →  SETTLED
 
 ## 7. Vendor capture (decision #14, MVP scope)
 
-**Layered, lowest-friction-first. Money still moves via NIP in all cases.**
+**Layered, lowest-friction-first. Money still moves via NIP in all cases. Available identically to both agents (spending from a sub-wallet) and principals (spending directly from the master wallet — decision #17).**
 
 At MVP: **B + C only.** A ships in v1.1.
 
@@ -403,8 +416,11 @@ After pairing, the agent completes Phone + NIN identity verification. Because th
 - **Principal — Tier 3** upgrade: triggered when balance approaches ₦300K; adds address verification.
 - **Agent**: Phone + NIN only; no own balance, only spending authority. NIN attaches to every txn for AML.
 
-### Per-txn agent attribution (decision #15)
-Outbound NIP narration carries a hashed agent reference (e.g. `AMN/AGT/abc12`) + the principal's wallet reference. The full agent NIN is held in our audit log only, linked to the same hashed reference. Recipient bank's CBN reporting captures the hashed actor; if NFIU requests, we resolve.
+### Per-txn actor attribution (decisions #15 and #17)
+- **Agent-originated spend** (`sub_wallet_id` set): outbound NIP narration carries a hashed agent reference (e.g. `AMN/AGT/abc12`) + the principal's wallet reference. The full agent NIN is held in our audit log only, linked to the same hashed reference. Recipient bank's CBN reporting captures the hashed actor; if NFIU requests, we resolve.
+- **Principal-originated spend** (`sub_wallet_id IS NULL`): narration uses the simpler form `AMN/[household ref]` — no hashed-actor segment needed since the principal is fully KYC'd at Tier 2/3 and is the legal owner of the funds. The principal's NIN is already linked to the master wallet at Anchor; the recipient bank's report identifies the principal directly.
+
+The narration formatter (in the BaaS Adapter) selects the template based on whether `sub_wallet_id` is set.
 
 ### Sanctions / PEP screening
 Run via Anchor at principal onboarding. Re-run on any txn above ₦5M (won't trigger at MVP given Tier 2 cap, but plumbed now).

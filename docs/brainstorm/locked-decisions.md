@@ -49,3 +49,13 @@ Controlled-spend wallet where a principal (parent or employer) funds a master wa
     - **Optional photo + note + geolocation capture** at confirm time — agent attaches evidence (photo of work, short note, GPS). Lives in the audit log alongside the txn. Useful for principal trust, dispute support, and (for SMBs) ops accountability.
     - **"Show the recipient" post-payment screen** — agent can show tradesman a confirmation screen with the NIBSS session ID and "Should arrive within 30 seconds." Closes the trust loop in person without needing the recipient to install anything.
     - **Why:** ad-hoc tradesman spend is a major real-world Nigerian pattern, especially for delegated spend. Without these affordances, agents will either route around Amana for these spends (defeats the purpose) or rely on bump-bypass loopholes (defeats the controls). All MVP scope.
+
+17. **Principal direct payments** — The principal can make payments directly from the master wallet through the Principal App, using the same vendor capture stack as agents (NQR scan, phone lookup, typed account, recents) and the same ad-hoc tradesman affordances (#16). Architectural treatment:
+    - **No sub-wallet involved.** Direct master-wallet spend → `transactions.sub_wallet_id IS NULL`. The schema is already prepared (the column is already nullable); no migration required.
+    - **Rule engine skipped (degenerate ALLOW).** Principal has full authority over their own funds; no rule evaluation, no bump flow.
+    - **Anomaly scoring still applies.** Useful for fraud detection on a compromised principal account; flags an alert but does not auto-block.
+    - **Narration uses simpler form.** Outbound NIP narration is `AMN/[household ref]` — no hashed-actor segment needed since the principal is fully KYC'd at Tier 2/3 and is the legal owner of the funds.
+    - **Audit log captures principal as actor.**
+    - **Why:** principal is the largest spender in most households (rent, utilities, school fees, large purchases) and in many SMBs (supplier payments, payroll, larger one-offs). Forcing them through a "self sub-wallet" is awkward UX and adds no value.
+    - **How to apply:** principal app gets the same vendor-capture screens as the agent app, with a simpler confirm flow (no rule decision shown, no bump path). Backend short-circuits rule_eval and bump for principal-originated txns. Narration formatter selects the principal-form template when `sub_wallet_id IS NULL`.
+    - **Out of scope at MVP (worth flagging for future):** principal "self-rules" (e.g., self-imposed daily spending caps, second-factor for large txns, time-window self-locks) — possible v1.x feature, not MVP.

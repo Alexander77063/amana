@@ -69,6 +69,17 @@ export class AnchorAdapter {
     );
   }
 
+  async phoneLookup(
+    input: import('./types').AnchorPhoneLookupRequest,
+  ): Promise<import('./types').AnchorPhoneLookupResponse> {
+    const qs = `?phoneNumber=${encodeURIComponent(input.phoneNumber)}`;
+    return this.breaker.exec(() =>
+      this.executeWithRetry(() =>
+        this.client.get<import('./types').AnchorPhoneLookupResponse>(`/nibss/phone-lookup${qs}`),
+      ),
+    );
+  }
+
   async transfer(
     input: import('./types').AnchorTransferRequest,
     idempotencyKey: string,

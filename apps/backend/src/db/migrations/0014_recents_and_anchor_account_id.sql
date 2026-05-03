@@ -1,3 +1,7 @@
+-- NOTE: anchor_account_id is NOT NULL with no DEFAULT.
+-- Safe only on fresh dev DBs (all rows dropped on teardown).
+-- Production promotion requires UPDATE master_wallets SET anchor_account_id = '<anchor-id>'
+-- BEFORE this migration runs, or the ALTER TABLE will fail with a NOT NULL violation.
 CREATE TABLE IF NOT EXISTS "vendor_recents" (
 	"sub_wallet_id" uuid NOT NULL,
 	"bank_code" text NOT NULL,

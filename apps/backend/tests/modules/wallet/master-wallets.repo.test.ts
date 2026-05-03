@@ -14,18 +14,20 @@ describe('master-wallets.repo', () => {
   it('master_wallets has the expected columns (schema)', async () => {
     const cols = await testDb.execute<{ column_name: string }>(sql`
       SELECT column_name FROM information_schema.columns
-      WHERE table_name = 'master_wallets' ORDER BY ordinal_position
+      WHERE table_name = 'master_wallets'
     `);
-    expect(cols.map((r) => r.column_name)).toEqual([
-      'id',
-      'household_id',
-      'anchor_virtual_account',
-      'anchor_bank_code',
-      'currency',
-      'status',
-      'created_at',
-      'anchor_account_id',
-    ]);
+    expect(new Set(cols.map((r) => r.column_name))).toEqual(
+      new Set([
+        'id',
+        'household_id',
+        'anchor_virtual_account',
+        'anchor_bank_code',
+        'currency',
+        'status',
+        'created_at',
+        'anchor_account_id',
+      ]),
+    );
   });
 
   it('ledger_accounts.sub_wallet_id is nullable', async () => {

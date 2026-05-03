@@ -12,15 +12,21 @@ The spend pattern is structurally identical in both: principal funds, delegates 
 
 ## Status
 
-MVP design spec complete (2026-05-03). 15 decisions locked. Awaiting user review of the spec before transitioning to implementation planning.
+MVP design spec complete (2026-05-03). 18 decisions locked. Phase 0 implementation plan written; ready to execute.
 
-- **Design spec (READ THIS):** `docs/superpowers/specs/2026-05-03-amana-design.md`
-- Locked decisions (the 15): `docs/brainstorm/locked-decisions.md`
-- Brand brief: `docs/brainstorm/brand.md`
+- **Design spec:** `docs/superpowers/specs/2026-05-03-amana-design.md`
+- **Locked decisions (18):** `docs/brainstorm/locked-decisions.md`
+- **Brand brief:** `docs/brainstorm/brand.md`
+- **Implementation plans:** `docs/superpowers/plans/`
+- **Architecture decision records:** `docs/adr/`
+
+## Develop
+
+See `docs/runbook/local-dev.md`.
 
 ## Workflow
 
-1. Brainstorm → 15 locked decisions ✅
+1. Brainstorm → 18 locked decisions ✅
 2. Design spec ✅
-3. Writing-plans → produces implementation plan (next)
-4. Build POC scaffolding, business plan, architectural design doc, tech stack write-up
+3. Sub-plan 1 — Phase 0 bootstrap (this plan)
+4. Sub-plans 2–8 — backend core, vendor capture, notifications, mobile apps, hardening

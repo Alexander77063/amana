@@ -32,6 +32,19 @@ export class AnchorAdapter {
     this.breaker = new CircuitBreaker(config.circuitConfig ?? DEFAULT_CIRCUIT);
   }
 
+  async provisionVirtualAccount(
+    input: { customerId: string; label: string },
+    idempotencyKey: string,
+  ): Promise<import('./types').AnchorVirtualAccount> {
+    return this.execIdempotent('anchor.virtual_account', idempotencyKey, () =>
+      this.client.post<import('./types').AnchorVirtualAccount>(
+        '/virtual-accounts',
+        { customerId: input.customerId, label: input.label },
+        { idempotencyKey },
+      ),
+    );
+  }
+
   async execIdempotent<R>(scope: string, key: string, fn: () => Promise<R>): Promise<R> {
     const cached = await this.lookupCached<R>(key);
     if (cached !== undefined) return cached;

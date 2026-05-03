@@ -1,0 +1,9 @@
+# Default owners for everything.
+*       @alex_
+
+# Specific surfaces — adjust when the team grows.
+/apps/backend/                  @alex_
+/apps/principal/                @alex_
+/apps/agent/                    @alex_
+/packages/                      @alex_
+/docs/superpowers/              @alex_

@@ -1,0 +1,70 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  HUSKY: 0
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: amana
+          POSTGRES_PASSWORD: amana_dev_only
+          POSTGRES_DB: amana_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U amana -d amana_dev"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.18.0'
+          cache: 'pnpm'
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm exec biome check .
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+      - name: Apply migrations
+        env:
+          DATABASE_URL: postgres://amana:amana_dev_only@localhost:5432/amana_dev
+        run: pnpm --filter @amana/backend db:migrate
+
+      - name: Test
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgres://amana:amana_dev_only@localhost:5432/amana_dev
+        run: pnpm test

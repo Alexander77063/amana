@@ -45,6 +45,19 @@ export class AnchorAdapter {
     );
   }
 
+  async requestKycUpgrade(
+    input: import('./types').AnchorKycUpgradeRequest,
+    idempotencyKey: string,
+  ): Promise<import('./types').AnchorKycUpgradeResponse> {
+    return this.execIdempotent('anchor.kyc_upgrade', idempotencyKey, () =>
+      this.client.post<import('./types').AnchorKycUpgradeResponse>(
+        '/kyc-verifications',
+        input,
+        { idempotencyKey },
+      ),
+    );
+  }
+
   async execIdempotent<R>(scope: string, key: string, fn: () => Promise<R>): Promise<R> {
     const cached = await this.lookupCached<R>(key);
     if (cached !== undefined) return cached;

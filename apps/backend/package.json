@@ -10,18 +10,23 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@amana/types": "workspace:*",
     "@amana/validation": "workspace:*",
     "@hono/node-server": "1.13.2",
+    "drizzle-orm": "0.34.1",
     "hono": "4.6.5",
     "pino": "9.5.0",
+    "postgres": "3.4.4",
     "zod": "3.23.8"
   },
   "devDependencies": {
     "@types/node": "20.16.11",
+    "drizzle-kit": "0.25.0",
     "pino-pretty": "11.2.2",
     "tsx": "4.19.1",
     "typescript": "5.5.4",

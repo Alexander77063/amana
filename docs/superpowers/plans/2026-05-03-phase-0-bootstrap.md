@@ -7,7 +7,7 @@
 **Architecture:** pnpm workspace + Turborepo monorepo. Backend in TypeScript on Hono. Mobile in React Native via Expo (managed workflow). Postgres 16 + PostGIS for spatial data. Drizzle ORM + drizzle-kit for migrations. Vitest for unit tests. GitHub Actions for CI. SOPS + age for secrets. Biome for lint+format.
 
 **Tech Stack (per locked decision #18):**
-- Monorepo: pnpm 9+, Turborepo
+- Monorepo: pnpm 10+, Turborepo
 - Backend: TypeScript 5.5+, Node.js 20+, Hono 4.x, Drizzle ORM, postgres-js, Zod, Pino, Sentry, Vitest
 - Database: Postgres 16, PostGIS 3.4
 - Mobile: React Native (Expo SDK 51+), TypeScript, EAS Build
@@ -130,7 +130,7 @@ node --version
 ```
 Expected: `v20.x.x` or `v22.x.x` (anything ≥20). If not installed, install via [nvm-windows](https://github.com/coreybutler/nvm-windows) or download from nodejs.org.
 
-- [ ] **Step 2: Verify pnpm 9+ is installed**
+- [ ] **Step 2: Verify pnpm 10+ is installed**
 
 ```bash
 pnpm --version
@@ -180,10 +180,10 @@ Expected: a working tree on `main` with previous commits visible. If not a repo,
   "name": "amana",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@9.12.0",
+  "packageManager": "pnpm@10.33.2",
   "engines": {
     "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "pnpm": ">=10.0.0"
   },
   "scripts": {
     "build": "turbo run build",
@@ -2104,7 +2104,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9.12.0
+          version: 10.33.2
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -2468,7 +2468,7 @@ git commit -m "docs: anchor sandbox setup runbook"
 ## One-time setup
 
 1. Install Node 20+ (use `nvm use` if you have nvm-windows).
-2. Install pnpm 9+: `npm install -g pnpm@latest`.
+2. Install pnpm 10+: `npm install -g pnpm@latest`.
 3. Install Docker Desktop and start it.
 4. Clone the repo and `cd amana`.
 5. `pnpm install`

@@ -1,0 +1,27 @@
+{
+  "name": "@amana/backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@amana/types": "workspace:*",
+    "@amana/validation": "workspace:*",
+    "@hono/node-server": "1.13.2",
+    "hono": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "20.16.11",
+    "tsx": "4.19.1",
+    "typescript": "5.5.4",
+    "vitest": "2.1.2"
+  }
+}

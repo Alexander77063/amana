@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { Hono } from 'hono';
+import { describe, expect, it } from 'vitest';
 import { errorHandler } from '../src/middleware/error-handler';
 import { requestId } from '../src/middleware/request-id';
 

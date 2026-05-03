@@ -1,7 +1,7 @@
 import { serve } from '@hono/node-server';
 import { env } from './env';
-import { initSentry } from './lib/sentry';
 import { logger } from './lib/logger';
+import { initSentry } from './lib/sentry';
 import { createServer } from './server';
 
 initSentry();

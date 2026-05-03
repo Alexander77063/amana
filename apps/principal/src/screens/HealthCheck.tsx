@@ -1,10 +1,13 @@
+import { AmanaApiClient } from '@amana/api-client';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-import { AmanaApiClient } from '@amana/api-client';
 
 const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL ?? 'http://localhost:3000';
 
-type Status = { kind: 'loading' } | { kind: 'ok'; version: string } | { kind: 'error'; message: string };
+type Status =
+  | { kind: 'loading' }
+  | { kind: 'ok'; version: string }
+  | { kind: 'error'; message: string };
 
 export function HealthCheck(): JSX.Element {
   const [status, setStatus] = useState<Status>({ kind: 'loading' });

@@ -85,6 +85,13 @@
       "when": 1777834612722,
       "tag": "0011_rules",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1777835269934,
+      "tag": "0012_bumps",
+      "breakpoints": true
     }
   ]
 }

@@ -59,3 +59,15 @@ Controlled-spend wallet where a principal (parent or employer) funds a master wa
     - **Why:** principal is the largest spender in most households (rent, utilities, school fees, large purchases) and in many SMBs (supplier payments, payroll, larger one-offs). Forcing them through a "self sub-wallet" is awkward UX and adds no value.
     - **How to apply:** principal app gets the same vendor-capture screens as the agent app, with a simpler confirm flow (no rule decision shown, no bump path). Backend short-circuits rule_eval and bump for principal-originated txns. Narration formatter selects the principal-form template when `sub_wallet_id IS NULL`.
     - **Out of scope at MVP (worth flagging for future):** principal "self-rules" (e.g., self-imposed daily spending caps, second-factor for large txns, time-window self-locks) — possible v1.x feature, not MVP.
+
+18. **Tech stack** — Locked at the planning stage to unblock implementation plans.
+    - **Backend:** TypeScript on Node.js 20+ with Hono framework, Drizzle ORM, postgres-js driver, Zod for validation, Pino for structured logging, Sentry for error tracking, Vitest for tests.
+    - **Database:** Postgres 16 with PostGIS extension (for the `geolocation` column on transactions per Decision #16).
+    - **Mobile:** React Native via Expo (managed workflow + EAS Build) — one team, one codebase, two apps (Principal and Agent). TypeScript shared with backend via workspace packages.
+    - **Monorepo:** pnpm 9+ workspaces with Turborepo for task orchestration. Shared packages: `@amana/types`, `@amana/validation`, `@amana/api-client`.
+    - **Quality:** Biome for lint + format. TypeScript strict mode everywhere.
+    - **Secrets:** SOPS + age for encrypted secrets in-repo.
+    - **CI:** GitHub Actions with pnpm + Turborepo caching.
+    - **Hosting (initial):** AWS af-south (Cape Town — closest AWS region to Lagos), ECS Fargate for backend, Aurora Postgres. Parallel CBN data-residency legal review track to confirm before public launch; reversible to a Nigerian DC provider (Layer3, MainOne) if legal requires.
+    - **Why these picks:** TS + RN gives one type system, one team, one hiring pool — critical at our scale. Hono is fast, modern, and trivial to test. Drizzle + Postgres gives us proper transactions and migrations. Expo accelerates mobile iteration without locking us out of native modules later (we can eject if needed). AWS af-south is the lowest-latency major-cloud option to NG today.
+    - **ADRs to be written in Sub-plan 1:** `docs/adr/0001` through `0005` will document each choice with the considered alternatives, so future re-evaluation has a paper trail.

@@ -104,4 +104,27 @@ export const bumpWorkflowService = {
       return ok({ bumpRequest: updated, oneShotToken });
     });
   },
+
+  async sweepExpired(db: DbOrTx, now: Date): Promise<{ expiredCount: number }> {
+    const expired = await bumpRequestsRepo.listExpired(db, now);
+    if (expired.length === 0) return { expiredCount: 0 };
+    return db.transaction(async (tx) => {
+      const txDb = tx as DbOrTx;
+      for (const row of expired) {
+        const next = transition(row.status as 'pending', { kind: 'expire' });
+        if (next.kind === 'ok') {
+          // Schema requires decidedByUserId to be a real user; reuse requestedByUserId
+          // (semantically: "auto-decided on agent's behalf by the system")
+          await bumpRequestsRepo.setDecision(
+            txDb,
+            row.id,
+            next.value,
+            row.requestedByUserId,
+            now,
+          );
+        }
+      }
+      return { expiredCount: expired.length };
+    });
+  },
 };

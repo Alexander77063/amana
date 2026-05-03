@@ -137,3 +137,23 @@ describe('bumpWorkflowService.decide', () => {
     if (isErr(result)) expect(result.error.code).toBe('INVALID_TRANSITION');
   });
 });
+
+describe('bumpWorkflowService.sweepExpired', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('marks all pending bumps past expiresAt as expired', async () => {
+    const { agentId, subWalletId, txnId } = await seedTxn();
+    await bumpWorkflowService.create(testDb, {
+      transactionId: txnId, subWalletId, requestedByUserId: agentId,
+      amountKobo: kobo(50_000n), vendorResolvedName: 'MAMA',
+      now: new Date('2026-05-03T12:00:00Z'), ttlMinutes: 5,
+    });
+    const out = await bumpWorkflowService.sweepExpired(testDb, new Date('2026-05-03T12:10:00Z'));
+    expect(out.expiredCount).toBe(1);
+  });
+
+  it('returns 0 when no bumps are due', async () => {
+    const out = await bumpWorkflowService.sweepExpired(testDb, new Date('2026-05-03T12:00:00Z'));
+    expect(out.expiredCount).toBe(0);
+  });
+});

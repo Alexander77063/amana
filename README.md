@@ -6,14 +6,15 @@ A principal (parent or employer) funds a master wallet and issues sub-wallets to
 
 ## Status
 
-Active brainstorm. 13 decisions locked. Currently moving from brainstorm into the MVP design summary.
+MVP design spec complete (2026-05-03). 15 decisions locked. Awaiting user review of the spec before transitioning to implementation planning.
 
-- Brainstorm state and locked decisions: `docs/brainstorm/locked-decisions.md`
+- **Design spec (READ THIS):** `docs/superpowers/specs/2026-05-03-amana-design.md`
+- Locked decisions (the 15): `docs/brainstorm/locked-decisions.md`
 - Brand brief: `docs/brainstorm/brand.md`
-- Design spec (in progress): `docs/superpowers/specs/2026-05-03-amana-design.md`
 
 ## Workflow
 
-1. Brainstorm (current) → produces design spec
-2. Writing-plans → produces implementation plan
-3. Build POC scaffolding, business plan, architectural design doc, tech stack write-up
+1. Brainstorm → 15 locked decisions ✅
+2. Design spec ✅
+3. Writing-plans → produces implementation plan (next)
+4. Build POC scaffolding, business plan, architectural design doc, tech stack write-up

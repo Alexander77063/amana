@@ -10,4 +10,12 @@ describe('GET /health', () => {
     expect(body.status).toBe('ok');
     expect(body.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
+
+  it('emits an x-request-id header', async () => {
+    const app = createServer();
+    const res = await app.request('/health');
+    expect(res.headers.get('x-request-id')).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+    );
+  });
 });

@@ -18,6 +18,19 @@ importers:
         specifier: 5.5.4
         version: 5.5.4
 
+  packages/api-client:
+    dependencies:
+      '@amana/types':
+        specifier: workspace:*
+        version: link:../types
+      '@amana/validation':
+        specifier: workspace:*
+        version: link:../validation
+    devDependencies:
+      typescript:
+        specifier: 5.5.4
+        version: 5.5.4
+
   packages/types:
     devDependencies:
       typescript:

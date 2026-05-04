@@ -77,4 +77,93 @@ export const auditEvents = {
       payloadJson: { score: input.score, features: input.features },
     };
   },
+
+  txnNipOutSent(input: {
+    transactionId: string;
+    actorUserId: string | null;
+    status: 'PENDING' | 'COMPLETED' | 'FAILED';
+    anchorTransferId: string | null;
+    reason: string | null;
+  }): AuditEntry {
+    return {
+      actorKind: input.actorUserId === null ? 'system' : 'user',
+      actorUserId: input.actorUserId,
+      action: 'txn.nip_out_sent',
+      subjectKind: 'transaction',
+      subjectId: input.transactionId,
+      payloadJson: {
+        status: input.status,
+        anchorTransferId: input.anchorTransferId,
+        reason: input.reason,
+      },
+    };
+  },
+
+  txnSettled(input: {
+    transactionId: string;
+    nibssSessionId: string | null;
+    feeKobo: bigint;
+    settledAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'partner',
+      actorUserId: null,
+      action: 'txn.settled',
+      subjectKind: 'transaction',
+      subjectId: input.transactionId,
+      payloadJson: {
+        nibssSessionId: input.nibssSessionId,
+        feeKobo: input.feeKobo.toString(),
+        settledAt: input.settledAt.toISOString(),
+      },
+    };
+  },
+
+  txnFailedReversed(input: {
+    transactionId: string;
+    reversalTransactionId: string;
+    reason: string | null;
+    failedAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'system',
+      actorUserId: null,
+      action: 'txn.failed_reversed',
+      subjectKind: 'transaction',
+      subjectId: input.transactionId,
+      payloadJson: {
+        reversalTransactionId: input.reversalTransactionId,
+        reason: input.reason,
+        failedAt: input.failedAt.toISOString(),
+      },
+    };
+  },
+
+  txnToppedUp(input: {
+    transactionId: string;
+    masterWalletId: string;
+    amountKobo: bigint;
+    nibssSessionId: string;
+    senderBankCode: string;
+    senderAccountNumber: string;
+    senderAccountName: string;
+    receivedAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'partner',
+      actorUserId: null,
+      action: 'txn.topped_up',
+      subjectKind: 'transaction',
+      subjectId: input.transactionId,
+      payloadJson: {
+        masterWalletId: input.masterWalletId,
+        amountKobo: input.amountKobo.toString(),
+        nibssSessionId: input.nibssSessionId,
+        senderBankCode: input.senderBankCode,
+        senderAccountNumber: input.senderAccountNumber,
+        senderAccountName: input.senderAccountName,
+        receivedAt: input.receivedAt.toISOString(),
+      },
+    };
+  },
 };

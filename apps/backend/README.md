@@ -12,8 +12,11 @@ Amana TypeScript backend on Hono.
 - `modules/bumps` — Result-typed state machine + workflow service (create / decide / sweepExpired / consumeToken).
 - `modules/anomaly` — 4 features (amount z-score / hour-of-day / vendor novelty / velocity) + weighted aggregator.
 - `modules/vendors` — name enquiry / phone lookup / sticker lookup / NQR decoder / recents / unified resolver (per Decision #16).
-- `modules/transactions` — lifecycle (rule eval → bump or in_flight) + intent + nip-out + settlement + reversal + topup + reconciliation.
+- `modules/transactions` — lifecycle (rule eval → bump or in_flight) + intent + nip-out + settlement + reversal + topup + reconciliation + **refund** (matches inbound credit to a recent settled spend by sender + amount within 14 days; re-credits source).
+- `modules/notifications` — preferences matrix + device tokens + 6 templates (`bump_requested` / `bump_decided` / `txn_settled` / `txn_failed` / `anomaly_alert` / `refund_received`) + 3 providers (Expo Push / Termii SMS / in-app) + dispatcher with prefs-aware fan-out and dedupe.
 - `integrations/anchor` — BaaS adapter: typed client + circuit breaker + retry + idempotency cache + webhook verifier.
+- `integrations/termii` — SMS provider HTTP client.
+- `cron/` — `node-cron` scheduler + jobs (recon-sweep every 5 min, bump-ttl-sweep every minute) + long-lived worker entrypoint.
 
 ## Public HTTP routes
 
@@ -29,6 +32,9 @@ Amana TypeScript backend on Hono.
 - `POST /transactions/:id/send` — calls Anchor.transfer (NIP-out)
 - `POST /transactions/:id/resume-after-bump` — body: `{token}` (one-shot from bump approval)
 - `POST /bumps/:id/decision` — body: `{decision: approve_once | approve_raise_limit | deny}` (principal-only)
+- `POST /devices` + `DELETE /devices/:id` — Expo Push token registration / revocation
+- `GET  /me/notifications` + `POST /me/notifications/:id/read` — in-app inbox
+- `GET  /me/notification-preferences` + `PUT /me/notification-preferences` — per-(kind, channel) preferences with optional threshold
 
 All routes (except `/health` and `/webhooks/*`) require `x-actor-user-id` and `x-actor-role` headers as a placeholder for real auth (lands in Sub-plan 6).
 
@@ -37,7 +43,8 @@ All routes (except `/health` and `/webhooks/*`) require `x-actor-user-id` and `x
 ```bash
 docker compose up -d
 pnpm --filter @amana/backend db:migrate
-pnpm --filter @amana/backend dev
+pnpm --filter @amana/backend dev   # API server
+pnpm --filter @amana/backend cron  # Cron worker (separate process)
 ```
 
 Visit http://localhost:3000/health → `{"status":"ok","version":"0.0.0"}`.
@@ -55,13 +62,16 @@ The test suite includes:
 - DB-trigger tests proving postings + audit_log are append-only.
 - Mocked unit tests for the Anchor adapter (circuit breaker, retry, idempotency cache).
 - Replay-corpus tests for the rule engine.
-- End-to-end route test (intent → evaluate → bump → resume → send via mocked Anchor → webhook settle).
+- End-to-end route tests (intent → evaluate → bump → resume → send via mocked Anchor → webhook settle).
+- Notification dispatch tests across all 6 kinds + 3 channels + dedupe.
+- Refund recon tests covering the topup → refund route.
+- Cron job tests verifying schedule + dispatch.
 - An optional live smoke against Anchor's sandbox (skipped unless `ANCHOR_API_KEY` is set).
 
-## Recon runner
+## Recon runner (one-off)
 
 ```bash
 pnpm --filter @amana/backend exec tsx scripts/recon-runner.ts
 ```
 
-Sweeps any `IN_FLIGHT > 5min` txn and reconciles via Anchor's transfer-status endpoint.
+Sweeps any `IN_FLIGHT > 5min` txn and reconciles via Anchor's transfer-status endpoint. The same logic also runs on a 5-minute cron via `pnpm cron`.

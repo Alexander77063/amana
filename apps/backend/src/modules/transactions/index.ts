@@ -36,3 +36,10 @@ export {
   reconciliationService,
   type SweepResult,
 } from './reconciliation.service';
+
+export {
+  refundService,
+  type MatchInput,
+  type HandleRefundInput,
+  type HandleRefundResult,
+} from './refund.service';

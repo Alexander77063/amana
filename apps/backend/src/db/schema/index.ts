@@ -9,3 +9,4 @@ export * from './rules';
 export * from './bumps';
 export * from './recents';
 export * from './notifications';
+export * from './auth';

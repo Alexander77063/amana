@@ -1,10 +1,11 @@
 import type { MiddlewareHandler } from 'hono';
 
 export type Actor = { userId: string; role: 'principal' | 'agent' };
+export type ActorVariables = { actor: Actor };
 
 const ROLES = new Set<Actor['role']>(['principal', 'agent']);
 
-export const actor = (): MiddlewareHandler => async (c, next) => {
+export const actor = (): MiddlewareHandler<{ Variables: ActorVariables }> => async (c, next) => {
   const userId = c.req.header('x-actor-user-id');
   const role = c.req.header('x-actor-role');
   if (!userId || !role) {

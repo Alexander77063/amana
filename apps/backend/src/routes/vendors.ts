@@ -1,13 +1,13 @@
 import { Hono } from 'hono';
 import { db } from '../db/client';
 import { anchorAdapterSingleton } from '../integrations/anchor';
-import { actor } from '../middleware/actor';
+import { actor, type ActorVariables } from '../middleware/actor';
 import { vendorResolutionService } from '../modules/vendors/vendor-resolution.service';
 import { recentsService } from '../modules/vendors/recents.service';
 import { decodeNqr } from '../modules/vendors/nqr-decoder';
 import { isOk } from '../lib/result';
 
-export const vendorsRoute = new Hono()
+export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(actor())
   .get('/name-enquiry', async (c) => {
     const bankCode = c.req.query('bankCode');

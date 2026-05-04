@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import { db } from '../db/client';
 import { transactions } from '../db/schema';
 import { anchorAdapterSingleton } from '../integrations/anchor';
-import { actor, type Actor } from '../middleware/actor';
+import { actor, type Actor, type ActorVariables } from '../middleware/actor';
 import { kobo } from '../lib/kobo';
 import { txnIntentService } from '../modules/transactions/txn-intent.service';
 import { lifecycleService } from '../modules/transactions/lifecycle.service';
@@ -11,7 +11,7 @@ import { nipOutService } from '../modules/transactions/nip-out.service';
 import { householdsRepo } from '../modules/identity/households.repo';
 import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
 
-export const transactionsRoute = new Hono()
+export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(actor())
   .post('/intent', async (c) => {
     type Body = {

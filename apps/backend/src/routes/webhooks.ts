@@ -4,7 +4,16 @@ import { Hono } from 'hono';
 import { db } from '../db/client';
 import { auditLog } from '../db/schema';
 import { WebhookSignatureError, parseAndVerifyWebhook } from '../integrations/anchor/webhook';
+import type {
+  AnchorTransferEventData,
+  AnchorVirtualAccountCreditedData,
+} from '../integrations/anchor/types';
+import { kobo } from '../lib/kobo';
 import { logger } from '../lib/logger';
+import { settlementService } from '../modules/transactions/settlement.service';
+import { reversalService } from '../modules/transactions/reversal.service';
+import { topupService } from '../modules/transactions/topup.service';
+import { transactionsRepo } from '../modules/wallet/transactions.repo';
 
 const HEADER = 'x-anchor-signature';
 
@@ -46,6 +55,7 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
     return c.json({ status: 'ok', deduped: true }, 200);
   }
 
+  // Audit-log fires BEFORE dispatch so even if the handler fails we have the partner-event record.
   await db.insert(auditLog).values({
     actorKind: 'partner',
     action: `anchor.webhook.${event.type}`,
@@ -53,6 +63,51 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
     subjectId,
     payloadJson: event as unknown as object,
   });
+
+  // Dispatch to handler. Handler errors are caught + logged + ack'd — don't 500 to Anchor (they'd retry).
+  try {
+    if (event.type === 'transfer.completed') {
+      const data = event.data as AnchorTransferEventData;
+      const txn = await transactionsRepo.findByIdempotencyKey(db, data.reference);
+      if (txn) {
+        await settlementService.finalise(db, {
+          transactionId: txn.id,
+          nibssSessionId: data.nibssSessionId ?? null,
+          settledAt: new Date(event.createdAt),
+        });
+      } else {
+        logger.warn({ reference: data.reference }, 'transfer.completed: no matching txn');
+      }
+    } else if (event.type === 'transfer.failed') {
+      const data = event.data as AnchorTransferEventData;
+      const txn = await transactionsRepo.findByIdempotencyKey(db, data.reference);
+      if (txn) {
+        await reversalService.reverse(db, {
+          transactionId: txn.id,
+          reason: data.failureReason ?? null,
+          failedAt: new Date(event.createdAt),
+        });
+      } else {
+        logger.warn({ reference: data.reference }, 'transfer.failed: no matching txn');
+      }
+    } else if (event.type === 'virtual_account.credited') {
+      const data = event.data as AnchorVirtualAccountCreditedData;
+      await topupService.handle(db, {
+        virtualAccountId: data.virtualAccountId,
+        amountKobo: kobo(BigInt(data.amountKobo as unknown as string)),
+        nibssSessionId: data.nibssSessionId,
+        senderBankCode: data.senderBankCode,
+        senderAccountNumber: data.senderAccountNumber,
+        senderAccountName: data.senderAccountName,
+        receivedAt: new Date(event.createdAt),
+      });
+    } else {
+      // kyc.* events: ack only for now (KYC service lands in Sub-plan 6)
+      logger.info({ type: event.type }, 'anchor webhook: ack-only (handler not yet implemented)');
+    }
+  } catch (e) {
+    logger.error({ err: (e as Error).message, type: event.type }, 'anchor webhook handler failed');
+  }
 
   return c.json({ status: 'ok' }, 200);
 });

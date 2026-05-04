@@ -4,6 +4,7 @@ import { AnchorClient } from '../../../src/integrations/anchor/client';
 import { kobo } from '../../../src/lib/kobo';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { notificationsRepo } from '../../../src/modules/notifications/notifications.repo';
 import { nipOutService } from '../../../src/modules/transactions/nip-out.service';
 import {
   NIP_FEE_KOBO,
@@ -17,6 +18,15 @@ import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
+
+vi.mock('expo-server-sdk', () => {
+  const ExpoMock = vi.fn().mockImplementation(() => ({
+    sendPushNotificationsAsync: vi.fn().mockResolvedValue([{ status: 'ok', id: 'tk-1' }]),
+    chunkPushNotifications: (m: unknown[]) => [m],
+  }));
+  (ExpoMock as unknown as Record<string, unknown>).isExpoPushToken = () => true;
+  return { Expo: ExpoMock };
+});
 
 async function seedAndSendNip() {
   const principal = await usersRepo.insert(testDb, {
@@ -95,6 +105,8 @@ async function seedAndSendNip() {
     masterLA: mw.ledgerAccountIds.master,
     subLA: sw.ledgerAccountId,
     suspenseLA: mw.ledgerAccountIds.suspense,
+    principalId: principal.id,
+    agentId: agent.id,
   };
 }
 
@@ -148,5 +160,28 @@ describe('settlementService.finalise', () => {
         settledAt: new Date(),
       }),
     ).rejects.toThrow(/cannot settle/);
+  });
+
+  it('dispatches txn_settled notifications to principal and agent', async () => {
+    const { txnId, principalId, agentId } = await seedAndSendNip();
+    await settlementService.finalise(testDb, {
+      transactionId: txnId,
+      nibssSessionId: 'sess-1',
+      settledAt: new Date('2026-05-04T12:00:00Z'),
+    });
+    const principalRow = await notificationsRepo.findByDedupeKey(
+      testDb,
+      principalId,
+      'in_app',
+      `txn-settled:${txnId}`,
+    );
+    const agentRow = await notificationsRepo.findByDedupeKey(
+      testDb,
+      agentId,
+      'in_app',
+      `txn-settled:${txnId}`,
+    );
+    expect(principalRow?.status).toBe('sent');
+    expect(agentRow?.status).toBe('sent');
   });
 });

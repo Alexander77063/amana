@@ -1,7 +1,10 @@
+import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { kobo } from '../../lib/kobo';
+import { logger } from '../../lib/logger';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
+import { notificationService } from '../notifications/notification.service';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { transactionsRepo } from '../wallet/transactions.repo';
@@ -94,6 +97,58 @@ export const settlementService = {
           settledAt: input.settledAt,
         }),
       );
+
+      // Dispatch txn_settled notifications — best-effort; never fails the settle.
+      try {
+        // Always resolve principal from master_wallet → household.
+        const principalRows = await txDb.execute<{ principal_user_id: string }>(sql`
+          SELECT h.principal_user_id
+          FROM master_wallets mw
+          INNER JOIN households h ON h.id = mw.household_id
+          WHERE mw.id = ${txn.masterWalletId}
+          LIMIT 1
+        `);
+        const principalUserId = principalRows[0]?.principal_user_id ?? null;
+
+        // Resolve agent from sub_wallet if this is an agent-initiated spend.
+        let agentUserId: string | null = null;
+        if (txn.subWalletId) {
+          const agentRows = await txDb.execute<{ agent_user_id: string }>(sql`
+            SELECT agent_user_id FROM sub_wallets WHERE id = ${txn.subWalletId} LIMIT 1
+          `);
+          agentUserId = agentRows[0]?.agent_user_id ?? null;
+        }
+
+        const notifPayload = {
+          transactionId: txn.id,
+          amountKobo: kobo(txn.amountKobo as bigint),
+          vendorResolvedName: txn.vendorResolvedName ?? 'Unknown',
+          nibssSessionId: input.nibssSessionId,
+        };
+        const dedupeKey = `txn-settled:${txn.id}`;
+        const amountKobo = kobo(txn.amountKobo as bigint);
+
+        if (principalUserId) {
+          await notificationService.dispatch(txDb, {
+            kind: 'txn_settled',
+            recipientUserId: principalUserId,
+            dedupeKey,
+            amountKobo,
+            payload: notifPayload,
+          });
+        }
+        if (agentUserId && agentUserId !== principalUserId) {
+          await notificationService.dispatch(txDb, {
+            kind: 'txn_settled',
+            recipientUserId: agentUserId,
+            dedupeKey,
+            amountKobo,
+            payload: notifPayload,
+          });
+        }
+      } catch (e) {
+        logger.error({ err: (e as Error).message }, 'txn_settled notification failed');
+      }
     });
   },
 };

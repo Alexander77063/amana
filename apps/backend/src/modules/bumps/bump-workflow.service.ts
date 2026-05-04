@@ -1,9 +1,11 @@
 import { randomBytes } from 'node:crypto';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { transactions } from '../../db/schema';
 import type { Kobo } from '../../lib/kobo';
+import { logger } from '../../lib/logger';
 import { type Result, err, ok } from '../../lib/result';
+import { notificationService } from '../notifications/notification.service';
 import { transactionsRepo } from '../wallet/transactions.repo';
 import { type BumpRequestRow, bumpRequestsRepo } from './bump-requests.repo';
 import { type OneShotTokenRow, oneShotTokensRepo } from './one-shot-tokens.repo';
@@ -12,6 +14,29 @@ import { type BumpEvent, transition } from './state-machine';
 type DbOrTx = PostgresJsDatabase;
 
 const DEFAULT_TTL_MINUTES = 30;
+
+/** Resolve the principal user_id and agent display name from a sub-wallet id. */
+async function resolvePrincipalAndAgent(
+  db: DbOrTx,
+  subWalletId: string,
+): Promise<{ principalUserId: string; agentDisplayName: string } | null> {
+  const rows = await db.execute<{
+    principal_user_id: string;
+    agent_display_name: string;
+  }>(sql`
+    SELECT h.principal_user_id, sw.name AS agent_display_name
+    FROM sub_wallets sw
+    INNER JOIN master_wallets mw ON mw.id = sw.master_wallet_id
+    INNER JOIN households h ON h.id = mw.household_id
+    WHERE sw.id = ${subWalletId}
+    LIMIT 1
+  `);
+  if (!rows[0]) return null;
+  return {
+    principalUserId: rows[0].principal_user_id,
+    agentDisplayName: rows[0].agent_display_name,
+  };
+}
 
 export type CreateInput = {
   transactionId: string;
@@ -49,7 +74,7 @@ export const bumpWorkflowService = {
   async create(db: DbOrTx, input: CreateInput): Promise<CreateOutput> {
     const ttl = input.ttlMinutes ?? DEFAULT_TTL_MINUTES;
     const expiresAt = new Date(input.now.getTime() + ttl * 60_000);
-    return db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const txDb = tx as DbOrTx;
       const bumpRequest = await bumpRequestsRepo.insert(txDb, {
         transactionId: input.transactionId,
@@ -67,6 +92,30 @@ export const bumpWorkflowService = {
         .where(eq(transactions.id, input.transactionId));
       return { bumpRequest };
     });
+
+    // Dispatch bump_requested notification to the principal — best-effort (never fails bump creation).
+    try {
+      const resolved = await resolvePrincipalAndAgent(db, input.subWalletId);
+      if (resolved) {
+        await notificationService.dispatch(db, {
+          kind: 'bump_requested',
+          recipientUserId: resolved.principalUserId,
+          dedupeKey: `bump:${result.bumpRequest.id}`,
+          amountKobo: input.amountKobo,
+          payload: {
+            bumpRequestId: result.bumpRequest.id,
+            transactionId: input.transactionId,
+            amountKobo: input.amountKobo,
+            vendorResolvedName: input.vendorResolvedName,
+            agentDisplayName: resolved.agentDisplayName,
+          },
+        });
+      }
+    } catch (e) {
+      logger.error({ err: (e as Error).message }, 'bump_requested notification failed');
+    }
+
+    return result;
   },
 
   async decide(db: DbOrTx, input: DecideInput): Promise<Result<DecideOutput, DecideError>> {

@@ -1,14 +1,24 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { kobo } from '../../../src/lib/kobo';
 import { isErr, isOk } from '../../../src/lib/result';
 import { bumpWorkflowService } from '../../../src/modules/bumps/bump-workflow.service';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { notificationsRepo } from '../../../src/modules/notifications/notifications.repo';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
+
+vi.mock('expo-server-sdk', () => {
+  const ExpoMock = vi.fn().mockImplementation(() => ({
+    sendPushNotificationsAsync: vi.fn().mockResolvedValue([{ status: 'ok', id: 'tk-1' }]),
+    chunkPushNotifications: (m: unknown[]) => [m],
+  }));
+  (ExpoMock as unknown as Record<string, unknown>).isExpoPushToken = () => true;
+  return { Expo: ExpoMock };
+});
 
 async function seedTxn() {
   const principal = await usersRepo.insert(testDb, {
@@ -87,6 +97,25 @@ describe('bumpWorkflowService.create', () => {
       ttlMinutes: 5,
     });
     expect(created.bumpRequest.expiresAt.getTime() - now.getTime()).toBe(5 * 60 * 1000);
+  });
+
+  it('dispatches a bump_requested notification to the principal', async () => {
+    const { principalId, agentId, subWalletId, txnId } = await seedTxn();
+    const result = await bumpWorkflowService.create(testDb, {
+      transactionId: txnId,
+      subWalletId,
+      requestedByUserId: agentId,
+      amountKobo: kobo(50_000n),
+      vendorResolvedName: 'MAMA',
+      now: new Date('2026-05-03T12:00:00Z'),
+    });
+    const row = await notificationsRepo.findByDedupeKey(
+      testDb,
+      principalId,
+      'in_app',
+      `bump:${result.bumpRequest.id}`,
+    );
+    expect(row?.status).toBe('sent');
   });
 });
 

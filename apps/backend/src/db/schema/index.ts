@@ -8,3 +8,4 @@ export * from './sticker';
 export * from './rules';
 export * from './bumps';
 export * from './recents';
+export * from './notifications';

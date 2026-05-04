@@ -13,10 +13,7 @@ export const householdMembersRepo = {
     return row;
   },
 
-  async upsertActive(
-    db: DbOrTx,
-    input: { householdId: string; userId: string },
-  ): Promise<void> {
+  async upsertActive(db: DbOrTx, input: { householdId: string; userId: string }): Promise<void> {
     await db
       .insert(householdMembers)
       .values({

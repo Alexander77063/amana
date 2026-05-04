@@ -1,0 +1,31 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import { testDb, truncateAll } from '../helpers/test-db';
+import { factories } from '../helpers/factories';
+import { createServer } from '../../src/server';
+import { notificationsRepo } from '../../src/modules/notifications/notifications.repo';
+import { usersRepo } from '../../src/modules/identity/users.repo';
+
+describe('GET /me/notifications', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('returns my notifications, most-recent first', async () => {
+    const u = await usersRepo.insert(testDb, {
+      role: 'principal', phone: factories.phone(), nin: factories.nin(),
+      kycTier: '2', bvn: factories.bvn(),
+    });
+    await notificationsRepo.insert(testDb, {
+      recipientUserId: u.id, kind: 'txn_settled', channel: 'in_app',
+      status: 'sent', dedupeKey: 'a', payload: {},
+    });
+    await notificationsRepo.insert(testDb, {
+      recipientUserId: u.id, kind: 'bump_requested', channel: 'in_app',
+      status: 'sent', dedupeKey: 'b', payload: {},
+    });
+    const app = createServer();
+    const res = await app.request('/me/notifications', {
+      headers: { 'x-actor-user-id': u.id, 'x-actor-role': 'principal' },
+    });
+    const body = await res.json() as { notifications: { dedupeKey: string }[] };
+    expect(body.notifications).toHaveLength(2);
+  });
+});

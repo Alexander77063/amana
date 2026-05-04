@@ -5,6 +5,7 @@ import { bumpsRoute } from './routes/bumps';
 import { devicesRoute } from './routes/devices';
 import { healthRoute } from './routes/health';
 import { notificationPrefsRoute } from './routes/notification-prefs';
+import { notificationsListRoute } from './routes/notifications';
 import { transactionsRoute } from './routes/transactions';
 import { vendorsRoute } from './routes/vendors';
 import { webhooksRoute } from './routes/webhooks';
@@ -19,6 +20,7 @@ export function createServer(): Hono {
   app.route('/bumps', bumpsRoute);
   app.route('/devices', devicesRoute);
   app.route('/', notificationPrefsRoute);
+  app.route('/', notificationsListRoute);
   app.onError(errorHandler);
   return app;
 }

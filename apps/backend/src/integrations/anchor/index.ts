@@ -12,3 +12,13 @@ export {
 } from './narration';
 export { parseAndVerifyWebhook, WebhookSignatureError } from './webhook';
 export type * from './types';
+
+import { db } from '../../db/client';
+import { AnchorClient as _AnchorClient } from './client';
+import { AnchorAdapter as _AnchorAdapter } from './adapter';
+import { env as _env } from '../../env';
+
+export const anchorAdapterSingleton = new _AnchorAdapter({
+  db,
+  client: new _AnchorClient({ baseUrl: _env.ANCHOR_API_BASE_URL, apiKey: _env.ANCHOR_API_KEY ?? '' }),
+});

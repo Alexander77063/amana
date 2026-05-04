@@ -7,6 +7,7 @@ import { testDb, truncateAll } from '../../../helpers/test-db';
 describe('termiiSmsProvider.send', () => {
   beforeEach(async () => {
     await truncateAll();
+    // biome-ignore lint/performance/noDelete: unsetting env var so the provider takes its no-key skip path
     delete process.env.TERMII_API_KEY;
   });
 

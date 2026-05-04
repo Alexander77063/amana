@@ -158,10 +158,6 @@ describe('e2e: bump → notification → approve → settle (notification dispat
     expect(bumpReqNotif?.kind).toBe('bump_requested');
 
     // ── Step 3: Principal approves bump (approve_once) ─────────────────────────
-    // Note: bump_decided notification is defined in the schema and templates but
-    // is NOT yet dispatched by bumpWorkflowService.decide() — there is no
-    // notificationService.dispatch() call in that function. We assert only what
-    // the source code actually fires.
     const decideRes = await app.request(`/bumps/${bumpRequestId}/decision`, {
       method: 'POST',
       headers: principalHeaders,
@@ -170,6 +166,15 @@ describe('e2e: bump → notification → approve → settle (notification dispat
     expect(decideRes.status).toBe(200);
     const { oneShotToken } = (await decideRes.json()) as { oneShotToken: string };
     expect(oneShotToken).toBeTruthy();
+
+    const bumpDecidedNotif = await notificationsRepo.findByDedupeKey(
+      testDb,
+      agent.id,
+      'in_app',
+      `bump-decided:${bumpRequestId}`,
+    );
+    expect(bumpDecidedNotif).toBeDefined();
+    expect(bumpDecidedNotif?.kind).toBe('bump_decided');
 
     // ── Step 4: Resume after bump — txn moves to in_flight ────────────────────
     const resumeRes = await app.request(`/transactions/${transactionId}/resume-after-bump`, {

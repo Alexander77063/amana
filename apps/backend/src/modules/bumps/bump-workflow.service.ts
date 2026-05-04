@@ -119,7 +119,7 @@ export const bumpWorkflowService = {
   },
 
   async decide(db: DbOrTx, input: DecideInput): Promise<Result<DecideOutput, DecideError>> {
-    return db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const txDb = tx as DbOrTx;
       const current = await bumpRequestsRepo.findById(txDb, input.bumpRequestId);
       if (!current) return err({ code: 'BUMP_NOT_FOUND' as const });
@@ -152,6 +152,28 @@ export const bumpWorkflowService = {
       }
       return ok({ bumpRequest: updated, oneShotToken });
     });
+
+    if (result.kind === 'ok') {
+      try {
+        await notificationService.dispatch(db, {
+          kind: 'bump_decided',
+          recipientUserId: result.value.bumpRequest.requestedByUserId,
+          dedupeKey: `bump-decided:${result.value.bumpRequest.id}`,
+          amountKobo: result.value.bumpRequest.amountKobo,
+          payload: {
+            bumpRequestId: result.value.bumpRequest.id,
+            transactionId: result.value.bumpRequest.transactionId,
+            amountKobo: result.value.bumpRequest.amountKobo,
+            vendorResolvedName: result.value.bumpRequest.vendorResolvedName,
+            decision: input.decision,
+          },
+        });
+      } catch (e) {
+        logger.error({ err: (e as Error).message }, 'bump_decided notification failed');
+      }
+    }
+
+    return result;
   },
 
   async sweepExpired(db: DbOrTx, now: Date): Promise<{ expiredCount: number }> {

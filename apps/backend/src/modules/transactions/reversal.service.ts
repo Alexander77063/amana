@@ -4,7 +4,7 @@ type DbOrTx = PostgresJsDatabase;
 
 export type ReverseInput = {
   transactionId: string;
-  reason: string;
+  reason: string | null;
   failedAt: Date;
 };
 

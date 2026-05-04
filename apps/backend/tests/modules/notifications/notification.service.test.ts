@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { testDb, truncateAll } from '../../helpers/test-db';
-import { factories } from '../../helpers/factories';
+import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { deviceTokensRepo } from '../../../src/modules/notifications/device-tokens.repo';
 import { notificationService } from '../../../src/modules/notifications/notification.service';
 import { notificationsRepo } from '../../../src/modules/notifications/notifications.repo';
 import { prefsRepo } from '../../../src/modules/notifications/prefs.repo';
-import { usersRepo } from '../../../src/modules/identity/users.repo';
-import { deviceTokensRepo } from '../../../src/modules/notifications/device-tokens.repo';
+import { factories } from '../../helpers/factories';
+import { testDb, truncateAll } from '../../helpers/test-db';
 
 vi.mock('expo-server-sdk', () => {
   const ExpoMock = vi.fn().mockImplementation(() => ({
@@ -18,15 +18,22 @@ vi.mock('expo-server-sdk', () => {
 });
 
 describe('notificationService.dispatch', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   async function aPrincipalWithDevice(): Promise<string> {
     const u = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(),
-      kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     await deviceTokensRepo.register(testDb, {
-      userId: u.id, expoPushToken: 'ExponentPushToken[a]', platform: 'android',
+      userId: u.id,
+      expoPushToken: 'ExponentPushToken[a]',
+      platform: 'android',
     });
     return u.id;
   }
@@ -34,11 +41,16 @@ describe('notificationService.dispatch', () => {
   it('fans out to all 3 channels respecting default matrix', async () => {
     const userId = await aPrincipalWithDevice();
     const result = await notificationService.dispatch(testDb, {
-      kind: 'bump_requested', recipientUserId: userId, dedupeKey: 'bump:b1',
+      kind: 'bump_requested',
+      recipientUserId: userId,
+      dedupeKey: 'bump:b1',
       amountKobo: 50_000n,
       payload: {
-        bumpRequestId: 'b1', transactionId: 't1',
-        amountKobo: 50_000n, vendorResolvedName: 'M', agentDisplayName: 'Driver',
+        bumpRequestId: 'b1',
+        transactionId: 't1',
+        amountKobo: 50_000n,
+        vendorResolvedName: 'M',
+        agentDisplayName: 'Driver',
       },
     });
     const inApp = result.rows.find((r) => r.channel === 'in_app');
@@ -53,13 +65,21 @@ describe('notificationService.dispatch', () => {
   it('skips channels marked silent in user prefs', async () => {
     const userId = await aPrincipalWithDevice();
     await prefsRepo.upsert(testDb, {
-      userId, kind: 'txn_settled', channel: 'push', preference: 'silent',
+      userId,
+      kind: 'txn_settled',
+      channel: 'push',
+      preference: 'silent',
     });
     const result = await notificationService.dispatch(testDb, {
-      kind: 'txn_settled', recipientUserId: userId, dedupeKey: 'txn:t1',
+      kind: 'txn_settled',
+      recipientUserId: userId,
+      dedupeKey: 'txn:t1',
       amountKobo: 10_000n,
       payload: {
-        transactionId: 't1', amountKobo: 10_000n, vendorResolvedName: 'M', nibssSessionId: null,
+        transactionId: 't1',
+        amountKobo: 10_000n,
+        vendorResolvedName: 'M',
+        nibssSessionId: null,
       },
     });
     expect(result.rows.find((r) => r.channel === 'push')?.status).toBe('skipped');
@@ -69,10 +89,15 @@ describe('notificationService.dispatch', () => {
   it('dedupes on the same dedupeKey for the same channel', async () => {
     const userId = await aPrincipalWithDevice();
     const intent = {
-      kind: 'txn_settled' as const, recipientUserId: userId, dedupeKey: 'txn:t-dup',
+      kind: 'txn_settled' as const,
+      recipientUserId: userId,
+      dedupeKey: 'txn:t-dup',
       amountKobo: 10_000n,
       payload: {
-        transactionId: 't-dup', amountKobo: 10_000n, vendorResolvedName: 'M', nibssSessionId: null,
+        transactionId: 't-dup',
+        amountKobo: 10_000n,
+        vendorResolvedName: 'M',
+        nibssSessionId: null,
       },
     };
     await notificationService.dispatch(testDb, intent);

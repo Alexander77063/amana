@@ -60,7 +60,11 @@ async function seedFullySettledSpend() {
   });
   await ledgerService.writeDoubleEntry(testDb, topup.id, [
     { ledgerAccountId: sw.ledgerAccountId, debitKobo: kobo(100_000n), creditKobo: kobo(0n) },
-    { ledgerAccountId: mw.ledgerAccountIds.suspense, debitKobo: kobo(0n), creditKobo: kobo(100_000n) },
+    {
+      ledgerAccountId: mw.ledgerAccountIds.suspense,
+      debitKobo: kobo(0n),
+      creditKobo: kobo(100_000n),
+    },
   ]);
   const txn = await txnIntentService.create(testDb, {
     masterWalletId: mw.master.id,

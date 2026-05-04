@@ -18,18 +18,26 @@ const CHANNELS: NotificationChannel[] = ['push', 'in_app', 'sms'];
 
 /** Recursively convert BigInt values to strings so payloads are JSONB-safe. */
 function sanitizePayload(obj: Record<string, unknown>): Record<string, unknown> {
-  return JSON.parse(JSON.stringify(obj, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))) as Record<string, unknown>;
+  return JSON.parse(
+    JSON.stringify(obj, (_k, v) => (typeof v === 'bigint' ? v.toString() : v)),
+  ) as Record<string, unknown>;
 }
 
 function render(intent: NotificationIntent): RenderedNotification {
   const ctx = intent.payload as Record<string, unknown>;
   switch (intent.kind) {
-    case 'bump_requested':   return templates.bumpRequested(ctx as Parameters<typeof templates.bumpRequested>[0]);
-    case 'bump_decided':     return templates.bumpDecided(ctx as Parameters<typeof templates.bumpDecided>[0]);
-    case 'txn_settled':      return templates.txnSettled(ctx as Parameters<typeof templates.txnSettled>[0]);
-    case 'txn_failed':       return templates.txnFailed(ctx as Parameters<typeof templates.txnFailed>[0]);
-    case 'anomaly_alert':    return templates.anomalyAlert(ctx as Parameters<typeof templates.anomalyAlert>[0]);
-    case 'refund_received':  return templates.refundReceived(ctx as Parameters<typeof templates.refundReceived>[0]);
+    case 'bump_requested':
+      return templates.bumpRequested(ctx as Parameters<typeof templates.bumpRequested>[0]);
+    case 'bump_decided':
+      return templates.bumpDecided(ctx as Parameters<typeof templates.bumpDecided>[0]);
+    case 'txn_settled':
+      return templates.txnSettled(ctx as Parameters<typeof templates.txnSettled>[0]);
+    case 'txn_failed':
+      return templates.txnFailed(ctx as Parameters<typeof templates.txnFailed>[0]);
+    case 'anomaly_alert':
+      return templates.anomalyAlert(ctx as Parameters<typeof templates.anomalyAlert>[0]);
+    case 'refund_received':
+      return templates.refundReceived(ctx as Parameters<typeof templates.refundReceived>[0]);
   }
 }
 
@@ -57,9 +65,18 @@ export const notificationService = {
       }
 
       // Dedupe: if we've already SENT (or marked read) on this channel for this dedupeKey, skip.
-      const existing = await notificationsRepo.findByDedupeKey(db, intent.recipientUserId, channel, intent.dedupeKey);
+      const existing = await notificationsRepo.findByDedupeKey(
+        db,
+        intent.recipientUserId,
+        channel,
+        intent.dedupeKey,
+      );
       if (existing && (existing.status === 'sent' || existing.status === 'read')) {
-        rows.push({ notificationId: existing.id, channel, status: existing.status as NotificationStatus });
+        rows.push({
+          notificationId: existing.id,
+          channel,
+          status: existing.status as NotificationStatus,
+        });
         continue;
       }
 
@@ -69,7 +86,8 @@ export const notificationService = {
           rows.push({ notificationId: r.notificationId, channel, status: 'sent' });
         } else if (channel === 'push') {
           const r = await expoPushProvider.send(db, intent, rendered);
-          const status: NotificationStatus = r.accepted > 0 ? 'sent' : (r.attempted === 0 ? 'skipped' : 'failed');
+          const status: NotificationStatus =
+            r.accepted > 0 ? 'sent' : r.attempted === 0 ? 'skipped' : 'failed';
           const row = await notificationsRepo.insert(db, {
             recipientUserId: intent.recipientUserId,
             kind: intent.kind,
@@ -84,7 +102,8 @@ export const notificationService = {
           rows.push({ notificationId: row.id, channel, status });
         } else if (channel === 'sms') {
           const r = await termiiSmsProvider.send(db, intent, rendered);
-          const status: NotificationStatus = r.kind === 'sent' ? 'sent' : (r.kind === 'failed' ? 'failed' : 'skipped');
+          const status: NotificationStatus =
+            r.kind === 'sent' ? 'sent' : r.kind === 'failed' ? 'failed' : 'skipped';
           const row = await notificationsRepo.insert(db, {
             recipientUserId: intent.recipientUserId,
             kind: intent.kind,
@@ -98,7 +117,10 @@ export const notificationService = {
           rows.push({ notificationId: row.id, channel, status });
         }
       } catch (e) {
-        logger.error({ err: (e as Error).message, channel, kind: intent.kind }, 'notification dispatch failed');
+        logger.error(
+          { err: (e as Error).message, channel, kind: intent.kind },
+          'notification dispatch failed',
+        );
         const row = await notificationsRepo.insert(db, {
           recipientUserId: intent.recipientUserId,
           kind: intent.kind,

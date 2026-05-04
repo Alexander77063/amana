@@ -51,17 +51,23 @@ export const prefsRepo = {
         kind: input.kind,
         channel: input.channel,
         preference: input.preference,
-        thresholdKobo: input.thresholdKobo === null || input.thresholdKobo === undefined
-          ? null
-          : input.thresholdKobo.toString(),
-      })
-      .onConflictDoUpdate({
-        target: [notificationPreferences.userId, notificationPreferences.kind, notificationPreferences.channel],
-        set: {
-          preference: input.preference,
-          thresholdKobo: input.thresholdKobo === null || input.thresholdKobo === undefined
+        thresholdKobo:
+          input.thresholdKobo === null || input.thresholdKobo === undefined
             ? null
             : input.thresholdKobo.toString(),
+      })
+      .onConflictDoUpdate({
+        target: [
+          notificationPreferences.userId,
+          notificationPreferences.kind,
+          notificationPreferences.channel,
+        ],
+        set: {
+          preference: input.preference,
+          thresholdKobo:
+            input.thresholdKobo === null || input.thresholdKobo === undefined
+              ? null
+              : input.thresholdKobo.toString(),
           updatedAt: new Date(),
         },
       })

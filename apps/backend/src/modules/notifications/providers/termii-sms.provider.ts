@@ -2,8 +2,8 @@ import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { users } from '../../../db/schema';
 import { env } from '../../../env';
-import { logger } from '../../../lib/logger';
 import { TermiiClient } from '../../../integrations/termii';
+import { logger } from '../../../lib/logger';
 import type { NotificationIntent, RenderedNotification } from '../types';
 
 const client = env.TERMII_API_KEY ? new TermiiClient(env.TERMII_BASE_URL) : null;
@@ -21,8 +21,10 @@ export const termiiSmsProvider = {
     rendered: RenderedNotification,
   ): Promise<SmsSendResult> {
     if (!client || !env.TERMII_API_KEY) {
-      logger.warn({ kind: intent.kind, recipientUserId: intent.recipientUserId },
-        'termii: no API key configured, skipping SMS send');
+      logger.warn(
+        { kind: intent.kind, recipientUserId: intent.recipientUserId },
+        'termii: no API key configured, skipping SMS send',
+      );
       return { kind: 'skipped_no_key' };
     }
     const [user] = await db

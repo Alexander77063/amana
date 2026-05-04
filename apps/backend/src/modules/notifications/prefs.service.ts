@@ -1,6 +1,11 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { prefsRepo } from './prefs.repo';
-import type { ChannelPreference, NotificationChannel, NotificationIntent, NotificationKind } from './types';
+import type {
+  ChannelPreference,
+  NotificationChannel,
+  NotificationIntent,
+  NotificationKind,
+} from './types';
 
 /**
  * Default preference matrix when no per-user row exists.

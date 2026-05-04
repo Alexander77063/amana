@@ -14,13 +14,20 @@ export const notificationKindEnum = pgEnum('notification_kind', [
 export const notificationChannelEnum = pgEnum('notification_channel', ['push', 'sms', 'in_app']);
 
 export const channelPreferenceEnum = pgEnum('channel_preference', [
-  'real_time', 'threshold', 'digest', 'silent',
+  'real_time',
+  'threshold',
+  'digest',
+  'silent',
 ]);
 
 export const devicePlatformEnum = pgEnum('device_platform', ['ios', 'android']);
 
 export const notificationStatusEnum = pgEnum('notification_status', [
-  'pending', 'sent', 'failed', 'skipped', 'read',
+  'pending',
+  'sent',
+  'failed',
+  'skipped',
+  'read',
 ]);
 
 export const notificationPreferences = pgTable(

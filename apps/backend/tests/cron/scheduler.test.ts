@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cronScheduler, type CronJob } from '../../src/cron';
+import { type CronJob, cronScheduler } from '../../src/cron';
 
 describe('cronScheduler', () => {
   it('throws on invalid cron expression', () => {

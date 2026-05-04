@@ -74,12 +74,7 @@ export const notificationsRepo = {
     const result = await db
       .update(notifications)
       .set({ status: 'read', updatedAt: new Date() })
-      .where(
-        and(
-          eq(notifications.id, id),
-          eq(notifications.recipientUserId, recipientUserId),
-        ),
-      )
+      .where(and(eq(notifications.id, id), eq(notifications.recipientUserId, recipientUserId)))
       .returning({ id: notifications.id });
     return result.length > 0;
   },

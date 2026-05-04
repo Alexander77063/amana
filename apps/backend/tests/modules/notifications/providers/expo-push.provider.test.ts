@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { testDb, truncateAll } from '../../../helpers/test-db';
-import { factories } from '../../../helpers/factories';
-import { expoPushProvider } from '../../../../src/modules/notifications/providers/expo-push.provider';
-import { deviceTokensRepo } from '../../../../src/modules/notifications/device-tokens.repo';
 import { usersRepo } from '../../../../src/modules/identity/users.repo';
+import { deviceTokensRepo } from '../../../../src/modules/notifications/device-tokens.repo';
+import { expoPushProvider } from '../../../../src/modules/notifications/providers/expo-push.provider';
+import { factories } from '../../../helpers/factories';
+import { testDb, truncateAll } from '../../../helpers/test-db';
 
 vi.mock('expo-server-sdk', () => {
   const sendPushNotificationsAsync = vi.fn().mockResolvedValue([{ status: 'ok', id: 'ticket-1' }]);
@@ -21,33 +21,59 @@ vi.mock('expo-server-sdk', () => {
 import { Expo } from 'expo-server-sdk';
 
 describe('expoPushProvider.send', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('returns 0/0/0 when user has no registered tokens', async () => {
     const u = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(),
-      kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
-    const r = await expoPushProvider.send(testDb, {
-      kind: 'txn_settled', recipientUserId: u.id, dedupeKey: 'd', payload: {},
-    }, { title: 'x', body: 'y', data: {} });
+    const r = await expoPushProvider.send(
+      testDb,
+      {
+        kind: 'txn_settled',
+        recipientUserId: u.id,
+        dedupeKey: 'd',
+        payload: {},
+      },
+      { title: 'x', body: 'y', data: {} },
+    );
     expect(r.attempted).toBe(0);
   });
 
-  it('sends to all of a user\'s registered tokens', async () => {
+  it("sends to all of a user's registered tokens", async () => {
     const u = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(),
-      kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     await deviceTokensRepo.register(testDb, {
-      userId: u.id, expoPushToken: 'ExponentPushToken[a]', platform: 'android',
+      userId: u.id,
+      expoPushToken: 'ExponentPushToken[a]',
+      platform: 'android',
     });
     await deviceTokensRepo.register(testDb, {
-      userId: u.id, expoPushToken: 'ExponentPushToken[b]', platform: 'ios',
+      userId: u.id,
+      expoPushToken: 'ExponentPushToken[b]',
+      platform: 'ios',
     });
-    const r = await expoPushProvider.send(testDb, {
-      kind: 'txn_settled', recipientUserId: u.id, dedupeKey: 'd', payload: {},
-    }, { title: 'Payment sent', body: '₦100 to M settled.', data: { kind: 'txn_settled' } });
+    const r = await expoPushProvider.send(
+      testDb,
+      {
+        kind: 'txn_settled',
+        recipientUserId: u.id,
+        dedupeKey: 'd',
+        payload: {},
+      },
+      { title: 'Payment sent', body: '₦100 to M settled.', data: { kind: 'txn_settled' } },
+    );
     expect(r.attempted).toBe(2);
     expect(r.accepted).toBe(1); // mock returns one OK ticket
   });

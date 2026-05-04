@@ -5,4 +5,5 @@ export * as sticker from './sticker';
 export * as rules from './rules';
 export * as bumps from './bumps';
 export * as anomaly from './anomaly';
+export * as vendors from './vendors';
 export * as transactions from './transactions';

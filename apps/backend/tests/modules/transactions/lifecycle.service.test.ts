@@ -1,9 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { kobo } from '../../../src/lib/kobo';
 import { isOk } from '../../../src/lib/result';
+import { anomalyService } from '../../../src/modules/anomaly/anomaly.service';
 import { bumpWorkflowService } from '../../../src/modules/bumps/bump-workflow.service';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { notificationsRepo } from '../../../src/modules/notifications/notifications.repo';
 import { ruleSetService } from '../../../src/modules/rules/rule-set.service';
 import { lifecycleService } from '../../../src/modules/transactions/lifecycle.service';
 import { ledgerService } from '../../../src/modules/wallet/ledger.service';
@@ -12,6 +14,15 @@ import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
+
+vi.mock('expo-server-sdk', () => {
+  const ExpoMock = vi.fn().mockImplementation(() => ({
+    sendPushNotificationsAsync: vi.fn().mockResolvedValue([{ status: 'ok', id: 'tk-1' }]),
+    chunkPushNotifications: (m: unknown[]) => [m],
+  }));
+  (ExpoMock as unknown as Record<string, unknown>).isExpoPushToken = () => true;
+  return { Expo: ExpoMock };
+});
 
 async function seedFundedSubWallet() {
   const principal = await usersRepo.insert(testDb, {
@@ -248,5 +259,39 @@ describe('lifecycleService — deny + principal direct', () => {
     });
     expect(result.kind).toBe('allow');
     expect(result.transaction.status).toBe('in_flight');
+  });
+});
+
+describe('lifecycleService — anomaly_alert', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  it('dispatches anomaly_alert when score >= 0.85', async () => {
+    const { principalId, agentId, subWalletId, masterId } = await seedFundedSubWallet();
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(5_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: '058',
+      vendorAccount: '0123456789',
+      vendorResolvedName: 'MAMA',
+    });
+    // Force a high anomaly score for this test.
+    vi.spyOn(anomalyService, 'score').mockReturnValueOnce({ score: 0.9, features: [] });
+    await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: new Date('2026-05-03T12:00:00Z'),
+    });
+    const row = await notificationsRepo.findByDedupeKey(
+      testDb,
+      principalId,
+      'in_app',
+      `anomaly:${txn.id}`,
+    );
+    expect(row?.status).toBe('sent');
   });
 });

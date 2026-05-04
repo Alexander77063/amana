@@ -1,11 +1,13 @@
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { type Kobo, kobo } from '../../lib/kobo';
+import { logger } from '../../lib/logger';
 import { anomalyService } from '../anomaly/anomaly.service';
 import { loadHistoryForSubWallet } from '../anomaly/history.loader';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
 import { bumpWorkflowService } from '../bumps/bump-workflow.service';
+import { notificationService } from '../notifications/notification.service';
 import { evaluate } from '../rules/engine';
 import { fetchActiveRuleSet } from '../rules/rule-set.fetcher';
 import type { Decision, TxnIntent } from '../rules/types';
@@ -94,6 +96,40 @@ export const lifecycleService = {
         features: anomaly.features,
       }),
     );
+
+    // Soft anomaly alert — dispatched best-effort, never blocks the txn.
+    if (anomaly.score >= 0.85) {
+      try {
+        let principalUserId: string | null = null;
+        if (txn.subWalletId) {
+          const owner = await db.execute<{ principal_user_id: string }>(sql`
+            SELECT h.principal_user_id
+            FROM sub_wallets sw
+            INNER JOIN master_wallets mw ON mw.id = sw.master_wallet_id
+            INNER JOIN households h ON h.id = mw.household_id
+            WHERE sw.id = ${txn.subWalletId}
+            LIMIT 1
+          `);
+          if (owner[0]) principalUserId = owner[0].principal_user_id;
+        }
+        if (principalUserId) {
+          await notificationService.dispatch(db, {
+            kind: 'anomaly_alert',
+            recipientUserId: principalUserId,
+            dedupeKey: `anomaly:${txn.id}`,
+            anomalyScore: anomaly.score,
+            payload: {
+              transactionId: txn.id,
+              amountKobo: kobo(txn.amountKobo as bigint),
+              vendorResolvedName: txn.vendorResolvedName ?? 'Unknown',
+              anomalyScore: anomaly.score,
+            },
+          });
+        }
+      } catch (e) {
+        logger.error({ err: (e as Error).message }, 'anomaly_alert notification failed');
+      }
+    }
 
     const ruleSet = await fetchActiveRuleSet(db, txn.subWalletId);
     const decision: Decision = ruleSet

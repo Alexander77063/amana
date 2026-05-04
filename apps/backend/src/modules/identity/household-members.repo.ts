@@ -13,6 +13,23 @@ export const householdMembersRepo = {
     return row;
   },
 
+  async upsertActive(
+    db: DbOrTx,
+    input: { householdId: string; userId: string },
+  ): Promise<void> {
+    await db
+      .insert(householdMembers)
+      .values({
+        householdId: input.householdId,
+        userId: input.userId,
+        status: 'active',
+      })
+      .onConflictDoUpdate({
+        target: [householdMembers.householdId, householdMembers.userId],
+        set: { status: 'active' },
+      });
+  },
+
   async listByHousehold(db: DbOrTx, householdId: string): Promise<HouseholdMemberRow[]> {
     return db.select().from(householdMembers).where(eq(householdMembers.householdId, householdId));
   },

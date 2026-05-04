@@ -16,6 +16,13 @@
     "format": "biome format --write .",
     "format:check": "biome format ."
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "argon2",
+      "esbuild"
+    ]
+  },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "turbo": "2.1.3",

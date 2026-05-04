@@ -23,3 +23,12 @@ export function toNairaString(value: Kobo): string {
   const koboStr = k.toString().padStart(2, '0');
   return `${nairaStr}.${koboStr}`;
 }
+
+export function formatNaira(amountKobo: bigint): string {
+  const naira = amountKobo / 100n;
+  const remainderKobo = amountKobo % 100n;
+  const intPart = naira.toLocaleString('en-NG'); // "5,200"
+  if (remainderKobo === 0n) return `₦${intPart}`;
+  const dec = remainderKobo.toString().padStart(2, '0');
+  return `₦${intPart}.${dec}`;
+}

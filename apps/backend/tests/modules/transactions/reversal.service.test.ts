@@ -4,6 +4,7 @@ import { AnchorClient } from '../../../src/integrations/anchor/client';
 import { kobo } from '../../../src/lib/kobo';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { notificationsRepo } from '../../../src/modules/notifications/notifications.repo';
 import { nipOutService } from '../../../src/modules/transactions/nip-out.service';
 import { reversalService } from '../../../src/modules/transactions/reversal.service';
 import { txnIntentService } from '../../../src/modules/transactions/txn-intent.service';
@@ -14,6 +15,15 @@ import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
+
+vi.mock('expo-server-sdk', () => {
+  const ExpoMock = vi.fn().mockImplementation(() => ({
+    sendPushNotificationsAsync: vi.fn().mockResolvedValue([{ status: 'ok', id: 'tk-1' }]),
+    chunkPushNotifications: (m: unknown[]) => [m],
+  }));
+  (ExpoMock as unknown as Record<string, unknown>).isExpoPushToken = () => true;
+  return { Expo: ExpoMock };
+});
 
 async function seedAndSendNip() {
   const principal = await usersRepo.insert(testDb, {
@@ -85,7 +95,7 @@ async function seedAndSendNip() {
     householdRef: hh.id,
     now: new Date('2026-05-03T12:00:00Z'),
   });
-  return { txnId: txn.id, subLA: sw.ledgerAccountId };
+  return { txnId: txn.id, subLA: sw.ledgerAccountId, principalId: principal.id, agentId: agent.id };
 }
 
 describe('reversalService.reverse', () => {
@@ -124,5 +134,28 @@ describe('reversalService.reverse', () => {
     });
     // Sub-wallet should still be 100K (not double-restored to 105K).
     expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(100_000n);
+  });
+
+  it('dispatches txn_failed notifications to principal and agent', async () => {
+    const { txnId, principalId, agentId } = await seedAndSendNip();
+    await reversalService.reverse(testDb, {
+      transactionId: txnId,
+      reason: 'insufficient funds at recipient',
+      failedAt: new Date('2026-05-03T12:01:00Z'),
+    });
+    const principalRow = await notificationsRepo.findByDedupeKey(
+      testDb,
+      principalId,
+      'in_app',
+      `txn-failed:${txnId}`,
+    );
+    const agentRow = await notificationsRepo.findByDedupeKey(
+      testDb,
+      agentId,
+      'in_app',
+      `txn-failed:${txnId}`,
+    );
+    expect(principalRow?.status).toBe('sent');
+    expect(agentRow?.status).toBe('sent');
   });
 });

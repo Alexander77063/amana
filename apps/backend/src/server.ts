@@ -5,6 +5,7 @@ import { healthRoute } from './routes/health';
 import { webhooksRoute } from './routes/webhooks';
 import { vendorsRoute } from './routes/vendors';
 import { transactionsRoute } from './routes/transactions';
+import { bumpsRoute } from './routes/bumps';
 
 export function createServer(): Hono {
   const app = new Hono();
@@ -13,6 +14,7 @@ export function createServer(): Hono {
   app.route('/webhooks', webhooksRoute);
   app.route('/vendors', vendorsRoute);
   app.route('/transactions', transactionsRoute);
+  app.route('/bumps', bumpsRoute);
   app.onError(errorHandler);
   return app;
 }

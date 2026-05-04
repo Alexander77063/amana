@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { errorHandler } from './middleware/error-handler';
 import { requestId } from './middleware/request-id';
 import { bumpsRoute } from './routes/bumps';
+import { devicesRoute } from './routes/devices';
 import { healthRoute } from './routes/health';
 import { transactionsRoute } from './routes/transactions';
 import { vendorsRoute } from './routes/vendors';
@@ -15,6 +16,7 @@ export function createServer(): Hono {
   app.route('/vendors', vendorsRoute);
   app.route('/transactions', transactionsRoute);
   app.route('/bumps', bumpsRoute);
+  app.route('/devices', devicesRoute);
   app.onError(errorHandler);
   return app;
 }

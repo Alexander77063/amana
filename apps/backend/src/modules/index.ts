@@ -7,3 +7,4 @@ export * as bumps from './bumps';
 export * as anomaly from './anomaly';
 export * as vendors from './vendors';
 export * as transactions from './transactions';
+export * as notifications from './notifications';

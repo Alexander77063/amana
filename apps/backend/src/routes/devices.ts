@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { db } from '../db/client';
-import { actor, type Actor, type ActorVariables } from '../middleware/actor';
+import { type Actor, type ActorVariables, actor } from '../middleware/actor';
 import { deviceTokensRepo } from '../modules/notifications/device-tokens.repo';
 
 export const devicesRoute = new Hono<{ Variables: ActorVariables }>()

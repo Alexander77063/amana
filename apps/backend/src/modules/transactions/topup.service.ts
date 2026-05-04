@@ -7,6 +7,7 @@ import { auditEvents } from '../audit/events';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { transactionsRepo } from '../wallet/transactions.repo';
+import { refundService } from './refund.service';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -36,6 +37,26 @@ export const topupService = {
         .where(eq(masterWallets.anchorAccountId, input.virtualAccountId))
         .limit(1);
       if (!mw) return { kind: 'unknown_account' as const };
+
+      const matched = await refundService.findOriginatingSpend(txDb, {
+        masterWalletId: mw.id,
+        amountKobo: input.amountKobo,
+        senderBankCode: input.senderBankCode,
+        senderAccountNumber: input.senderAccountNumber,
+      });
+      if (matched !== null) {
+        const refundResult = await refundService.handleRefund(txDb, {
+          masterWalletId: mw.id,
+          amountKobo: input.amountKobo,
+          senderBankCode: input.senderBankCode,
+          senderAccountNumber: input.senderAccountNumber,
+          nibssSessionId: input.nibssSessionId,
+          receivedAt: input.receivedAt,
+        });
+        if (refundResult.kind === 'matched_and_refunded') {
+          return { kind: 'created' as const, transactionId: refundResult.refundTransactionId };
+        }
+      }
 
       const idempotencyKey = `topup:${input.nibssSessionId}`;
 

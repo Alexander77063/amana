@@ -1,12 +1,12 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
-import { err, isOk, ok, type Result } from '../../lib/result';
-import { decodeNqr } from './nqr-decoder';
+import { type Result, err, isOk, ok } from '../../lib/result';
 import { nameEnquiryService } from './name-enquiry.service';
+import { decodeNqr } from './nqr-decoder';
 import { phoneLookupService } from './phone-lookup.service';
-import { stickerLookupService } from './sticker-lookup.service';
 import { recentsService } from './recents.service';
-import type { ResolvedVendor, ResolveError } from './types';
+import { stickerLookupService } from './sticker-lookup.service';
+import type { ResolveError, ResolvedVendor } from './types';
 
 export type ResolveInput =
   | { kind: 'account'; bankCode: string; accountNumber: string; subWalletId: string; now: Date }
@@ -25,7 +25,8 @@ export const vendorResolutionService = {
     switch (input.kind) {
       case 'account':
         result = await nameEnquiryService.lookup(adapter, {
-          bankCode: input.bankCode, accountNumber: input.accountNumber,
+          bankCode: input.bankCode,
+          accountNumber: input.accountNumber,
         });
         break;
 

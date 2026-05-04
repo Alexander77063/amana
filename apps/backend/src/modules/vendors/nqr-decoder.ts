@@ -1,5 +1,5 @@
-import { err, ok, type Result } from '../../lib/result';
-import { fromNairaString, kobo, type Kobo } from '../../lib/kobo';
+import { type Kobo, fromNairaString, kobo } from '../../lib/kobo';
+import { type Result, err, ok } from '../../lib/result';
 
 export type DecodedNqr = {
   bankCode: string;
@@ -38,7 +38,8 @@ export function decodeNqr(qr: string): Result<DecodedNqr, NqrError> {
   if (!top) return err({ code: 'BAD_INPUT', message: 'malformed top-level TLV' });
 
   const merchantInfo = top.get(TAG_MERCHANT_INFO);
-  if (!merchantInfo) return err({ code: 'BAD_INPUT', message: 'missing merchant info template (tag 26)' });
+  if (!merchantInfo)
+    return err({ code: 'BAD_INPUT', message: 'missing merchant info template (tag 26)' });
 
   const inner = parseTlv(merchantInfo);
   if (!inner) return err({ code: 'BAD_INPUT', message: 'malformed merchant info template' });
@@ -46,7 +47,8 @@ export function decodeNqr(qr: string): Result<DecodedNqr, NqrError> {
   const bankCode = inner.get(SUBTAG_BANK_CODE);
   const accountNumber = inner.get(SUBTAG_ACCOUNT_NUMBER);
   if (!bankCode) return err({ code: 'BAD_INPUT', message: 'missing bank code (subtag 01)' });
-  if (!accountNumber) return err({ code: 'BAD_INPUT', message: 'missing account number (subtag 02)' });
+  if (!accountNumber)
+    return err({ code: 'BAD_INPUT', message: 'missing account number (subtag 02)' });
 
   const amountStr = top.get(TAG_AMOUNT);
   let amountKobo: Kobo | null = null;

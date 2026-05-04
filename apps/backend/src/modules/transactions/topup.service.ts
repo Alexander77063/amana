@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { masterWallets } from '../../db/schema';
-import { kobo, type Kobo } from '../../lib/kobo';
+import { type Kobo, kobo } from '../../lib/kobo';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
@@ -50,7 +50,9 @@ export const topupService = {
       if (!masterLA) throw new Error('master LA missing');
       if (!externalLA) {
         externalLA = await ledgerAccountsRepo.insert(txDb, {
-          masterWalletId: mw.id, kind: 'external', normalSide: 'credit',
+          masterWalletId: mw.id,
+          kind: 'external',
+          normalSide: 'credit',
         });
       }
 

@@ -26,8 +26,16 @@ export const reversalService = {
         throw new Error(`cannot reverse txn in status ${txn.status}`);
       }
 
-      const suspenseLA = await ledgerAccountsRepo.findByMasterAndKind(txDb, txn.masterWalletId, 'suspense');
-      const masterLA = await ledgerAccountsRepo.findByMasterAndKind(txDb, txn.masterWalletId, 'master');
+      const suspenseLA = await ledgerAccountsRepo.findByMasterAndKind(
+        txDb,
+        txn.masterWalletId,
+        'suspense',
+      );
+      const masterLA = await ledgerAccountsRepo.findByMasterAndKind(
+        txDb,
+        txn.masterWalletId,
+        'master',
+      );
       if (!suspenseLA || !masterLA) {
         throw new Error('master wallet missing suspense/master LAs');
       }

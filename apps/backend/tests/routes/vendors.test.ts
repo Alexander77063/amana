@@ -1,39 +1,54 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { testDb, truncateAll } from '../helpers/test-db';
-import { factories } from '../helpers/factories';
-import { createServer } from '../../src/server';
-import { stickersRepo } from '../../src/modules/sticker/stickers.repo';
-import { usersRepo } from '../../src/modules/identity/users.repo';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
+import { usersRepo } from '../../src/modules/identity/users.repo';
+import { stickersRepo } from '../../src/modules/sticker/stickers.repo';
 import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
+import { createServer } from '../../src/server';
+import { factories } from '../helpers/factories';
+import { testDb, truncateAll } from '../helpers/test-db';
 
 async function seedSubWallet() {
   const principal = await usersRepo.insert(testDb, {
-    role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+    role: 'principal',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '2',
+    bvn: factories.bvn(),
   });
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
-    householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+    householdId: hh.id,
+    anchorVirtualAccount: '1234567890',
+    anchorBankCode: '058',
     anchorAccountId: 'anchor-acct-test',
   });
   const agent = await usersRepo.insert(testDb, {
-    role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+    role: 'agent',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '1',
   });
   const sw = await subWalletsRepo.provision(testDb, {
-    masterWalletId: mw.master.id, agentUserId: agent.id, name: 'Driver',
+    masterWalletId: mw.master.id,
+    agentUserId: agent.id,
+    name: 'Driver',
   });
   return { agentId: agent.id, subWalletId: sw.sub.id };
 }
 
 describe('GET /vendors/sticker/:uuid', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('200 with ResolvedVendor for an active sticker', async () => {
     const { agentId, subWalletId } = await seedSubWallet();
     const sticker = await stickersRepo.insert(testDb, {
-      bankCode: '058', accountNumber: '0123456789',
-      accountName: 'MUSA', vendorPhone: factories.phone(),
+      bankCode: '058',
+      accountNumber: '0123456789',
+      accountName: 'MUSA',
+      vendorPhone: factories.phone(),
       status: 'active',
     });
     const app = createServer();
@@ -49,22 +64,29 @@ describe('GET /vendors/sticker/:uuid', () => {
   it('404 for unknown sticker', async () => {
     const { agentId, subWalletId } = await seedSubWallet();
     const app = createServer();
-    const res = await app.request(`/vendors/sticker/${factories.txnId()}?subWalletId=${subWalletId}`, {
-      headers: { 'x-actor-user-id': agentId, 'x-actor-role': 'agent' },
-    });
+    const res = await app.request(
+      `/vendors/sticker/${factories.txnId()}?subWalletId=${subWalletId}`,
+      {
+        headers: { 'x-actor-user-id': agentId, 'x-actor-role': 'agent' },
+      },
+    );
     expect(res.status).toBe(404);
   });
 
   it('401 without actor headers', async () => {
     const { subWalletId } = await seedSubWallet();
     const app = createServer();
-    const res = await app.request(`/vendors/sticker/${factories.txnId()}?subWalletId=${subWalletId}`);
+    const res = await app.request(
+      `/vendors/sticker/${factories.txnId()}?subWalletId=${subWalletId}`,
+    );
     expect(res.status).toBe(401);
   });
 });
 
 describe('GET /vendors/recents', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('200 with empty array when no recents', async () => {
     const { agentId, subWalletId } = await seedSubWallet();

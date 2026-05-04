@@ -1,7 +1,7 @@
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
 import { AnchorHttpError } from '../../integrations/anchor/client';
-import { err, ok, type Result } from '../../lib/result';
-import type { ResolvedVendor, ResolveError } from './types';
+import { type Result, err, ok } from '../../lib/result';
+import type { ResolveError, ResolvedVendor } from './types';
 
 export const nameEnquiryService = {
   async lookup(

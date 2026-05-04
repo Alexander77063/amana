@@ -1,7 +1,7 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { type Result, err, isOk, ok } from '../../lib/result';
 import { stickerResolverService } from '../sticker/sticker-resolver.service';
-import { err, isOk, ok, type Result } from '../../lib/result';
-import type { ResolvedVendor, ResolveError } from './types';
+import type { ResolveError, ResolvedVendor } from './types';
 
 export const stickerLookupService = {
   async lookup(

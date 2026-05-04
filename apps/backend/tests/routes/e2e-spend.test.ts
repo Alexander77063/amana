@@ -1,17 +1,17 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
-import { testDb, truncateAll } from '../helpers/test-db';
-import { factories } from '../helpers/factories';
-import { createServer } from '../../src/server';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { hashAgentReference } from '../../src/integrations/anchor/narration';
 import { kobo } from '../../src/lib/kobo';
-import { ledgerService } from '../../src/modules/wallet/ledger.service';
-import { transactionsRepo } from '../../src/modules/wallet/transactions.repo';
-import { ruleSetService } from '../../src/modules/rules/rule-set.service';
-import { usersRepo } from '../../src/modules/identity/users.repo';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
+import { usersRepo } from '../../src/modules/identity/users.repo';
+import { ruleSetService } from '../../src/modules/rules/rule-set.service';
+import { ledgerService } from '../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
-import { hashAgentReference } from '../../src/integrations/anchor/narration';
+import { transactionsRepo } from '../../src/modules/wallet/transactions.repo';
+import { createServer } from '../../src/server';
+import { factories } from '../helpers/factories';
+import { testDb, truncateAll } from '../helpers/test-db';
 
 const SECRET = 'whsec_e2e';
 const sign = (body: string) => createHmac('sha256', SECRET).update(body).digest('hex');
@@ -48,80 +48,118 @@ describe('e2e: intent → evaluate → bump → resume → send → settle', () 
   it('walks the full bump-and-settle path through the actual nip-out.send call', async () => {
     // Seed
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
     const ANCHOR_ACCT = 'anchor-acct-e2e-001';
     const mw = await masterWalletsRepo.provision(testDb, {
-      householdId: hh.id, anchorVirtualAccount: '1234567890', anchorBankCode: '058',
+      householdId: hh.id,
+      anchorVirtualAccount: '1234567890',
+      anchorBankCode: '058',
       anchorAccountId: ANCHOR_ACCT,
     });
     const agent = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const sw = await subWalletsRepo.provision(testDb, {
-      masterWalletId: mw.master.id, agentUserId: agent.id, name: 'Driver',
+      masterWalletId: mw.master.id,
+      agentUserId: agent.id,
+      name: 'Driver',
     });
     const topup = await transactionsRepo.insert(testDb, {
-      masterWalletId: mw.master.id, kind: 'topup', amountKobo: kobo(100_000n),
+      masterWalletId: mw.master.id,
+      kind: 'topup',
+      amountKobo: kobo(100_000n),
       idempotencyKey: factories.idempotencyKey(),
     });
     await ledgerService.writeDoubleEntry(testDb, topup.id, [
       { ledgerAccountId: sw.ledgerAccountId, debitKobo: kobo(100_000n), creditKobo: kobo(0n) },
-      { ledgerAccountId: mw.ledgerAccountIds.suspense, debitKobo: kobo(0n), creditKobo: kobo(100_000n) },
+      {
+        ledgerAccountId: mw.ledgerAccountIds.suspense,
+        debitKobo: kobo(0n),
+        creditKobo: kobo(100_000n),
+      },
     ]);
     await ruleSetService.publishNewVersion(testDb, {
-      subWalletId: sw.sub.id, createdByUserId: principal.id,
+      subWalletId: sw.sub.id,
+      createdByUserId: principal.id,
       rules: [{ kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo: 1_000n } }],
     });
 
     const app = createServer();
     const idempotencyKey = factories.idempotencyKey();
-    const agentHeaders = { 'content-type': 'application/json', 'x-actor-user-id': agent.id, 'x-actor-role': 'agent' };
-    const principalHeaders = { 'content-type': 'application/json', 'x-actor-user-id': principal.id, 'x-actor-role': 'principal' };
+    const agentHeaders = {
+      'content-type': 'application/json',
+      'x-actor-user-id': agent.id,
+      'x-actor-role': 'agent',
+    };
+    const principalHeaders = {
+      'content-type': 'application/json',
+      'x-actor-user-id': principal.id,
+      'x-actor-role': 'principal',
+    };
 
     // Pre-arm the Anchor mock: route the eventual send call to a PENDING response.
     transferSpy.mockResolvedValue({
-      id: 'tr-e2e-1', status: 'PENDING', reference: idempotencyKey,
+      id: 'tr-e2e-1',
+      status: 'PENDING',
+      reference: idempotencyKey,
     });
 
     // 1. Intent
     const intentRes = await app.request('/transactions/intent', {
-      method: 'POST', headers: agentHeaders,
+      method: 'POST',
+      headers: agentHeaders,
       body: JSON.stringify({
-        masterWalletId: mw.master.id, subWalletId: sw.sub.id,
-        amountKobo: '10000', idempotencyKey,
-        vendorBankCode: '058', vendorAccountNumber: '0123456789',
-        vendorResolvedName: 'M', category: null, agentNote: null,
+        masterWalletId: mw.master.id,
+        subWalletId: sw.sub.id,
+        amountKobo: '10000',
+        idempotencyKey,
+        vendorBankCode: '058',
+        vendorAccountNumber: '0123456789',
+        vendorResolvedName: 'M',
+        category: null,
+        agentNote: null,
       }),
     });
-    const { transactionId } = await intentRes.json() as { transactionId: string };
+    const { transactionId } = (await intentRes.json()) as { transactionId: string };
 
     // 2. Evaluate (rule denies — limit is 1K, txn is 10K)
     const evalRes = await app.request(`/transactions/${transactionId}/evaluate`, {
-      method: 'POST', headers: agentHeaders,
+      method: 'POST',
+      headers: agentHeaders,
     });
     expect(evalRes.status).toBe(202);
-    const { bumpRequestId } = await evalRes.json() as { bumpRequestId: string };
+    const { bumpRequestId } = (await evalRes.json()) as { bumpRequestId: string };
 
     // 3. Principal decides approve_once
     const decideRes = await app.request(`/bumps/${bumpRequestId}/decision`, {
-      method: 'POST', headers: principalHeaders,
+      method: 'POST',
+      headers: principalHeaders,
       body: JSON.stringify({ decision: 'approve_once' }),
     });
-    const { oneShotToken } = await decideRes.json() as { oneShotToken: string };
+    const { oneShotToken } = (await decideRes.json()) as { oneShotToken: string };
 
     // 4. Resume after bump (txn → in_flight)
     const resumeRes = await app.request(`/transactions/${transactionId}/resume-after-bump`, {
-      method: 'POST', headers: agentHeaders,
+      method: 'POST',
+      headers: agentHeaders,
       body: JSON.stringify({ token: oneShotToken }),
     });
-    const resumeBody = await resumeRes.json() as { status: string };
+    const resumeBody = (await resumeRes.json()) as { status: string };
     expect(resumeBody.status).toBe('in_flight');
 
     // 5. Send — exercises the real nip-out.service through the route, hitting the mocked adapter.
     const sendRes = await app.request(`/transactions/${transactionId}/send`, {
-      method: 'POST', headers: agentHeaders,
+      method: 'POST',
+      headers: agentHeaders,
     });
     expect(sendRes.status).toBe(202);
 
@@ -137,8 +175,15 @@ describe('e2e: intent → evaluate → bump → resume → send → settle', () 
 
     // 6. Webhook: transfer.completed
     const webhookBody = JSON.stringify({
-      id: 'evt-e2e-1', type: 'transfer.completed', createdAt: '2026-05-03T12:00:30Z',
-      data: { transferId: 'tr-e2e-1', reference: idempotencyKey, status: 'COMPLETED', nibssSessionId: 'sess-e2e' },
+      id: 'evt-e2e-1',
+      type: 'transfer.completed',
+      createdAt: '2026-05-03T12:00:30Z',
+      data: {
+        transferId: 'tr-e2e-1',
+        reference: idempotencyKey,
+        status: 'COMPLETED',
+        nibssSessionId: 'sess-e2e',
+      },
     });
     const webhookRes = await app.request('/webhooks/anchor', {
       method: 'POST',

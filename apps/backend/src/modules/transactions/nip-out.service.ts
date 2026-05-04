@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { masterWallets } from '../../db/schema';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
 import { AnchorHttpError } from '../../integrations/anchor/client';
 import { selectNarration } from '../../integrations/anchor/narration';
 import type { AnchorTransferResponse } from '../../integrations/anchor/types';
 import { kobo } from '../../lib/kobo';
-import { masterWallets } from '../../db/schema';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
@@ -31,11 +31,7 @@ export type SendOutput = {
 };
 
 export const nipOutService = {
-  async send(
-    db: DbOrTx,
-    adapter: AnchorAdapter,
-    input: SendInput,
-  ): Promise<SendOutput> {
+  async send(db: DbOrTx, adapter: AnchorAdapter, input: SendInput): Promise<SendOutput> {
     const txn = await transactionsRepo.findById(db, input.transactionId);
     if (!txn) throw new Error(`transaction not found: ${input.transactionId}`);
     if (txn.status !== 'in_flight') {
@@ -49,7 +45,11 @@ export const nipOutService = {
     //   source = sub-wallet ledger account (or master if principal-direct)
     //   sink   = suspense (per spec §6 step 5)
     const masterLA = await ledgerAccountsRepo.findByMasterAndKind(db, txn.masterWalletId, 'master');
-    const suspenseLA = await ledgerAccountsRepo.findByMasterAndKind(db, txn.masterWalletId, 'suspense');
+    const suspenseLA = await ledgerAccountsRepo.findByMasterAndKind(
+      db,
+      txn.masterWalletId,
+      'suspense',
+    );
     if (!masterLA || !suspenseLA) {
       throw new Error('master_wallet missing master/suspense LAs — should not happen');
     }
@@ -67,7 +67,11 @@ export const nipOutService = {
     ]);
 
     // Look up the master wallet's Anchor account ID (opaque) for the from-side of the transfer.
-    const [mw] = await db.select().from(masterWallets).where(eq(masterWallets.id, txn.masterWalletId)).limit(1);
+    const [mw] = await db
+      .select()
+      .from(masterWallets)
+      .where(eq(masterWallets.id, txn.masterWalletId))
+      .limit(1);
     if (!mw) throw new Error(`master_wallet ${txn.masterWalletId} disappeared`);
 
     // Decision #15: hashed reference is derived from the AGENT's user_id, not the sub-wallet.
@@ -100,9 +104,10 @@ export const nipOutService = {
     } catch (e) {
       // Synchronous Anchor failure (network, 4xx, exhausted retries on 5xx) → reverse + fail.
       // Per spec §10: "NIP rejected → Reverse suspense, mark FAILED, retry once allowed."
-      const reason = e instanceof AnchorHttpError
-        ? `Anchor HTTP ${e.status}`
-        : `Anchor error: ${(e as Error).message}`;
+      const reason =
+        e instanceof AnchorHttpError
+          ? `Anchor HTTP ${e.status}`
+          : `Anchor error: ${(e as Error).message}`;
       await reversalService.reverse(db, {
         transactionId: txn.id,
         reason,

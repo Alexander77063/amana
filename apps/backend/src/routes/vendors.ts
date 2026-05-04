@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { db } from '../db/client';
 import { anchorAdapterSingleton } from '../integrations/anchor';
-import { actor, type ActorVariables } from '../middleware/actor';
-import { vendorResolutionService } from '../modules/vendors/vendor-resolution.service';
-import { recentsService } from '../modules/vendors/recents.service';
-import { decodeNqr } from '../modules/vendors/nqr-decoder';
 import { isOk } from '../lib/result';
+import { type ActorVariables, actor } from '../middleware/actor';
+import { decodeNqr } from '../modules/vendors/nqr-decoder';
+import { recentsService } from '../modules/vendors/recents.service';
+import { vendorResolutionService } from '../modules/vendors/vendor-resolution.service';
 
 export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(actor())
@@ -17,7 +17,11 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
       return c.json({ error: 'missing_params' }, 400);
     }
     const result = await vendorResolutionService.resolve(db, anchorAdapterSingleton, {
-      kind: 'account', bankCode, accountNumber, subWalletId, now: new Date(),
+      kind: 'account',
+      bankCode,
+      accountNumber,
+      subWalletId,
+      now: new Date(),
     });
     if (isOk(result)) return c.json(result.value, 200);
     return c.json(
@@ -30,7 +34,10 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
     const subWalletId = c.req.query('subWalletId');
     if (!phoneNumber || !subWalletId) return c.json({ error: 'missing_params' }, 400);
     const result = await vendorResolutionService.resolve(db, anchorAdapterSingleton, {
-      kind: 'phone', phoneNumber, subWalletId, now: new Date(),
+      kind: 'phone',
+      phoneNumber,
+      subWalletId,
+      now: new Date(),
     });
     if (isOk(result)) return c.json(result.value, 200);
     return c.json(
@@ -43,13 +50,20 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
     const subWalletId = c.req.query('subWalletId');
     if (!subWalletId) return c.json({ error: 'missing_params' }, 400);
     const result = await vendorResolutionService.resolve(db, anchorAdapterSingleton, {
-      kind: 'sticker', stickerUuid: uuid, subWalletId, now: new Date(),
+      kind: 'sticker',
+      stickerUuid: uuid,
+      subWalletId,
+      now: new Date(),
     });
     if (isOk(result)) return c.json(result.value, 200);
     const status =
-      result.error.code === 'NOT_FOUND' ? 404 :
-      result.error.code === 'STICKER_REVOKED' ? 410 :
-      result.error.code === 'STICKER_UNBOUND' ? 409 : 400;
+      result.error.code === 'NOT_FOUND'
+        ? 404
+        : result.error.code === 'STICKER_REVOKED'
+          ? 410
+          : result.error.code === 'STICKER_UNBOUND'
+            ? 409
+            : 400;
     return c.json({ error: result.error.code }, status);
   })
   .post('/nqr-decode', async (c) => {
@@ -59,7 +73,10 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
     if (!isOk(decoded)) return c.json({ error: 'BAD_INPUT', detail: decoded.error.message }, 400);
     // Confirm via name enquiry path to get authoritative name + touch recents
     const result = await vendorResolutionService.resolve(db, anchorAdapterSingleton, {
-      kind: 'nqr', payload: body.payload, subWalletId: body.subWalletId, now: new Date(),
+      kind: 'nqr',
+      payload: body.payload,
+      subWalletId: body.subWalletId,
+      now: new Date(),
     });
     if (isOk(result)) return c.json(result.value, 200);
     return c.json({ error: result.error.code }, 400);

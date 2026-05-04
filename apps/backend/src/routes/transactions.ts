@@ -3,12 +3,12 @@ import { Hono } from 'hono';
 import { db } from '../db/client';
 import { transactions } from '../db/schema';
 import { anchorAdapterSingleton } from '../integrations/anchor';
-import { actor, type Actor, type ActorVariables } from '../middleware/actor';
 import { kobo } from '../lib/kobo';
-import { txnIntentService } from '../modules/transactions/txn-intent.service';
+import { type Actor, type ActorVariables, actor } from '../middleware/actor';
+import { householdsRepo } from '../modules/identity/households.repo';
 import { lifecycleService } from '../modules/transactions/lifecycle.service';
 import { nipOutService } from '../modules/transactions/nip-out.service';
-import { householdsRepo } from '../modules/identity/households.repo';
+import { txnIntentService } from '../modules/transactions/txn-intent.service';
 import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
 
 export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
@@ -43,15 +43,21 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     const id = c.req.param('id');
     const a = c.get('actor') as Actor;
     const result = await lifecycleService.evaluate(db, {
-      transactionId: id, initiatingUserId: a.userId, now: new Date(),
+      transactionId: id,
+      initiatingUserId: a.userId,
+      now: new Date(),
     });
     if (result.kind === 'allow') {
       return c.json({ kind: 'allow', status: result.transaction.status }, 200);
     }
-    return c.json({
-      kind: 'bump_pending', bumpRequestId: result.bumpRequestId,
-      status: result.transaction.status,
-    }, 202);
+    return c.json(
+      {
+        kind: 'bump_pending',
+        bumpRequestId: result.bumpRequestId,
+        status: result.transaction.status,
+      },
+      202,
+    );
   })
   .post('/:id/send', async (c) => {
     const id = c.req.param('id');
@@ -64,7 +70,9 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     const householdRef = hh ? hh.id : row.masterWalletId;
 
     const result = await nipOutService.send(db, anchorAdapterSingleton, {
-      transactionId: id, householdRef, now: new Date(),
+      transactionId: id,
+      householdRef,
+      now: new Date(),
     });
     return c.json(result, 202);
   })
@@ -72,7 +80,8 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     const body = await c.req.json<{ token: string }>();
     if (!body.token) return c.json({ error: 'missing_token' }, 400);
     const result = await lifecycleService.resumeAfterBump(db, {
-      token: body.token, now: new Date(),
+      token: body.token,
+      now: new Date(),
     });
     return c.json({ status: result.transaction.status }, 200);
   });

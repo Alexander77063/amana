@@ -1,6 +1,6 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { transactionsRepo, type TransactionRow } from '../wallet/transactions.repo';
 import type { Kobo } from '../../lib/kobo';
+import { type TransactionRow, transactionsRepo } from '../wallet/transactions.repo';
 
 export type CreateIntentInput = {
   masterWalletId: string;

@@ -2,8 +2,8 @@ import { and, eq, lt } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { transactions } from '../../db/schema';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
-import { settlementService } from './settlement.service';
 import { reversalService } from './reversal.service';
+import { settlementService } from './settlement.service';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -18,11 +18,7 @@ export type SweepResult = {
 };
 
 export const reconciliationService = {
-  async sweep(
-    db: DbOrTx,
-    adapter: AnchorAdapter,
-    now: Date,
-  ): Promise<SweepResult> {
+  async sweep(db: DbOrTx, adapter: AnchorAdapter, now: Date): Promise<SweepResult> {
     const cutoff = new Date(now.getTime() - STUCK_THRESHOLD_MINUTES * 60 * 1000);
     const stuck = await db
       .select({

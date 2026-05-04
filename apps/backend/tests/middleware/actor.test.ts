@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
 import { Hono } from 'hono';
-import { actor, type Actor } from '../../src/middleware/actor';
+import { describe, expect, it } from 'vitest';
+import { type Actor, actor } from '../../src/middleware/actor';
 
 describe('actor middleware', () => {
   it('parses x-actor-user-id + x-actor-role into ctx', async () => {

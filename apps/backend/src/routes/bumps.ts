@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { db } from '../db/client';
-import { actor, type Actor, type ActorVariables } from '../middleware/actor';
-import { bumpWorkflowService } from '../modules/bumps/bump-workflow.service';
 import { isOk } from '../lib/result';
+import { type Actor, type ActorVariables, actor } from '../middleware/actor';
+import { bumpWorkflowService } from '../modules/bumps/bump-workflow.service';
 
 export const bumpsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(actor())
@@ -23,13 +23,19 @@ export const bumpsRoute = new Hono<{ Variables: ActorVariables }>()
       now: new Date(),
     });
     if (isOk(result)) {
-      return c.json({
-        status: result.value.bumpRequest.status,
-        oneShotToken: result.value.oneShotToken?.token ?? null,
-      }, 200);
+      return c.json(
+        {
+          status: result.value.bumpRequest.status,
+          oneShotToken: result.value.oneShotToken?.token ?? null,
+        },
+        200,
+      );
     }
-    const status = result.error.code === 'BUMP_NOT_FOUND' ? 404 :
-      result.error.code === 'BUMP_EXPIRED' ? 410 :
-      409;
+    const status =
+      result.error.code === 'BUMP_NOT_FOUND'
+        ? 404
+        : result.error.code === 'BUMP_EXPIRED'
+          ? 410
+          : 409;
     return c.json({ error: result.error.code }, status);
   });

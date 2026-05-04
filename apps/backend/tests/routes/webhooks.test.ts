@@ -1,18 +1,18 @@
 import { createHmac } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createServer } from '../../src/server';
-import { testDb, truncateAll } from '../helpers/test-db';
 import { kobo } from '../../src/lib/kobo';
-import { txnIntentService } from '../../src/modules/transactions/txn-intent.service';
-import { transactionsRepo } from '../../src/modules/wallet/transactions.repo';
-import { ledgerService } from '../../src/modules/wallet/ledger.service';
-import { postingsRepo } from '../../src/modules/wallet/postings.repo';
-import { factories } from '../helpers/factories';
-import { usersRepo } from '../../src/modules/identity/users.repo';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
+import { usersRepo } from '../../src/modules/identity/users.repo';
+import { txnIntentService } from '../../src/modules/transactions/txn-intent.service';
+import { ledgerService } from '../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo';
+import { postingsRepo } from '../../src/modules/wallet/postings.repo';
 import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
+import { transactionsRepo } from '../../src/modules/wallet/transactions.repo';
+import { createServer } from '../../src/server';
+import { factories } from '../helpers/factories';
+import { testDb, truncateAll } from '../helpers/test-db';
 
 const SECRET = 'whsec_test';
 
@@ -100,39 +100,65 @@ describe('POST /webhooks/anchor', () => {
 
 async function seedInFlightTxn() {
   const principal = await usersRepo.insert(testDb, {
-    role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+    role: 'principal',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '2',
+    bvn: factories.bvn(),
   });
   const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
   const mw = await masterWalletsRepo.provision(testDb, {
-    householdId: hh.id, anchorVirtualAccount: 'VA-9999', anchorBankCode: '058',
+    householdId: hh.id,
+    anchorVirtualAccount: 'VA-9999',
+    anchorBankCode: '058',
     anchorAccountId: 'anchor-acct-9999',
   });
   const agent = await usersRepo.insert(testDb, {
-    role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+    role: 'agent',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '1',
   });
   const sw = await subWalletsRepo.provision(testDb, {
-    masterWalletId: mw.master.id, agentUserId: agent.id, name: 'Driver',
+    masterWalletId: mw.master.id,
+    agentUserId: agent.id,
+    name: 'Driver',
   });
   // Top up master wallet so sub-wallet has spendable balance
   const topup = await transactionsRepo.insert(testDb, {
-    masterWalletId: mw.master.id, kind: 'topup', amountKobo: kobo(100_000n),
+    masterWalletId: mw.master.id,
+    kind: 'topup',
+    amountKobo: kobo(100_000n),
     idempotencyKey: factories.idempotencyKey(),
   });
   await ledgerService.writeDoubleEntry(testDb, topup.id, [
     { ledgerAccountId: sw.ledgerAccountId, debitKobo: kobo(100_000n), creditKobo: kobo(0n) },
-    { ledgerAccountId: mw.ledgerAccountIds.suspense, debitKobo: kobo(0n), creditKobo: kobo(100_000n) },
+    {
+      ledgerAccountId: mw.ledgerAccountIds.suspense,
+      debitKobo: kobo(0n),
+      creditKobo: kobo(100_000n),
+    },
   ]);
   // Reservation (in-flight spend)
   const txn = await txnIntentService.create(testDb, {
-    masterWalletId: mw.master.id, subWalletId: sw.sub.id,
-    amountKobo: kobo(5_000n), idempotencyKey: 'k-spend-1',
-    vendorBankCode: '058', vendorAccountNumber: '0123456789',
-    vendorResolvedName: 'M', category: null, agentNote: null,
+    masterWalletId: mw.master.id,
+    subWalletId: sw.sub.id,
+    amountKobo: kobo(5_000n),
+    idempotencyKey: 'k-spend-1',
+    vendorBankCode: '058',
+    vendorAccountNumber: '0123456789',
+    vendorResolvedName: 'M',
+    category: null,
+    agentNote: null,
   });
   await transactionsRepo.setStatus(testDb, txn.id, 'in_flight');
   await ledgerService.writeDoubleEntry(testDb, txn.id, [
     { ledgerAccountId: sw.ledgerAccountId, debitKobo: kobo(5_000n), creditKobo: kobo(0n) },
-    { ledgerAccountId: mw.ledgerAccountIds.suspense, debitKobo: kobo(0n), creditKobo: kobo(5_000n) },
+    {
+      ledgerAccountId: mw.ledgerAccountIds.suspense,
+      debitKobo: kobo(0n),
+      creditKobo: kobo(5_000n),
+    },
   ]);
   return { txnId: txn.id, virtualAccount: 'anchor-acct-9999', subLA: sw.ledgerAccountId };
 }
@@ -147,11 +173,19 @@ describe('POST /webhooks/anchor — dispatch', () => {
     const { txnId } = await seedInFlightTxn();
     const app = createServer();
     const body = JSON.stringify({
-      id: 'evt-tc-1', type: 'transfer.completed', createdAt: '2026-05-03T12:00:30Z',
-      data: { transferId: 'tr-1', reference: 'k-spend-1', status: 'COMPLETED', nibssSessionId: 'sess-1' },
+      id: 'evt-tc-1',
+      type: 'transfer.completed',
+      createdAt: '2026-05-03T12:00:30Z',
+      data: {
+        transferId: 'tr-1',
+        reference: 'k-spend-1',
+        status: 'COMPLETED',
+        nibssSessionId: 'sess-1',
+      },
     });
     const res = await app.request('/webhooks/anchor', {
-      method: 'POST', body,
+      method: 'POST',
+      body,
       headers: { 'content-type': 'application/json', 'x-anchor-signature': sign(body) },
     });
     expect(res.status).toBe(200);
@@ -163,11 +197,19 @@ describe('POST /webhooks/anchor — dispatch', () => {
     const { txnId, subLA } = await seedInFlightTxn();
     const app = createServer();
     const body = JSON.stringify({
-      id: 'evt-tf-1', type: 'transfer.failed', createdAt: '2026-05-03T12:00:30Z',
-      data: { transferId: 'tr-1', reference: 'k-spend-1', status: 'FAILED', failureReason: 'closed' },
+      id: 'evt-tf-1',
+      type: 'transfer.failed',
+      createdAt: '2026-05-03T12:00:30Z',
+      data: {
+        transferId: 'tr-1',
+        reference: 'k-spend-1',
+        status: 'FAILED',
+        failureReason: 'closed',
+      },
     });
     await app.request('/webhooks/anchor', {
-      method: 'POST', body,
+      method: 'POST',
+      body,
       headers: { 'content-type': 'application/json', 'x-anchor-signature': sign(body) },
     });
     const failed = await transactionsRepo.findById(testDb, txnId);
@@ -181,16 +223,21 @@ describe('POST /webhooks/anchor — dispatch', () => {
     const { virtualAccount } = await seedInFlightTxn();
     const app = createServer();
     const body = JSON.stringify({
-      id: 'evt-vc-1', type: 'virtual_account.credited', createdAt: '2026-05-03T12:00:30Z',
+      id: 'evt-vc-1',
+      type: 'virtual_account.credited',
+      createdAt: '2026-05-03T12:00:30Z',
       data: {
         virtualAccountId: virtualAccount,
         amountKobo: '50000',
-        senderBankCode: '058', senderAccountNumber: '0001112223', senderAccountName: 'SENDER',
+        senderBankCode: '058',
+        senderAccountNumber: '0001112223',
+        senderAccountName: 'SENDER',
         nibssSessionId: 'sess-topup-1',
       },
     });
     const res = await app.request('/webhooks/anchor', {
-      method: 'POST', body,
+      method: 'POST',
+      body,
       headers: { 'content-type': 'application/json', 'x-anchor-signature': sign(body) },
     });
     expect(res.status).toBe(200);

@@ -1,5 +1,5 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { recentsRepo, type RecentRow } from './recents.repo';
+import { type RecentRow, recentsRepo } from './recents.repo';
 
 const MAX_RECENTS = 10;
 

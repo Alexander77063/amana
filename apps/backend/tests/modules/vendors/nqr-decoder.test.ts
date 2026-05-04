@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { decodeNqr, encodeTlvForTest } from '../../../src/modules/vendors/nqr-decoder';
 import { isErr, isOk } from '../../../src/lib/result';
+import { decodeNqr, encodeTlvForTest } from '../../../src/modules/vendors/nqr-decoder';
 
 describe('decodeNqr', () => {
   it('decodes a minimal QR with bank code + account number under merchant info', () => {

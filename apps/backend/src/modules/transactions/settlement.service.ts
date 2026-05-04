@@ -27,8 +27,16 @@ export const settlementService = {
         throw new Error(`cannot settle txn in status ${txn.status}`);
       }
 
-      const suspenseLA = await ledgerAccountsRepo.findByMasterAndKind(txDb, txn.masterWalletId, 'suspense');
-      const externalLA = await ledgerAccountsRepo.findByMasterAndKind(txDb, txn.masterWalletId, 'external');
+      const suspenseLA = await ledgerAccountsRepo.findByMasterAndKind(
+        txDb,
+        txn.masterWalletId,
+        'suspense',
+      );
+      const externalLA = await ledgerAccountsRepo.findByMasterAndKind(
+        txDb,
+        txn.masterWalletId,
+        'external',
+      );
       const feeLA = await ledgerAccountsRepo.findByMasterAndKind(txDb, txn.masterWalletId, 'fee');
       if (!suspenseLA || !feeLA) {
         throw new Error('master wallet missing suspense or fee ledger account');
@@ -38,7 +46,9 @@ export const settlementService = {
       let extLA = externalLA;
       if (!extLA) {
         extLA = await ledgerAccountsRepo.insert(txDb, {
-          masterWalletId: txn.masterWalletId, kind: 'external', normalSide: 'credit',
+          masterWalletId: txn.masterWalletId,
+          kind: 'external',
+          normalSide: 'credit',
         });
       }
 
@@ -57,7 +67,11 @@ export const settlementService = {
         amountKobo: kobo(NIP_FEE_KOBO),
         idempotencyKey: `${txn.id}-fee`,
       });
-      const masterLA = await ledgerAccountsRepo.findByMasterAndKind(txDb, txn.masterWalletId, 'master');
+      const masterLA = await ledgerAccountsRepo.findByMasterAndKind(
+        txDb,
+        txn.masterWalletId,
+        'master',
+      );
       if (!masterLA) throw new Error('master LA missing');
       await ledgerService.writeDoubleEntry(txDb, feeTxn.id, [
         { ledgerAccountId: masterLA.id, debitKobo: kobo(0n), creditKobo: kobo(NIP_FEE_KOBO) },

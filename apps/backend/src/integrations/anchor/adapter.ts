@@ -78,6 +78,24 @@ export class AnchorAdapter {
     );
   }
 
+  async findTransferByReference(
+    reference: string,
+  ): Promise<import('./types').AnchorTransferResponse | null> {
+    const qs = `?reference=${encodeURIComponent(reference)}`;
+    try {
+      return await this.breaker.exec(() =>
+        this.executeWithRetry(() =>
+          this.client.get<import('./types').AnchorTransferResponse>(`/transfers/by-reference${qs}`),
+        ),
+      );
+    } catch (e) {
+      if (e instanceof AnchorHttpError && e.status === 404) {
+        return null;
+      }
+      throw e;
+    }
+  }
+
   async transfer(
     input: import('./types').AnchorTransferRequest,
     idempotencyKey: string,

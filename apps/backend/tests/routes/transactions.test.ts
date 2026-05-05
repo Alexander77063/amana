@@ -8,6 +8,7 @@ import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../src/modules/wallet/transactions.repo';
 import { createServer } from '../../src/server';
 import { factories } from '../helpers/factories';
+import { bearerHeaders } from '../helpers/bearer';
 import { testDb, truncateAll } from '../helpers/test-db';
 
 async function seedFundedSubWallet() {
@@ -54,6 +55,7 @@ async function seedFundedSubWallet() {
     masterId: mw.master.id,
     subWalletId: sw.sub.id,
     agentId: agent.id,
+    agentUser: agent,
     principalId: principal.id,
   };
 }
@@ -64,15 +66,12 @@ describe('POST /transactions/intent + evaluate', () => {
   });
 
   it('intent creates a DRAFT, evaluate moves to in_flight when no rules block', async () => {
-    const { masterId, subWalletId, agentId } = await seedFundedSubWallet();
+    const { masterId, subWalletId, agentUser } = await seedFundedSubWallet();
     const app = createServer();
+    const agentHeaders = await bearerHeaders(agentUser);
     const intentRes = await app.request('/transactions/intent', {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-actor-user-id': agentId,
-        'x-actor-role': 'agent',
-      },
+      headers: agentHeaders,
       body: JSON.stringify({
         masterWalletId: masterId,
         subWalletId,
@@ -91,7 +90,7 @@ describe('POST /transactions/intent + evaluate', () => {
 
     const evalRes = await app.request(`/transactions/${intent.transactionId}/evaluate`, {
       method: 'POST',
-      headers: { 'x-actor-user-id': agentId, 'x-actor-role': 'agent' },
+      headers: agentHeaders,
     });
     expect(evalRes.status).toBe(200);
     const evalBody = (await evalRes.json()) as { kind: string; status: string };
@@ -99,7 +98,7 @@ describe('POST /transactions/intent + evaluate', () => {
     expect(evalBody.status).toBe('in_flight');
   });
 
-  it('rejects intent without actor headers (401)', async () => {
+  it('rejects intent without bearer (401)', async () => {
     const { masterId, subWalletId } = await seedFundedSubWallet();
     const app = createServer();
     const res = await app.request('/transactions/intent', {
@@ -118,5 +117,6 @@ describe('POST /transactions/intent + evaluate', () => {
       }),
     });
     expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'missing_bearer' });
   });
 });

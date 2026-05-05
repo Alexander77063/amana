@@ -8,6 +8,7 @@ import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../src/modules/wallet/transactions.repo';
 import { createServer } from '../../src/server';
 import { factories } from '../helpers/factories';
+import { bearerHeaders } from '../helpers/bearer';
 import { testDb, truncateAll } from '../helpers/test-db';
 
 async function seedBump(now: Date) {
@@ -51,7 +52,7 @@ async function seedBump(now: Date) {
     vendorResolvedName: 'M',
     now,
   });
-  return { principalId: principal.id, agentId: agent.id, bumpId: created.bumpRequest.id };
+  return { principal, agent, bumpId: created.bumpRequest.id };
 }
 
 describe('POST /bumps/:id/decision', () => {
@@ -61,15 +62,12 @@ describe('POST /bumps/:id/decision', () => {
 
   it('approve_once → 200 with one-shot token', async () => {
     const now = new Date();
-    const { principalId, bumpId } = await seedBump(now);
+    const { principal, bumpId } = await seedBump(now);
     const app = createServer();
+    const principalHeaders = await bearerHeaders(principal);
     const res = await app.request(`/bumps/${bumpId}/decision`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-actor-user-id': principalId,
-        'x-actor-role': 'principal',
-      },
+      headers: principalHeaders,
       body: JSON.stringify({ decision: 'approve_once' }),
     });
     expect(res.status).toBe(200);
@@ -80,15 +78,12 @@ describe('POST /bumps/:id/decision', () => {
 
   it('403 when actor role is not principal', async () => {
     const now = new Date();
-    const { agentId, bumpId } = await seedBump(now);
+    const { agent, bumpId } = await seedBump(now);
     const app = createServer();
+    const agentHeaders = await bearerHeaders(agent);
     const res = await app.request(`/bumps/${bumpId}/decision`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-actor-user-id': agentId,
-        'x-actor-role': 'agent',
-      },
+      headers: agentHeaders,
       body: JSON.stringify({ decision: 'approve_once' }),
     });
     expect(res.status).toBe(403);
@@ -96,15 +91,12 @@ describe('POST /bumps/:id/decision', () => {
 
   it('404 for unknown bump', async () => {
     const now = new Date();
-    const { principalId } = await seedBump(now);
+    const { principal } = await seedBump(now);
     const app = createServer();
+    const principalHeaders = await bearerHeaders(principal);
     const res = await app.request(`/bumps/${factories.txnId()}/decision`, {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-actor-user-id': principalId,
-        'x-actor-role': 'principal',
-      },
+      headers: principalHeaders,
       body: JSON.stringify({ decision: 'approve_once' }),
     });
     expect(res.status).toBe(404);

@@ -3,6 +3,7 @@ import { usersRepo } from '../../src/modules/identity/users.repo';
 import { notificationsRepo } from '../../src/modules/notifications/notifications.repo';
 import { createServer } from '../../src/server';
 import { factories } from '../helpers/factories';
+import { bearerHeaders } from '../helpers/bearer';
 import { testDb, truncateAll } from '../helpers/test-db';
 
 describe('GET /me/notifications', () => {
@@ -35,9 +36,8 @@ describe('GET /me/notifications', () => {
       payload: {},
     });
     const app = createServer();
-    const res = await app.request('/me/notifications', {
-      headers: { 'x-actor-user-id': u.id, 'x-actor-role': 'principal' },
-    });
+    const headers = await bearerHeaders(u);
+    const res = await app.request('/me/notifications', { headers });
     const body = (await res.json()) as { notifications: { dedupeKey: string }[] };
     expect(body.notifications).toHaveLength(2);
   });

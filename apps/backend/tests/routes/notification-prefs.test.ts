@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { usersRepo } from '../../src/modules/identity/users.repo';
 import { createServer } from '../../src/server';
 import { factories } from '../helpers/factories';
+import { bearerHeaders } from '../helpers/bearer';
 import { testDb, truncateAll } from '../helpers/test-db';
 
 describe('PUT /me/notification-preferences', () => {
@@ -18,13 +19,10 @@ describe('PUT /me/notification-preferences', () => {
       bvn: factories.bvn(),
     });
     const app = createServer();
+    const headers = await bearerHeaders(u);
     const res = await app.request('/me/notification-preferences', {
       method: 'PUT',
-      headers: {
-        'content-type': 'application/json',
-        'x-actor-user-id': u.id,
-        'x-actor-role': 'principal',
-      },
+      headers,
       body: JSON.stringify({
         kind: 'txn_settled',
         channel: 'push',
@@ -44,13 +42,10 @@ describe('PUT /me/notification-preferences', () => {
       bvn: factories.bvn(),
     });
     const app = createServer();
+    const headers = await bearerHeaders(u);
     const res = await app.request('/me/notification-preferences', {
       method: 'PUT',
-      headers: {
-        'content-type': 'application/json',
-        'x-actor-user-id': u.id,
-        'x-actor-role': 'principal',
-      },
+      headers,
       body: JSON.stringify({ kind: 'bogus', channel: 'push', preference: 'real_time' }),
     });
     expect(res.status).toBe(400);

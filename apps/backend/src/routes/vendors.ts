@@ -2,13 +2,13 @@ import { Hono } from 'hono';
 import { db } from '../db/client';
 import { anchorAdapterSingleton } from '../integrations/anchor';
 import { isOk } from '../lib/result';
-import { type ActorVariables, actor } from '../middleware/actor';
+import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { decodeNqr } from '../modules/vendors/nqr-decoder';
 import { recentsService } from '../modules/vendors/recents.service';
 import { vendorResolutionService } from '../modules/vendors/vendor-resolution.service';
 
 export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
-  .use(actor())
+  .use(jwtAuth())
   .get('/name-enquiry', async (c) => {
     const bankCode = c.req.query('bankCode');
     const accountNumber = c.req.query('accountNumber');

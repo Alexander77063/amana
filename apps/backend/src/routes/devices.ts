@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import { db } from '../db/client';
-import { type Actor, type ActorVariables, actor } from '../middleware/actor';
+import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { deviceTokensRepo } from '../modules/notifications/device-tokens.repo';
 
 export const devicesRoute = new Hono<{ Variables: ActorVariables }>()
-  .use(actor())
+  .use(jwtAuth())
   .post('/', async (c) => {
     const a = c.get('actor');
     const body = await c.req.json<{

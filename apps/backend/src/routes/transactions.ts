@@ -4,7 +4,7 @@ import { db } from '../db/client';
 import { transactions } from '../db/schema';
 import { anchorAdapterSingleton } from '../integrations/anchor';
 import { kobo } from '../lib/kobo';
-import { type Actor, type ActorVariables, actor } from '../middleware/actor';
+import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
 import { lifecycleService } from '../modules/transactions/lifecycle.service';
 import { nipOutService } from '../modules/transactions/nip-out.service';
@@ -12,7 +12,7 @@ import { txnIntentService } from '../modules/transactions/txn-intent.service';
 import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
 
 export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
-  .use(actor())
+  .use(jwtAuth())
   .post('/intent', async (c) => {
     type Body = {
       masterWalletId: string;

@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { db } from '../db/client';
 import { isOk } from '../lib/result';
-import { type Actor, type ActorVariables, actor } from '../middleware/actor';
+import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { bumpWorkflowService } from '../modules/bumps/bump-workflow.service';
 
 export const bumpsRoute = new Hono<{ Variables: ActorVariables }>()
-  .use(actor())
+  .use(jwtAuth())
   .post('/:id/decision', async (c) => {
     const id = c.req.param('id');
     const a = c.get('actor') as Actor;

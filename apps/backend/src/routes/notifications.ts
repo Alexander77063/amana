@@ -1,10 +1,10 @@
 import { Hono } from 'hono';
 import { db } from '../db/client';
-import { type ActorVariables, actor } from '../middleware/actor';
+import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { notificationsRepo } from '../modules/notifications/notifications.repo';
 
 export const notificationsListRoute = new Hono<{ Variables: ActorVariables }>()
-  .use(actor())
+  .use(jwtAuth())
   .get('/me/notifications', async (c) => {
     const a = c.get('actor');
     const limit = Math.min(Number(c.req.query('limit') ?? '50'), 100);

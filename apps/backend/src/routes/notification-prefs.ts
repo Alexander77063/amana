@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { db } from '../db/client';
-import { type ActorVariables, actor } from '../middleware/actor';
+import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { prefsRepo } from '../modules/notifications/prefs.repo';
 import type {
   ChannelPreference,
@@ -20,7 +20,7 @@ const CHANNELS: NotificationChannel[] = ['push', 'sms', 'in_app'];
 const PREFS: ChannelPreference[] = ['real_time', 'threshold', 'digest', 'silent'];
 
 export const notificationPrefsRoute = new Hono<{ Variables: ActorVariables }>()
-  .use(actor())
+  .use(jwtAuth())
   .get('/me/notification-preferences', async (c) => {
     const a = c.get('actor');
     const rows = await prefsRepo.listByUser(db, a.userId);

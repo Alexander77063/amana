@@ -8,6 +8,25 @@ export type {
   RefreshResult,
 } from './auth-api';
 export { ApiError } from './errors';
+export { HouseholdApi } from './household-api';
+export type {
+  AuthedClient,
+  CreateHouseholdInput,
+  CreateHouseholdResult,
+  GetMyHouseholdResult,
+  CreateSubWalletInput,
+  CreateSubWalletResult,
+} from './household-api';
+export { SubWalletApi } from './sub-wallet-api';
+export type {
+  PatchStatusInput,
+  GetBalanceResult,
+  GetRulesResult,
+  PublishRulesInput,
+  PublishRulesResult,
+} from './sub-wallet-api';
+export { PairingApi } from './pairing-api';
+export type { IssuePairingInput, IssuePairingResult } from './pairing-api';
 export {
   type TokenStore,
   type StoredAuth,

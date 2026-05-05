@@ -1,5 +1,8 @@
 import { AuthApi } from './auth-api';
 import { ApiError } from './errors';
+import { HouseholdApi } from './household-api';
+import { PairingApi } from './pairing-api';
+import { SubWalletApi } from './sub-wallet-api';
 import type { StoredAuth, TokenStore } from './token-store';
 
 export interface ClientConfig {
@@ -17,6 +20,9 @@ export type RequestInit2 = Omit<RequestInit, 'body' | 'headers'> & {
 export class AmanaApiClient {
   public readonly baseUrl: string;
   public readonly auth: AuthApi;
+  public readonly household: HouseholdApi;
+  public readonly subWallet: SubWalletApi;
+  public readonly pairing: PairingApi;
   private readonly fetchImpl: typeof fetch;
   private readonly tokenStore?: TokenStore;
   private inflightRefresh: Promise<StoredAuth> | null = null;
@@ -26,6 +32,9 @@ export class AmanaApiClient {
     this.fetchImpl = config.fetchImpl ?? globalThis.fetch;
     this.tokenStore = config.tokenStore;
     this.auth = new AuthApi(this.baseUrl, this.fetchImpl);
+    this.household = new HouseholdApi(this);
+    this.subWallet = new SubWalletApi(this);
+    this.pairing = new PairingApi(this);
   }
 
   async health(): Promise<{ status: 'ok'; version: string }> {

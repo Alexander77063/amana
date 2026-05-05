@@ -35,3 +35,4 @@ export {
 } from './postings.repo';
 
 export { ledgerService, type DoubleEntryLeg } from './ledger.service';
+export { balanceService } from './balance.service';

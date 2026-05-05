@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { usersRepo } from '../../src/modules/identity/users.repo';
 import { createServer } from '../../src/server';
 import { factories } from '../helpers/factories';
+import { bearerHeaders } from '../helpers/bearer';
 import { testDb, truncateAll } from '../helpers/test-db';
 
 describe('POST /devices', () => {
@@ -17,13 +18,10 @@ describe('POST /devices', () => {
       kycTier: '1',
     });
     const app = createServer();
+    const headers = await bearerHeaders(u);
     const res = await app.request('/devices', {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-actor-user-id': u.id,
-        'x-actor-role': 'agent',
-      },
+      headers,
       body: JSON.stringify({
         expoPushToken: 'ExponentPushToken[abc]',
         platform: 'android',
@@ -34,7 +32,7 @@ describe('POST /devices', () => {
     expect(body.id).toMatch(/^[0-9a-f-]{36}$/);
   });
 
-  it('401 without actor headers', async () => {
+  it('401 without bearer', async () => {
     const app = createServer();
     const res = await app.request('/devices', {
       method: 'POST',
@@ -42,6 +40,7 @@ describe('POST /devices', () => {
       body: JSON.stringify({ expoPushToken: 'ExponentPushToken[abc]', platform: 'android' }),
     });
     expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'missing_bearer' });
   });
 
   it("DELETE /devices/:id returns 404 for someone else's token", async () => {
@@ -58,20 +57,18 @@ describe('POST /devices', () => {
       kycTier: '1',
     });
     const app = createServer();
+    const uHeaders = await bearerHeaders(u);
+    const otherHeaders = await bearerHeaders(other);
     const create = await app.request('/devices', {
       method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-actor-user-id': u.id,
-        'x-actor-role': 'agent',
-      },
+      headers: uHeaders,
       body: JSON.stringify({ expoPushToken: 'ExponentPushToken[abc]', platform: 'android' }),
     });
     const { id } = (await create.json()) as { id: string };
 
     const del = await app.request(`/devices/${id}`, {
       method: 'DELETE',
-      headers: { 'x-actor-user-id': other.id, 'x-actor-role': 'agent' },
+      headers: otherHeaders,
     });
     expect(del.status).toBe(404);
   });

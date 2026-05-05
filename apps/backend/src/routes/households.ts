@@ -19,7 +19,7 @@ export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
 		if (existing) return c.json({ error: 'household_exists', householdId: existing.id }, 409);
 
 		return db.transaction(async (tx) => {
-			const txDb = tx as typeof db;
+			const txDb = tx as unknown as typeof db;
 			const hh = await householdsRepo.insert(txDb, {
 				principalUserId: a.userId,
 				name: body.name.trim(),

@@ -5,8 +5,8 @@ import { stickersRepo } from '../../src/modules/sticker/stickers.repo';
 import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
 import { createServer } from '../../src/server';
-import { factories } from '../helpers/factories';
 import { bearerHeaders } from '../helpers/bearer';
+import { factories } from '../helpers/factories';
 import { testDb, truncateAll } from '../helpers/test-db';
 
 async function seedSubWallet() {

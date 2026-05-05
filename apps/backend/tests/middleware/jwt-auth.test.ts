@@ -14,7 +14,9 @@ const buildApp = () => {
 };
 
 describe('jwtAuth middleware', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('401 missing_bearer when no Authorization header', async () => {
     const res = await buildApp().request('/me');
@@ -32,23 +34,29 @@ describe('jwtAuth middleware', () => {
 
   it('200 with actor on a valid token', async () => {
     const u = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(),
-      kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const tokens = await sessionService.issue(testDb, { userId: u.id, role: 'principal' });
     const res = await buildApp().request('/me', {
       headers: { Authorization: `Bearer ${tokens.accessToken}` },
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as { actor: { userId: string; role: string } };
+    const body = (await res.json()) as { actor: { userId: string; role: string } };
     expect(body.actor.userId).toBe(u.id);
     expect(body.actor.role).toBe('principal');
   });
 
   it('401 session_revoked after revoke', async () => {
     const u = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(),
-      kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const tokens = await sessionService.issue(testDb, { userId: u.id, role: 'principal' });
     await sessionService.revoke(testDb, tokens.sessionId);

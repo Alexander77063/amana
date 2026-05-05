@@ -8,18 +8,25 @@ import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
 describe('pairingService', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('issue returns a token with the expected scope', async () => {
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(),
-      kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const hh = await householdsRepo.insert(testDb, {
-      principalUserId: principal.id, name: 'HH',
+      principalUserId: principal.id,
+      name: 'HH',
     });
     const t = await pairingService.issue(testDb, {
-      principalUserId: principal.id, householdId: hh.id,
+      principalUserId: principal.id,
+      householdId: hh.id,
     });
     expect(t.code).toMatch(/^[A-Za-z0-9_-]{22}$/);
     expect(t.principalUserId).toBe(principal.id);
@@ -28,17 +35,25 @@ describe('pairingService', () => {
 
   it('consume links agent to household + marks token consumed', async () => {
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(),
-      kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const hh = await householdsRepo.insert(testDb, {
-      principalUserId: principal.id, name: 'HH',
+      principalUserId: principal.id,
+      name: 'HH',
     });
     const agent = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const t = await pairingService.issue(testDb, {
-      principalUserId: principal.id, householdId: hh.id,
+      principalUserId: principal.id,
+      householdId: hh.id,
     });
     const r = await pairingService.consume(testDb, { code: t.code, agentUserId: agent.id });
     expect(r.kind).toBe('consumed');
@@ -51,7 +66,10 @@ describe('pairingService', () => {
 
   it('consume with bad code returns not_found', async () => {
     const agent = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const r = await pairingService.consume(testDb, { code: 'nope', agentUserId: agent.id });
     expect(r.kind).toBe('not_found');
@@ -59,24 +77,36 @@ describe('pairingService', () => {
 
   it('idempotent: consuming twice (different agents) for same household is fine', async () => {
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(),
-      kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const hh = await householdsRepo.insert(testDb, {
-      principalUserId: principal.id, name: 'HH',
+      principalUserId: principal.id,
+      name: 'HH',
     });
     const agent1 = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const agent2 = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const t1 = await pairingService.issue(testDb, {
-      principalUserId: principal.id, householdId: hh.id,
+      principalUserId: principal.id,
+      householdId: hh.id,
     });
     await pairingService.consume(testDb, { code: t1.code, agentUserId: agent1.id });
     const t2 = await pairingService.issue(testDb, {
-      principalUserId: principal.id, householdId: hh.id,
+      principalUserId: principal.id,
+      householdId: hh.id,
     });
     const r2 = await pairingService.consume(testDb, { code: t2.code, agentUserId: agent2.id });
     expect(r2.kind).toBe('consumed');

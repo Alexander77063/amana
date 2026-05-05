@@ -4,6 +4,7 @@ import { testDb, truncateAll } from '../../helpers/test-db';
 
 beforeEach(async () => {
   await truncateAll();
+  // biome-ignore lint/performance/noDelete: unsetting env var so the otp service takes its no-key skip path
   delete process.env.TERMII_API_KEY;
 });
 
@@ -35,7 +36,10 @@ describe('otpService.verifyCode', () => {
       const r = await otpService.verifyCode(testDb, { phone: '+2348012345678', code: '999999' });
       expect(r.kind).toBe('wrong_code');
     }
-    const blocked = await otpService.verifyCode(testDb, { phone: '+2348012345678', code: '999999' });
+    const blocked = await otpService.verifyCode(testDb, {
+      phone: '+2348012345678',
+      code: '999999',
+    });
     expect(blocked.kind).toBe('too_many_attempts');
   });
 

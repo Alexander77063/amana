@@ -10,8 +10,8 @@ import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo'
 import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../src/modules/wallet/transactions.repo';
 import { createServer } from '../../src/server';
-import { factories } from '../helpers/factories';
 import { bearerHeaders } from '../helpers/bearer';
+import { factories } from '../helpers/factories';
 import { testDb, truncateAll } from '../helpers/test-db';
 
 const SECRET = 'whsec_e2e';

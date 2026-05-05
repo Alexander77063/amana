@@ -9,6 +9,7 @@ import { testDb, truncateAll } from '../helpers/test-db';
 describe('POST /auth/otp/request', () => {
   beforeEach(async () => {
     await truncateAll();
+    // biome-ignore lint/performance/noDelete: unsetting env var so the otp service takes its no-key skip path
     delete process.env.TERMII_API_KEY;
   });
 
@@ -38,6 +39,7 @@ describe('POST /auth/otp/request', () => {
 describe('POST /auth/otp/verify (principal signup)', () => {
   beforeEach(async () => {
     await truncateAll();
+    // biome-ignore lint/performance/noDelete: unsetting env var so the otp service takes its no-key skip path
     delete process.env.TERMII_API_KEY;
   });
 

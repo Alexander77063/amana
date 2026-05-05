@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { usersRepo } from '../../src/modules/identity/users.repo';
 import { createServer } from '../../src/server';
-import { factories } from '../helpers/factories';
 import { bearerHeaders } from '../helpers/bearer';
+import { factories } from '../helpers/factories';
 import { testDb, truncateAll } from '../helpers/test-db';
 
 describe('PUT /me/notification-preferences', () => {

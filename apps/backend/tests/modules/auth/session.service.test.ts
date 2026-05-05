@@ -38,7 +38,7 @@ describe('sessionService', () => {
     });
     const first = await sessionService.issue(testDb, { userId: u.id, role: 'principal' });
     const result = await sessionService.refresh(testDb, first.refreshToken, 'principal', u.id);
-    if (result.kind !== 'rotated') throw new Error('expected rotated, got ' + result.kind);
+    if (result.kind !== 'rotated') throw new Error(`expected rotated, got ${result.kind}`);
     expect(result.tokens.refreshToken).not.toBe(first.refreshToken);
     expect(result.tokens.sessionId).not.toBe(first.sessionId);
     const oldSession = await authSessionsRepo.findById(testDb, first.sessionId);

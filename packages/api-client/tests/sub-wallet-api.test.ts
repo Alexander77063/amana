@@ -94,9 +94,7 @@ describe('SubWalletApi.publishRules', () => {
     }));
     const api = new SubWalletApi(client);
     const r = await api.publishRules('sw1', {
-      rules: [
-        { kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo: '100000' } },
-      ],
+      rules: [{ kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo: '100000' } }],
     });
     expect(r.ruleSet.version).toBe(2);
     expect(client.request).toHaveBeenCalledWith('/sub-wallets/sw1/rules', {

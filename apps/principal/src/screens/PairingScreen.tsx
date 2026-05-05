@@ -45,8 +45,8 @@ export function PairingScreen(): JSX.Element {
     <View style={styles.container}>
       <Text style={styles.title}>Pair an agent</Text>
       <Text style={styles.muted}>
-        Issue a one-time code, then send it to your agent (SMS, WhatsApp, in-person). They enter
-        it during signup; that links them to your household.
+        Issue a one-time code, then send it to your agent (SMS, WhatsApp, in-person). They enter it
+        during signup; that links them to your household.
       </Text>
 
       {state.kind === 'idle' && (

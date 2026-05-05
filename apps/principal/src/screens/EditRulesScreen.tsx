@@ -24,7 +24,7 @@ type FormValues = z.infer<typeof schema>;
 
 const nairaToKobo = (naira: string): string => {
   const [whole = '0', frac = ''] = naira.split('.');
-  const fracPad = (frac + '00').slice(0, 2);
+  const fracPad = `${frac}00`.slice(0, 2);
   return `${BigInt(whole) * 100n + BigInt(fracPad || '0')}`;
 };
 
@@ -85,8 +85,8 @@ export function EditRulesScreen({ navigation, route }: Props): JSX.Element {
     >
       <Text style={styles.title}>Daily limit</Text>
       <Text style={styles.muted}>
-        Spend above this in 24 hours triggers a bump request to you. Categories + time windows
-        land in a future update.
+        Spend above this in 24 hours triggers a bump request to you. Categories + time windows land
+        in a future update.
       </Text>
 
       <Controller

@@ -34,11 +34,7 @@ export function MainStack(): JSX.Element {
         component={HouseholdSetupScreen}
         options={{ title: 'Set up household' }}
       />
-      <Stack.Screen
-        name="Pairing"
-        component={PairingScreen}
-        options={{ title: 'Pair an agent' }}
-      />
+      <Stack.Screen name="Pairing" component={PairingScreen} options={{ title: 'Pair an agent' }} />
       <Stack.Screen name="Members" component={MembersScreen} options={{ title: 'Agents' }} />
       <Stack.Screen
         name="SubWalletsList"

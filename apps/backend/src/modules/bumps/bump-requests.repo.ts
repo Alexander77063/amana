@@ -1,6 +1,6 @@
-import { and, eq, lt } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, lt, or } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { bumpRequests } from '../../db/schema';
+import { bumpRequests, households, masterWallets, subWallets } from '../../db/schema';
 import type { Kobo } from '../../lib/kobo';
 
 type DbOrTx = PostgresJsDatabase;
@@ -60,5 +60,40 @@ export const bumpRequestsRepo = {
       .select()
       .from(bumpRequests)
       .where(and(eq(bumpRequests.status, 'pending'), lt(bumpRequests.expiresAt, now)));
+  },
+
+  /**
+   * Returns the bumps the given principal can act on.
+   * `pending`: status === 'pending' AND expiresAt > now
+   * `history`: status in (approved_once|raise_limit|denied|expired)
+   *            AND (decidedAt OR createdAt for expired-without-decision) within the last 30 days
+   * Bumps are scoped to households where the user is the principal.
+   */
+  async findForPrincipal(
+    db: DbOrTx,
+    input: { userId: string; now: Date },
+  ): Promise<{ pending: BumpRequestRow[]; history: BumpRequestRow[] }> {
+    const cutoff = new Date(input.now.getTime() - 30 * 24 * 60 * 60_000);
+    const rows = await db
+      .select({ b: bumpRequests })
+      .from(bumpRequests)
+      .innerJoin(subWallets, eq(subWallets.id, bumpRequests.subWalletId))
+      .innerJoin(masterWallets, eq(masterWallets.id, subWallets.masterWalletId))
+      .innerJoin(households, eq(households.id, masterWallets.householdId))
+      .where(eq(households.principalUserId, input.userId))
+      .orderBy(desc(bumpRequests.createdAt));
+
+    const pending: BumpRequestRow[] = [];
+    const history: BumpRequestRow[] = [];
+    for (const { b } of rows) {
+      if (b.status === 'pending' && b.expiresAt > input.now) {
+        pending.push(b);
+        continue;
+      }
+      // history bucket: decided in last 30d, or expired (no decidedAt) created in last 30d
+      const ts = b.decidedAt ?? b.createdAt;
+      if (ts >= cutoff) history.push(b);
+    }
+    return { pending, history };
   },
 };

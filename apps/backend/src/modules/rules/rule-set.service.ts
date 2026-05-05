@@ -12,6 +12,29 @@ export type PublishInput = {
 };
 
 export const ruleSetService = {
+  async getActiveWithRules(
+    db: DbOrTx,
+    subWalletId: string,
+  ): Promise<{
+    ruleSetId: string;
+    version: number;
+    rules: Array<{ id: string; kind: string; priority: number; configJson: unknown }>;
+  } | null> {
+    const active = await ruleSetsRepo.findActive(db, subWalletId);
+    if (!active) return null;
+    const rs = await rulesRepo.listByRuleSet(db, active.id);
+    return {
+      ruleSetId: active.id,
+      version: active.version,
+      rules: rs.map((r) => ({
+        id: r.id,
+        kind: r.kind,
+        priority: r.priority,
+        configJson: r.configJson,
+      })),
+    };
+  },
+
   async publishNewVersion(db: DbOrTx, input: PublishInput) {
     return db.transaction(async (tx) => {
       const txDb = tx as DbOrTx;

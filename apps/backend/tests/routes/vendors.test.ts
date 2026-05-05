@@ -6,6 +6,7 @@ import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo'
 import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
 import { createServer } from '../../src/server';
 import { factories } from '../helpers/factories';
+import { bearerHeaders } from '../helpers/bearer';
 import { testDb, truncateAll } from '../helpers/test-db';
 
 async function seedSubWallet() {
@@ -34,7 +35,7 @@ async function seedSubWallet() {
     agentUserId: agent.id,
     name: 'Driver',
   });
-  return { agentId: agent.id, subWalletId: sw.sub.id };
+  return { agent, agentId: agent.id, subWalletId: sw.sub.id };
 }
 
 describe('GET /vendors/sticker/:uuid', () => {
@@ -43,7 +44,7 @@ describe('GET /vendors/sticker/:uuid', () => {
   });
 
   it('200 with ResolvedVendor for an active sticker', async () => {
-    const { agentId, subWalletId } = await seedSubWallet();
+    const { agent, subWalletId } = await seedSubWallet();
     const sticker = await stickersRepo.insert(testDb, {
       bankCode: '058',
       accountNumber: '0123456789',
@@ -52,8 +53,9 @@ describe('GET /vendors/sticker/:uuid', () => {
       status: 'active',
     });
     const app = createServer();
+    const headers = await bearerHeaders(agent);
     const res = await app.request(`/vendors/sticker/${sticker.uuid}?subWalletId=${subWalletId}`, {
-      headers: { 'x-actor-user-id': agentId, 'x-actor-role': 'agent' },
+      headers,
     });
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -62,24 +64,24 @@ describe('GET /vendors/sticker/:uuid', () => {
   });
 
   it('404 for unknown sticker', async () => {
-    const { agentId, subWalletId } = await seedSubWallet();
+    const { agent, subWalletId } = await seedSubWallet();
     const app = createServer();
+    const headers = await bearerHeaders(agent);
     const res = await app.request(
       `/vendors/sticker/${factories.txnId()}?subWalletId=${subWalletId}`,
-      {
-        headers: { 'x-actor-user-id': agentId, 'x-actor-role': 'agent' },
-      },
+      { headers },
     );
     expect(res.status).toBe(404);
   });
 
-  it('401 without actor headers', async () => {
+  it('401 without bearer', async () => {
     const { subWalletId } = await seedSubWallet();
     const app = createServer();
     const res = await app.request(
       `/vendors/sticker/${factories.txnId()}?subWalletId=${subWalletId}`,
     );
     expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'missing_bearer' });
   });
 });
 
@@ -89,11 +91,10 @@ describe('GET /vendors/recents', () => {
   });
 
   it('200 with empty array when no recents', async () => {
-    const { agentId, subWalletId } = await seedSubWallet();
+    const { agent, subWalletId } = await seedSubWallet();
     const app = createServer();
-    const res = await app.request(`/vendors/recents?subWalletId=${subWalletId}`, {
-      headers: { 'x-actor-user-id': agentId, 'x-actor-role': 'agent' },
-    });
+    const headers = await bearerHeaders(agent);
+    const res = await app.request(`/vendors/recents?subWalletId=${subWalletId}`, { headers });
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.recents).toEqual([]);

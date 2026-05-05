@@ -55,9 +55,11 @@ describe('AuthApi.verifyOtp', () => {
 
 describe('AuthApi.me', () => {
   it('GETs /me with bearer header', async () => {
-    const fetchImpl = vi.fn().mockResolvedValue(
-      ok({ id: 'u1', role: 'principal', phone: '+234801', kycTier: '1', status: 'active' }),
-    );
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValue(
+        ok({ id: 'u1', role: 'principal', phone: '+234801', kycTier: '1', status: 'active' }),
+      );
     const api = new AuthApi('https://api.x', fetchImpl);
     const u = await api.me('access-token');
     expect(u.id).toBe('u1');

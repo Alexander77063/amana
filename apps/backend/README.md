@@ -14,6 +14,7 @@ Amana TypeScript backend on Hono.
 - `modules/vendors` — name enquiry / phone lookup / sticker lookup / NQR decoder / recents / unified resolver (per Decision #16).
 - `modules/transactions` — lifecycle (rule eval → bump or in_flight) + intent + nip-out + settlement + reversal + topup + reconciliation + **refund** (matches inbound credit to a recent settled spend by sender + amount within 14 days; re-credits source).
 - `modules/notifications` — preferences matrix + device tokens + 6 templates (`bump_requested` / `bump_decided` / `txn_settled` / `txn_failed` / `anomaly_alert` / `refund_received`) + 3 providers (Expo Push / Termii SMS / in-app) + dispatcher with prefs-aware fan-out and dedupe.
+- `modules/auth` — phone OTP (Termii SMS) + JWT access (HS256, 5 min TTL) + opaque refresh tokens (argon2id-hashed, 30 day TTL, rotation on refresh) + pairing tokens for agent onboarding.
 - `integrations/anchor` — BaaS adapter: typed client + circuit breaker + retry + idempotency cache + webhook verifier.
 - `integrations/termii` — SMS provider HTTP client.
 - `cron/` — `node-cron` scheduler + jobs (recon-sweep every 5 min, bump-ttl-sweep every minute) + long-lived worker entrypoint.
@@ -35,8 +36,14 @@ Amana TypeScript backend on Hono.
 - `POST /devices` + `DELETE /devices/:id` — Expo Push token registration / revocation
 - `GET  /me/notifications` + `POST /me/notifications/:id/read` — in-app inbox
 - `GET  /me/notification-preferences` + `PUT /me/notification-preferences` — per-(kind, channel) preferences with optional threshold
+- `POST /auth/otp/request` — body: `{phone, purpose: 'login' | 'pair'}` → `{challengeId, expiresAt}` (sends SMS via Termii)
+- `POST /auth/otp/verify` — body: `{phone, code, pairingCode?, nin?, bvn?}` → `{accessToken, refreshToken, ..., user}` (signs up principal or pairs agent)
+- `POST /auth/refresh` — body: `{refreshToken, userId, role}` → rotated `{accessToken, refreshToken, ...}`
+- `POST /auth/logout` — bearer required → revokes session
+- `GET  /me` — bearer required → returns the authed user
+- `POST /pairing` — bearer required (principal-only) → issues a pairing code for an agent to consume on `/auth/otp/verify`
 
-All routes (except `/health` and `/webhooks/*`) require `x-actor-user-id` and `x-actor-role` headers as a placeholder for real auth (lands in Sub-plan 6).
+All routes (except `/health` and `/webhooks/*`) require an `Authorization: Bearer <accessToken>` header obtained from `/auth/otp/verify` or `/auth/refresh`.
 
 ## Run locally
 
@@ -66,6 +73,7 @@ The test suite includes:
 - Notification dispatch tests across all 6 kinds + 3 channels + dedupe.
 - Refund recon tests covering the topup → refund route.
 - Cron job tests verifying schedule + dispatch.
+- Auth tests for OTP request/verify/rate-limit, JWT issuance/rotation/revocation, and pairing-token consume.
 - An optional live smoke against Anchor's sandbox (skipped unless `ANCHOR_API_KEY` is set).
 
 ## Recon runner (one-off)

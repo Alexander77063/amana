@@ -11,6 +11,7 @@ import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../src/modules/wallet/transactions.repo';
 import { createServer } from '../../src/server';
 import { factories } from '../helpers/factories';
+import { bearerHeaders } from '../helpers/bearer';
 import { testDb, truncateAll } from '../helpers/test-db';
 
 const SECRET = 'whsec_e2e-notif';
@@ -100,16 +101,8 @@ describe('e2e: bump → notification → approve → settle (notification dispat
 
     const app = createServer();
     const idempotencyKey = factories.idempotencyKey();
-    const agentHeaders = {
-      'content-type': 'application/json',
-      'x-actor-user-id': agent.id,
-      'x-actor-role': 'agent',
-    };
-    const principalHeaders = {
-      'content-type': 'application/json',
-      'x-actor-user-id': principal.id,
-      'x-actor-role': 'principal',
-    };
+    const agentHeaders = await bearerHeaders(agent);
+    const principalHeaders = await bearerHeaders(principal);
 
     // Pre-arm the Anchor mock: eventual send returns PENDING.
     transferSpy.mockResolvedValue({

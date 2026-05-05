@@ -5,7 +5,7 @@ Amana TypeScript backend on Hono.
 ## Modules
 
 - `modules/identity` — users, households, household members, KYC tier rules.
-- `modules/wallet` — master + sub wallets, ledger accounts, transactions, postings, double-entry write helper.
+- `modules/wallet` — master + sub wallets, ledger accounts, transactions, postings, double-entry write helper, balance.service (sub-wallet balance read).
 - `modules/audit` — append-only audit log + typed event constructors.
 - `modules/sticker` — vendor sticker resolution stub (per Decision #14).
 - `modules/rules` — pure-function rule engine + 5 evaluators + replay corpus + versioned rule sets.
@@ -42,6 +42,16 @@ Amana TypeScript backend on Hono.
 - `POST /auth/logout` — bearer required → revokes session
 - `GET  /me` — bearer required → returns the authed user
 - `POST /pairing` — bearer required (principal-only) → issues a pairing code for an agent to consume on `/auth/otp/verify`
+- `POST /households` — body: `{name}` → `{household, masterWallet}` (creates household + provisions placeholder Anchor virtual account; principal-only)
+- `GET  /me/household` — returns the principal's household + master wallet
+- `GET  /me/household/members` — returns paired agents
+- `GET  /households/:id/sub-wallets` — list sub-wallets in a household (principal-only, owner-checked)
+- `POST /households/:id/sub-wallets` — body: `{agentUserId, name}` (agent must already be paired)
+- `GET  /sub-wallets/:id` — sub-wallet detail
+- `PATCH /sub-wallets/:id` — body: `{status: 'active' | 'suspended' | 'closed'}`
+- `GET  /sub-wallets/:id/balance` — `{balanceKobo: string}`
+- `GET  /sub-wallets/:id/rules` — `{activeRuleSet}` (or `null`)
+- `POST /sub-wallets/:id/rules` — body: `{rules: [...]}` → publishes a new rule set version
 
 All routes (except `/health` and `/webhooks/*`) require an `Authorization: Bearer <accessToken>` header obtained from `/auth/otp/verify` or `/auth/refresh`.
 

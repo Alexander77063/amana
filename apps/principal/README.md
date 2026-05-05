@@ -2,6 +2,22 @@
 
 The Amana Principal mobile app — Expo SDK 51 + React Native 0.74.5.
 
+## What it does (Sub-plan 6b-2)
+
+Builds on 6b-1 (auth flow). Adds:
+
+- First-time setup of a household + master wallet (placeholder Anchor virtual account; real Anchor wiring lands in Sub-plan 7).
+- Pair an agent: issue a one-time pairing code, copy it, share via SMS/WhatsApp out-of-band.
+- Members list: see paired agents.
+- Sub-wallet CRUD: create (must pick from paired agents), view balance + active rules, suspend/resume/close.
+- Edit rules: publish a daily NGN spend limit (more rule kinds in a later slice).
+
+Navigation:
+- `HomeDashboard` → `HouseholdSetup` (if no household yet)
+- `HomeDashboard` → `Members`, `SubWalletsList`, `Pairing`
+- `SubWalletsList` → `CreateSubWallet`, `SubWalletDetail`
+- `SubWalletDetail` → `EditRules`
+
 ## What it does (Sub-plan 6b-1)
 
 - Phone-OTP login against the v0.0.6a-auth backend.
@@ -31,11 +47,13 @@ If the device can't reach `localhost`, swap the URL for your LAN IP (`http://192
 - `App.tsx` — root, wraps `RootNavigator` in `SafeAreaProvider`.
 - `src/nav/RootNavigator.tsx` — switches between `AuthStack` and `MainStack` on `auth.status` (`booting | logged_out | logged_in`).
 - `src/nav/AuthStack.tsx` — `Phone` → `Verify` screens.
-- `src/nav/MainStack.tsx` — `Home` placeholder.
+- `src/nav/MainStack.tsx` — 8 screens: `HomeDashboard`, `HouseholdSetup`, `Pairing`, `Members`, `SubWalletsList`, `CreateSubWallet`, `SubWalletDetail`, `EditRules`.
 - `src/state/auth.store.ts` — Zustand auth store. `bootstrap()` reads from `secureTokenStore`, validates via `/me`. `requestOtp / verifyOtp / logout` actions.
+- `src/state/household.store.ts` — Zustand household store. `bootstrap()` reads `/me/household`; `createHousehold(name)`; `refreshMembers()`.
+- `src/state/subwallets.store.ts` — Zustand sub-wallets store keyed by id. `refreshList`, `create`, `refreshOne`, `refreshBalance`, `refreshRules`, `publishRules`, `setStatus`.
 - `src/lib/api.ts` — `AmanaApiClient` singleton (bearer header + 401 single-flight refresh).
 - `src/lib/secure-token-store.ts` — `TokenStore` impl using `expo-secure-store`.
-- `src/screens/{Phone,Verify,Home,Splash}Screen.tsx` — screens.
+- `src/screens/{Phone,Verify,Splash,HomeDashboard,HouseholdSetup,Pairing,Members,SubWalletsList,CreateSubWallet,SubWalletDetail,EditRules}Screen.tsx` — screens.
 
 ## Tech stack
 

@@ -1,9 +1,11 @@
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { useEffect } from 'react';
 import { SplashScreen } from '../screens/SplashScreen';
 import { useAuthStore } from '../state/auth.store';
 import { AuthStack } from './AuthStack';
-import { MainStack } from './MainStack';
+import { MainStack, type MainStackParamList } from './MainStack';
+
+export const navigationRef = createNavigationContainerRef<MainStackParamList>();
 
 export function RootNavigator(): JSX.Element {
   const status = useAuthStore((s) => s.status);
@@ -16,7 +18,7 @@ export function RootNavigator(): JSX.Element {
   if (status === 'booting') return <SplashScreen />;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       {status === 'logged_in' ? <MainStack /> : <AuthStack />}
     </NavigationContainer>
   );

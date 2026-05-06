@@ -46,6 +46,7 @@ function relativeTime(iso: string, now: Date): string {
 
 export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
   const status = useNotificationsStore((s) => s.status);
+  const isRefreshing = useNotificationsStore((s) => s.status === 'loading');
   const items = useNotificationsStore((s) => s.items);
   const errorCode = useNotificationsStore((s) => s.errorCode);
   const refresh = useNotificationsStore((s) => s.refresh);
@@ -132,7 +133,7 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
         );
       }}
       refreshControl={
-        <RefreshControl refreshing={status === 'loading'} onRefresh={() => void refresh()} />
+        <RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />
       }
     />
   );

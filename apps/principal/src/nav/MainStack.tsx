@@ -1,9 +1,12 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { BumpsInboxScreen } from '../screens/BumpsInboxScreen';
 import { CreateSubWalletScreen } from '../screens/CreateSubWalletScreen';
 import { EditRulesScreen } from '../screens/EditRulesScreen';
+import { EnableNotificationsScreen } from '../screens/EnableNotificationsScreen';
 import { HomeDashboardScreen } from '../screens/HomeDashboardScreen';
 import { HouseholdSetupScreen } from '../screens/HouseholdSetupScreen';
 import { MembersScreen } from '../screens/MembersScreen';
+import { NotificationsInboxScreen } from '../screens/NotificationsInboxScreen';
 import { PairingScreen } from '../screens/PairingScreen';
 import { SubWalletDetailScreen } from '../screens/SubWalletDetailScreen';
 import { SubWalletsListScreen } from '../screens/SubWalletsListScreen';
@@ -17,6 +20,9 @@ export type MainStackParamList = {
   CreateSubWallet: undefined;
   SubWalletDetail: { subWalletId: string };
   EditRules: { subWalletId: string };
+  BumpsInbox: undefined;
+  NotificationsInbox: undefined;
+  EnableNotifications: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -55,6 +61,21 @@ export function MainStack(): JSX.Element {
         name="EditRules"
         component={EditRulesScreen}
         options={{ title: 'Edit rules' }}
+      />
+      <Stack.Screen
+        name="BumpsInbox"
+        component={BumpsInboxScreen}
+        options={{ title: 'Pending requests' }}
+      />
+      <Stack.Screen
+        name="NotificationsInbox"
+        component={NotificationsInboxScreen}
+        options={{ title: 'Notifications' }}
+      />
+      <Stack.Screen
+        name="EnableNotifications"
+        component={EnableNotificationsScreen}
+        options={{ title: 'Notifications', presentation: 'modal' }}
       />
     </Stack.Navigator>
   );

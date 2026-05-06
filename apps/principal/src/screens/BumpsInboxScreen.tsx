@@ -53,6 +53,7 @@ function expiresInLabel(expiresAt: string, now: Date): string {
 
 export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
   const status = useBumpsStore((s) => s.status);
+  const isRefreshing = useBumpsStore((s) => s.status === 'loading');
   const pending = useBumpsStore((s) => s.pending);
   const history = useBumpsStore((s) => s.history);
   const errorCode = useBumpsStore((s) => s.errorCode);
@@ -163,7 +164,7 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
         );
       }}
       refreshControl={
-        <RefreshControl refreshing={status === 'loading'} onRefresh={() => void refresh()} />
+        <RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />
       }
     />
   );

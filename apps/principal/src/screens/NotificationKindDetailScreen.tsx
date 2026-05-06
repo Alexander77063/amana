@@ -1,19 +1,7 @@
+import type { ChannelPreference, NotificationChannel, NotificationKind } from '@amana/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import type {
-  ChannelPreference,
-  NotificationChannel,
-  NotificationKind,
-} from '@amana/types';
 import { useLayoutEffect, useState } from 'react';
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
 import { usePreferencesStore } from '../state/preferences.store';
 
@@ -109,19 +97,9 @@ export function NotificationKindDetailScreen({ route, navigation }: Props): JSX.
               )}
             </View>
             {isThreshold ? (
-              <ThresholdControl
-                kind={kind}
-                channel={channel}
-                effective={eff}
-                onSet={setPref}
-              />
+              <ThresholdControl kind={kind} channel={channel} effective={eff} onSet={setPref} />
             ) : (
-              <BinaryControl
-                kind={kind}
-                channel={channel}
-                effective={eff}
-                onSet={setPref}
-              />
+              <BinaryControl kind={kind} channel={channel} effective={eff} onSet={setPref} />
             )}
           </View>
         );
@@ -139,7 +117,12 @@ function BinaryControl({
   kind: NotificationKind;
   channel: NotificationChannel;
   effective: { preference: ChannelPreference };
-  onSet: (input: { kind: NotificationKind; channel: NotificationChannel; preference: ChannelPreference; thresholdKobo?: string | null }) => Promise<void>;
+  onSet: (input: {
+    kind: NotificationKind;
+    channel: NotificationChannel;
+    preference: ChannelPreference;
+    thresholdKobo?: string | null;
+  }) => Promise<void>;
 }): JSX.Element {
   const on = effective.preference !== 'silent';
   return (
@@ -169,7 +152,12 @@ function ThresholdControl({
   kind: NotificationKind;
   channel: NotificationChannel;
   effective: { preference: ChannelPreference; thresholdKobo: string | null };
-  onSet: (input: { kind: NotificationKind; channel: NotificationChannel; preference: ChannelPreference; thresholdKobo?: string | null }) => Promise<void>;
+  onSet: (input: {
+    kind: NotificationKind;
+    channel: NotificationChannel;
+    preference: ChannelPreference;
+    thresholdKobo?: string | null;
+  }) => Promise<void>;
 }): JSX.Element {
   const isAnomaly = kind === 'anomaly_alert';
   const initial =

@@ -89,8 +89,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       };
     }
     // 'digest' read from a power-user row → display as 'silent' for v1.
-    const preference: ChannelPreference =
-      row.preference === 'digest' ? 'silent' : row.preference;
+    const preference: ChannelPreference = row.preference === 'digest' ? 'silent' : row.preference;
     return {
       preference,
       thresholdKobo: row.thresholdKobo,

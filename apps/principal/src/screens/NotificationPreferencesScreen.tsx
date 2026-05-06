@@ -1,14 +1,7 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NotificationChannel, NotificationKind } from '@amana/types';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
-import {
-  ActivityIndicator,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
 import { usePreferencesStore } from '../state/preferences.store';
 
@@ -64,7 +57,10 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
     return labels.join(', ');
   };
 
-  if (status === 'idle' || (status === 'loading' && usePreferencesStore.getState().rows.length === 0)) {
+  if (
+    status === 'idle' ||
+    (status === 'loading' && usePreferencesStore.getState().rows.length === 0)
+  ) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />
@@ -91,9 +87,7 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
       renderItem={({ item }) => (
         <Pressable
           style={styles.row}
-          onPress={() =>
-            navigation.navigate('NotificationKindDetail', { kind: item })
-          }
+          onPress={() => navigation.navigate('NotificationKindDetail', { kind: item })}
         >
           <Text style={styles.rowTitle}>{kindTitle(item)}</Text>
           <Text style={styles.muted}>{summarize(item)}</Text>

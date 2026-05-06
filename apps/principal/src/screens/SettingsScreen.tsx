@@ -12,10 +12,7 @@ export function SettingsScreen({ navigation }: Props): JSX.Element {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
-      <Pressable
-        style={styles.row}
-        onPress={() => navigation.navigate('NotificationPreferences')}
-      >
+      <Pressable style={styles.row} onPress={() => navigation.navigate('NotificationPreferences')}>
         <Text style={styles.rowTitle}>Notification preferences</Text>
         <Text style={styles.muted}>Choose which alerts reach you and how</Text>
       </Pressable>

@@ -11,9 +11,7 @@ export class PreferenceApi {
   constructor(private readonly client: AuthedClient) {}
 
   listForMe(): Promise<MyNotificationPreferencesResponse> {
-    return this.client.request<MyNotificationPreferencesResponse>(
-      '/me/notification-preferences',
-    );
+    return this.client.request<MyNotificationPreferencesResponse>('/me/notification-preferences');
   }
 
   upsert(input: UpsertPreferenceInput): Promise<UpsertPreferenceResult> {

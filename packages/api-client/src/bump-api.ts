@@ -9,9 +9,7 @@ export class BumpApi {
   listForMe(input?: ListForMeInput): Promise<MyBumpsResponse> {
     // status === 'all' is the server default; only send the query string for non-default values.
     const path =
-      input?.status && input.status !== 'all'
-        ? `/me/bumps?status=${input.status}`
-        : '/me/bumps';
+      input?.status && input.status !== 'all' ? `/me/bumps?status=${input.status}` : '/me/bumps';
     return this.client.request<MyBumpsResponse>(path);
   }
 

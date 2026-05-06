@@ -1,5 +1,5 @@
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import type { NotificationKind } from '@amana/types';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BumpsInboxScreen } from '../screens/BumpsInboxScreen';
 import { CreateSubWalletScreen } from '../screens/CreateSubWalletScreen';
 import { EditRulesScreen } from '../screens/EditRulesScreen';
@@ -84,11 +84,7 @@ export function MainStack(): JSX.Element {
         component={EnableNotificationsScreen}
         options={{ title: 'Notifications', presentation: 'modal' }}
       />
-      <Stack.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{ title: 'Settings' }}
-      />
+      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
       <Stack.Screen
         name="NotificationPreferences"
         component={NotificationPreferencesScreen}

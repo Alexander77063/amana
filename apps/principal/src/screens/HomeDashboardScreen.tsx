@@ -3,7 +3,9 @@ import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useAuthStore } from '../state/auth.store';
+import { useBumpsStore } from '../state/bumps.store';
 import { useHouseholdStore } from '../state/household.store';
+import { useNotificationsStore } from '../state/notifications.store';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'HomeDashboard'>;
 
@@ -14,11 +16,22 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
   const members = useHouseholdStore((s) => s.members);
   const errorCode = useHouseholdStore((s) => s.errorCode);
   const bootstrap = useHouseholdStore((s) => s.bootstrap);
+  const refreshBumps = useBumpsStore((s) => s.refresh);
+  const pendingCount = useBumpsStore((s) => s.pending.length);
+  const refreshNotifications = useNotificationsStore((s) => s.refresh);
+  const unreadCount = useNotificationsStore((s) => s.unreadCount);
   const logout = useAuthStore((s) => s.logout);
 
   useEffect(() => {
     if (status === 'idle') void bootstrap();
   }, [status, bootstrap]);
+
+  useEffect(() => {
+    if (status === 'has_household') {
+      void refreshBumps();
+      void refreshNotifications();
+    }
+  }, [status, refreshBumps, refreshNotifications]);
 
   useEffect(() => {
     if (status === 'no_household') navigation.replace('HouseholdSetup');
@@ -56,6 +69,30 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
         <Text style={styles.account}>{masterWallet.anchorVirtualAccount}</Text>
         <Text style={styles.muted}>Bank code: {masterWallet.anchorBankCode}</Text>
       </View>
+
+      <Pressable style={styles.row} onPress={() => navigation.navigate('BumpsInbox')}>
+        <View style={styles.rowHeader}>
+          <Text style={styles.rowTitle}>Pending requests</Text>
+          {pendingCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{pendingCount}</Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.muted}>Approve or deny agent bumps</Text>
+      </Pressable>
+
+      <Pressable style={styles.row} onPress={() => navigation.navigate('NotificationsInbox')}>
+        <View style={styles.rowHeader}>
+          <Text style={styles.rowTitle}>Notifications</Text>
+          {unreadCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{unreadCount}</Text>
+            </View>
+          )}
+        </View>
+        <Text style={styles.muted}>Recent activity</Text>
+      </Pressable>
 
       <Pressable style={styles.row} onPress={() => navigation.navigate('Members')}>
         <Text style={styles.rowTitle}>Agents</Text>
@@ -99,6 +136,17 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   rowTitle: { fontSize: 16, fontWeight: '600' },
+  rowHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  badge: {
+    minWidth: 22,
+    paddingHorizontal: 6,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#1769ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  badgeText: { color: 'white', fontSize: 12, fontWeight: '700' },
   button: {
     marginTop: 24,
     alignSelf: 'flex-start',

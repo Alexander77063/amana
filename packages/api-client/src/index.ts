@@ -32,3 +32,9 @@ export {
   type StoredAuth,
   createInMemoryTokenStore,
 } from './token-store';
+export { BumpApi } from './bump-api';
+export type { ListForMeInput } from './bump-api';
+export { NotificationApi } from './notification-api';
+export type { MarkReadResult } from './notification-api';
+export { DeviceApi } from './device-api';
+export type { UnregisterDeviceResult } from './device-api';

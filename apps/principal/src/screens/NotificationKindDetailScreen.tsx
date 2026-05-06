@@ -1,6 +1,6 @@
 import type { ChannelPreference, NotificationChannel, NotificationKind } from '@amana/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useLayoutEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
 import { usePreferencesStore } from '../state/preferences.store';
@@ -160,13 +160,24 @@ function ThresholdControl({
   }) => Promise<void>;
 }): JSX.Element {
   const isAnomaly = kind === 'anomaly_alert';
-  const initial =
-    effective.preference === 'threshold'
-      ? isAnomaly
-        ? thresholdKoboToScorePercentDisplay(effective.thresholdKobo)
-        : koboToNairaDisplay(effective.thresholdKobo)
-      : '';
-  const [draft, setDraft] = useState(initial);
+  const deriveDraft = (): string => {
+    if (effective.thresholdKobo === null) return '';
+    return isAnomaly
+      ? thresholdKoboToScorePercentDisplay(effective.thresholdKobo)
+      : koboToNairaDisplay(effective.thresholdKobo);
+  };
+  const [draft, setDraft] = useState(deriveDraft);
+
+  // Re-sync draft when entering 'threshold' mode and a server-saved value is present.
+  // Avoids the "empty input despite saved threshold" UX trap when a user toggles
+  // silent → threshold mid-screen with a preserved thresholdKobo.
+  useEffect(() => {
+    if (effective.preference === 'threshold' && effective.thresholdKobo !== null) {
+      setDraft(deriveDraft());
+    }
+    // deriveDraft is intentionally not in deps — its inputs are listed below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effective.preference, effective.thresholdKobo, isAnomaly]);
 
   const choose = (next: ChannelPreference) => {
     // Preserve the saved thresholdKobo across all mode toggles. Backend stores it

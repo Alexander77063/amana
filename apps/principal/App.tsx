@@ -56,8 +56,12 @@ export default function App(): JSX.Element {
     });
 
     // Cold-start tap: process the response that launched the app, if any.
+    // I3-consistency: re-check authStatus on the async resolution path; logout could
+    // have fired between this useEffect running and the promise resolving.
     void Notifications.getLastNotificationResponseAsync().then((r) => {
-      if (r) navigateForResponse(r);
+      if (!r) return;
+      if (useAuthStore.getState().status !== 'logged_in') return;
+      navigateForResponse(r);
     });
 
     return () => {

@@ -37,6 +37,7 @@ export const useBumpsStore = create<BumpsState>((set, get) => ({
   },
 
   async decide(bumpId, decision) {
+    if (get().decidingId !== null) return; // I2: ignore if a decide is already inflight
     const before = get();
     const target = before.pending.find((b) => b.id === bumpId);
     if (!target) {

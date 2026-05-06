@@ -61,6 +61,8 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
 
   async markAllRead() {
     const unread = get().items.filter((n) => n.status !== 'read' && n.status !== 'skipped');
+    // Sequential by design — each markRead's `before` snapshot must include prior iterations'
+    // marks so a mid-loop failure reverts only the failing call, not previously-succeeded ones.
     for (const n of unread) {
       await get().markRead(n.id);
     }

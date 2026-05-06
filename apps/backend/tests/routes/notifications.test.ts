@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
 import { usersRepo } from '../../src/modules/identity/users.repo';
-import { notificationsRepo } from '../../src/modules/notifications/notifications.repo';
 import { notificationService } from '../../src/modules/notifications/notification.service';
+import { notificationsRepo } from '../../src/modules/notifications/notifications.repo';
 import { createServer } from '../../src/server';
 import { bearerHeaders } from '../helpers/bearer';
 import { factories } from '../helpers/factories';
@@ -78,7 +78,9 @@ describe('GET /me/notifications — payload shape contract for inbox deep-linkin
       headers: await bearerHeaders(principal),
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { notifications: Array<{ channel: string; payloadJson: { data?: { bumpRequestId?: string } } }> };
+    const body = (await res.json()) as {
+      notifications: Array<{ channel: string; payloadJson: { data?: { bumpRequestId?: string } } }>;
+    };
     const inAppRow = body.notifications.find((n) => n.channel === 'in_app');
     expect(inAppRow).toBeDefined();
     expect(inAppRow?.payloadJson?.data?.bumpRequestId).toBe('bump-test-1');

@@ -41,6 +41,7 @@ function kindTitle(kind: NotificationKind): string {
 
 export function NotificationPreferencesScreen({ navigation }: Props): JSX.Element {
   const status = usePreferencesStore((s) => s.status);
+  const rowCount = usePreferencesStore((s) => s.rows.length);
   const errorCode = usePreferencesStore((s) => s.errorCode);
   const bootstrap = usePreferencesStore((s) => s.bootstrap);
   const getEffective = usePreferencesStore((s) => s.getEffective);
@@ -57,10 +58,7 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
     return labels.join(', ');
   };
 
-  if (
-    status === 'idle' ||
-    (status === 'loading' && usePreferencesStore.getState().rows.length === 0)
-  ) {
+  if (status === 'idle' || (status === 'loading' && rowCount === 0)) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />

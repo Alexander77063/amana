@@ -133,23 +133,23 @@ function ThresholdControl({
   }) => Promise<void>;
 }): JSX.Element {
   const isAnomaly = kind === 'anomaly_alert';
-  const deriveDraft = (): string => {
+  const [draft, setDraft] = useState(() => {
     if (effective.thresholdKobo === null) return '';
     return isAnomaly
       ? thresholdKoboToScorePercentDisplay(effective.thresholdKobo)
       : koboToNairaDisplay(effective.thresholdKobo);
-  };
-  const [draft, setDraft] = useState(deriveDraft);
+  });
 
   // Re-sync draft when entering 'threshold' mode and a server-saved value is present.
   // Avoids the "empty input despite saved threshold" UX trap when a user toggles
   // silent → threshold mid-screen with a preserved thresholdKobo.
   useEffect(() => {
-    if (effective.preference === 'threshold' && effective.thresholdKobo !== null) {
-      setDraft(deriveDraft());
-    }
-    // deriveDraft is intentionally not in deps — its inputs are listed below
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (effective.preference !== 'threshold' || effective.thresholdKobo === null) return;
+    setDraft(
+      isAnomaly
+        ? thresholdKoboToScorePercentDisplay(effective.thresholdKobo)
+        : koboToNairaDisplay(effective.thresholdKobo),
+    );
   }, [effective.preference, effective.thresholdKobo, isAnomaly]);
 
   const choose = (next: ChannelPreference) => {

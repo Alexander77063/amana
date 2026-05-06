@@ -1,4 +1,5 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import type { NotificationKind } from '@amana/types';
 import { BumpsInboxScreen } from '../screens/BumpsInboxScreen';
 import { CreateSubWalletScreen } from '../screens/CreateSubWalletScreen';
 import { EditRulesScreen } from '../screens/EditRulesScreen';
@@ -6,8 +7,11 @@ import { EnableNotificationsScreen } from '../screens/EnableNotificationsScreen'
 import { HomeDashboardScreen } from '../screens/HomeDashboardScreen';
 import { HouseholdSetupScreen } from '../screens/HouseholdSetupScreen';
 import { MembersScreen } from '../screens/MembersScreen';
+import { NotificationKindDetailScreen } from '../screens/NotificationKindDetailScreen';
+import { NotificationPreferencesScreen } from '../screens/NotificationPreferencesScreen';
 import { NotificationsInboxScreen } from '../screens/NotificationsInboxScreen';
 import { PairingScreen } from '../screens/PairingScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { SubWalletDetailScreen } from '../screens/SubWalletDetailScreen';
 import { SubWalletsListScreen } from '../screens/SubWalletsListScreen';
 
@@ -23,6 +27,9 @@ export type MainStackParamList = {
   BumpsInbox: undefined;
   NotificationsInbox: undefined;
   EnableNotifications: undefined;
+  Settings: undefined;
+  NotificationPreferences: undefined;
+  NotificationKindDetail: { kind: NotificationKind };
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -76,6 +83,21 @@ export function MainStack(): JSX.Element {
         name="EnableNotifications"
         component={EnableNotificationsScreen}
         options={{ title: 'Notifications', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{ title: 'Settings' }}
+      />
+      <Stack.Screen
+        name="NotificationPreferences"
+        component={NotificationPreferencesScreen}
+        options={{ title: 'Notification preferences' }}
+      />
+      <Stack.Screen
+        name="NotificationKindDetail"
+        component={NotificationKindDetailScreen}
+        options={{ title: 'Notification kind' }}
       />
     </Stack.Navigator>
   );

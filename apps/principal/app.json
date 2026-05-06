@@ -13,6 +13,14 @@
       "package": "com.amana.principal"
     },
     "platforms": ["ios", "android"],
-    "plugins": ["expo-secure-store"]
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        {
+          "color": "#222222"
+        }
+      ]
+    ]
   }
 }

@@ -120,8 +120,7 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
       renderItem={({ item }) => {
         const unread = item.status !== 'read';
         const payload = (item.payloadJson ?? {}) as Record<string, unknown>;
-        const body =
-          typeof payload.vendorResolvedName === 'string' ? payload.vendorResolvedName : '';
+        const body = typeof payload.body === 'string' ? payload.body : '';
         return (
           <Pressable style={styles.row} onPress={() => onTap(item)}>
             {unread && <View style={styles.dot} />}

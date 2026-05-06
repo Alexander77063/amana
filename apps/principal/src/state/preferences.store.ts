@@ -112,7 +112,15 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
     set({ rows: upsertRow(before, optimistic), errorCode: null });
     try {
       const r = await api.preference.upsert(input);
-      set((s) => ({ rows: upsertRow(s.rows, r.preference) }));
+      // Concurrent-edit guard: if a slower upsert response arrives after a faster newer one
+      // has already updated the row, ignore the stale response. Compare ISO timestamps.
+      set((s) => {
+        const current = s.rows.find(
+          (row) => row.kind === r.preference.kind && row.channel === r.preference.channel,
+        );
+        if (current && current.updatedAt > r.preference.updatedAt) return s;
+        return { rows: upsertRow(s.rows, r.preference) };
+      });
     } catch (e) {
       set({ rows: before, errorCode: ERR(e) });
     }

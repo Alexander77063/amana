@@ -41,13 +41,19 @@ export default function App(): JSX.Element {
 
     // Foreground push: refresh the relevant store.
     fgSubRef.current = setupForegroundListener((n) => {
+      // I3: skip refreshes that arrive after logout has cleared tokens — would 401.
+      if (useAuthStore.getState().status !== 'logged_in') return;
       const kind = (n.request.content.data as Record<string, unknown> | undefined)?.kind;
       if (isBumpKind(kind)) void refreshBumps();
       else void refreshNotifications();
     });
 
     // Background tap: navigate to deep-link target.
-    responseSubRef.current = setupResponseListener(navigateForResponse);
+    responseSubRef.current = setupResponseListener((response) => {
+      // I3: skip if logout is in flight — nav target would be the auth stack.
+      if (useAuthStore.getState().status !== 'logged_in') return;
+      navigateForResponse(response);
+    });
 
     // Cold-start tap: process the response that launched the app, if any.
     void Notifications.getLastNotificationResponseAsync().then((r) => {

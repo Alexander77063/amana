@@ -114,7 +114,10 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
     </View>
   );
 
-  if (status === 'idle' || status === 'loading') {
+  // Only show the full-screen loader on initial load (no data yet).
+  // For pull-to-refresh and on-focus refreshes, the RefreshControl spinner handles the visual.
+  const hasData = pending.length > 0 || history.length > 0;
+  if ((status === 'idle' || status === 'loading') && !hasData) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />

@@ -83,7 +83,9 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
     // 'transaction' and 'none' deep-links are no-ops in v1 (mark-read only).
   };
 
-  if (status === 'idle' || status === 'loading') {
+  // Only show the full-screen loader on initial load (no items yet).
+  // For pull-to-refresh and on-focus refreshes, the RefreshControl spinner handles the visual.
+  if ((status === 'idle' || status === 'loading') && items.length === 0) {
     return (
       <View style={styles.center}>
         <ActivityIndicator />

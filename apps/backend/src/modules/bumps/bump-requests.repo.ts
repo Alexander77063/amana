@@ -90,7 +90,10 @@ export const bumpRequestsRepo = {
         pending.push(b);
         continue;
       }
-      // history bucket: decided in last 30d, or expired (no decidedAt) created in last 30d
+      // History only contains terminal statuses. A pending bump past its expiry
+      // but not yet swept by the cron is intentionally invisible to both buckets
+      // until the sweep transitions it to 'expired'.
+      if (b.status === 'pending') continue;
       const ts = b.decidedAt ?? b.createdAt;
       if (ts >= cutoff) history.push(b);
     }

@@ -317,4 +317,23 @@ describe('bumpRequestsRepo.findForPrincipal', () => {
     expect(r.pending).toHaveLength(0);
     expect(r.history).toHaveLength(0);
   });
+
+  it('hides pending bumps whose expiry has passed but have not been swept yet', async () => {
+    const now = new Date();
+    const { principal, bumpId } = await seedBumpAt(now);
+    // Force the bump's expiresAt into the past WITHOUT changing its status.
+    // Models the race window between expiry and the bump-ttl-sweep cron.
+    const oneMinuteAgo = new Date(now.getTime() - 60_000);
+    await testDb.execute(sql`
+      UPDATE bump_requests
+      SET expires_at = ${oneMinuteAgo.toISOString()}::timestamptz
+      WHERE id = ${bumpId}
+    `);
+    const r = await bumpRequestsRepo.findForPrincipal(testDb, {
+      userId: principal.id,
+      now,
+    });
+    expect(r.pending).toHaveLength(0);
+    expect(r.history).toHaveLength(0);
+  });
 });

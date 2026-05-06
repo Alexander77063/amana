@@ -3,6 +3,7 @@ import type { LoginResponse, User } from '@amana/types';
 import { create } from 'zustand';
 import { api } from '../lib/api';
 import { secureTokenStore } from '../lib/secure-token-store';
+import { usePushStore } from './push.store';
 
 export type AuthStatus = 'booting' | 'logged_out' | 'logged_in';
 
@@ -85,6 +86,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   async logout() {
     set({ busy: true });
     try {
+      try {
+        await usePushStore.getState().unregister();
+      } catch {
+        // Best-effort — even if device unregister fails, continue with logout.
+      }
       try {
         const stored = await secureTokenStore.read();
         if (stored) await api.auth.logout(stored.tokens.accessToken);

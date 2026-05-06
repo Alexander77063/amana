@@ -1,7 +1,7 @@
 import { AuthApi } from './auth-api';
 import { BumpApi } from './bump-api';
-import { ApiError } from './errors';
 import { DeviceApi } from './device-api';
+import { ApiError } from './errors';
 import { HouseholdApi } from './household-api';
 import { NotificationApi } from './notification-api';
 import { PairingApi } from './pairing-api';

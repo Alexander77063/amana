@@ -1,7 +1,7 @@
 import { ApiError } from '@amana/api-client';
 import type { DevicePlatform } from '@amana/types';
-import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { api } from '../lib/api';

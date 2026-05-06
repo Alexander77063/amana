@@ -1,7 +1,7 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
 import type { BumpRequest, BumpStatus } from '@amana/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -149,23 +149,20 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
         ...history.map((b) => ({ kind: 'history' as const, b })),
       ]}
       keyExtractor={(row) => row.b.id}
-      ListHeaderComponent={
-        pending.length > 0 ? <Text style={styles.section}>Pending</Text> : null
-      }
+      ListHeaderComponent={pending.length > 0 ? <Text style={styles.section}>Pending</Text> : null}
       renderItem={({ item, index }) => {
         const showHistoryHeader =
-          item.kind === 'history' &&
-          (index === 0 || (index > 0 && pending.length === index));
+          item.kind === 'history' && (index === 0 || (index > 0 && pending.length === index));
         return (
           <>
             {showHistoryHeader && <Text style={styles.section}>Recent</Text>}
-            {item.kind === 'pending' ? renderPending({ item: item.b }) : renderHistory({ item: item.b })}
+            {item.kind === 'pending'
+              ? renderPending({ item: item.b })
+              : renderHistory({ item: item.b })}
           </>
         );
       }}
-      refreshControl={
-        <RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />
-      }
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />}
     />
   );
 }
@@ -173,7 +170,13 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
 const styles = StyleSheet.create({
   container: { padding: 16, gap: 12 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  section: { fontSize: 12, fontWeight: '600', color: '#666', textTransform: 'uppercase', marginTop: 8 },
+  section: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#666',
+    textTransform: 'uppercase',
+    marginTop: 8,
+  },
   card: { padding: 16, borderRadius: 12, backgroundColor: '#f3f3f3', gap: 6 },
   dim: { opacity: 0.6 },
   amount: { fontSize: 22, fontWeight: '700' },

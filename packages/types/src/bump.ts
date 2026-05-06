@@ -1,9 +1,4 @@
-export type BumpStatus =
-  | 'pending'
-  | 'approved_once'
-  | 'raise_limit'
-  | 'denied'
-  | 'expired';
+export type BumpStatus = 'pending' | 'approved_once' | 'raise_limit' | 'denied' | 'expired';
 
 export type BumpDecision = 'approve_once' | 'approve_raise_limit' | 'deny';
 

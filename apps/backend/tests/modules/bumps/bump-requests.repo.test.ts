@@ -300,7 +300,7 @@ describe('bumpRequestsRepo.findForPrincipal', () => {
     expect(r.history).toHaveLength(0);
   });
 
-  it('does not leak bumps from another principal\'s household', async () => {
+  it("does not leak bumps from another principal's household", async () => {
     const now = new Date();
     await seedBumpAt(now); // principal A
     const principalB = await usersRepo.insert(testDb, {

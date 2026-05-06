@@ -85,7 +85,9 @@ export function PairingScreen(): JSX.Element {
               <Text style={styles.buttonText}>Share</Text>
             </Pressable>
             <Pressable style={[styles.button, styles.secondary]} onPress={() => void copy()}>
-              <Text style={[styles.buttonText, styles.secondaryText]}>{copied ? 'Copied ✓' : 'Copy'}</Text>
+              <Text style={[styles.buttonText, styles.secondaryText]}>
+                {copied ? 'Copied ✓' : 'Copy'}
+              </Text>
             </Pressable>
           </View>
           <Pressable style={[styles.button, styles.secondary]} onPress={() => void issue()}>

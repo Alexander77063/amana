@@ -1,10 +1,7 @@
 import { Hono } from 'hono';
 import { db } from '../db/client';
 import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
-import {
-  type BumpRequestRow,
-  bumpRequestsRepo,
-} from '../modules/bumps/bump-requests.repo';
+import { type BumpRequestRow, bumpRequestsRepo } from '../modules/bumps/bump-requests.repo';
 
 type StatusFilter = 'pending' | 'history' | 'all';
 

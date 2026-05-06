@@ -15,9 +15,7 @@ import { useNotificationsStore } from './src/state/notifications.store';
 import { usePushStore } from './src/state/push.store';
 
 function navigateForResponse(response: Notifications.NotificationResponse) {
-  const data = response.notification.request.content.data as
-    | Record<string, unknown>
-    | undefined;
+  const data = response.notification.request.content.data as Record<string, unknown> | undefined;
   if (!data) return;
   const kind = data.kind;
   if (typeof kind !== 'string') return;

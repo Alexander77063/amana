@@ -1,6 +1,6 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
 import type { Notification, NotificationKind } from '@amana/types';
+import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useLayoutEffect } from 'react';
 import {
   ActivityIndicator,
@@ -118,9 +118,7 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
         const unread = item.status !== 'read';
         const payload = (item.payloadJson ?? {}) as Record<string, unknown>;
         const body =
-          typeof payload.vendorResolvedName === 'string'
-            ? payload.vendorResolvedName
-            : '';
+          typeof payload.vendorResolvedName === 'string' ? payload.vendorResolvedName : '';
         return (
           <Pressable style={styles.row} onPress={() => onTap(item)}>
             {unread && <View style={styles.dot} />}
@@ -132,9 +130,7 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
           </Pressable>
         );
       }}
-      refreshControl={
-        <RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />
-      }
+      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />}
     />
   );
 }

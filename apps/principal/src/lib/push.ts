@@ -21,13 +21,9 @@ Notifications.setNotificationHandler({
 export async function getExpoPushTokenOrNull(): Promise<string | null> {
   if (!Device.isDevice) return null;
   const projectId =
-    Constants.expoConfig?.extra?.eas?.projectId ??
-    Constants.easConfig?.projectId ??
-    undefined;
+    Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? undefined;
   try {
-    const t = await Notifications.getExpoPushTokenAsync(
-      projectId ? { projectId } : undefined,
-    );
+    const t = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
     return t.data;
   } catch {
     return null;
@@ -59,12 +55,12 @@ export function isBumpKind(kind: unknown): kind is 'bump_requested' | 'bump_deci
  * `'none'` because the payload doesn't carry `subWalletId`; that requires a
  * backend template patch which is deferred (see spec out-of-scope).
  */
-export function deepLinkFor(
-  kind: NotificationKind,
-  payloadJson: unknown,
-): NotificationDeepLink {
+export function deepLinkFor(kind: NotificationKind, payloadJson: unknown): NotificationDeepLink {
   const p = (payloadJson ?? {}) as Record<string, unknown>;
-  if ((kind === 'bump_requested' || kind === 'bump_decided') && typeof p.bumpRequestId === 'string') {
+  if (
+    (kind === 'bump_requested' || kind === 'bump_decided') &&
+    typeof p.bumpRequestId === 'string'
+  ) {
     return { kind: 'bump', bumpRequestId: p.bumpRequestId };
   }
   return { kind: 'none' };

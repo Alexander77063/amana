@@ -2,7 +2,6 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
-import { useAuthStore } from '../state/auth.store';
 import { useBumpsStore } from '../state/bumps.store';
 import { useHouseholdStore } from '../state/household.store';
 import { useNotificationsStore } from '../state/notifications.store';
@@ -20,8 +19,6 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
   const pendingCount = useBumpsStore((s) => s.pending.length);
   const refreshNotifications = useNotificationsStore((s) => s.refresh);
   const unreadCount = useNotificationsStore((s) => s.unreadCount);
-  const logout = useAuthStore((s) => s.logout);
-
   useEffect(() => {
     if (status === 'idle') void bootstrap();
   }, [status, bootstrap]);
@@ -109,13 +106,9 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
         <Text style={styles.muted}>Issue a one-time code</Text>
       </Pressable>
 
-      <Pressable
-        style={[styles.button, styles.danger]}
-        onPress={() => {
-          void logout();
-        }}
-      >
-        <Text style={styles.buttonText}>Log out</Text>
+      <Pressable style={styles.row} onPress={() => navigation.navigate('Settings')}>
+        <Text style={styles.rowTitle}>Settings</Text>
+        <Text style={styles.muted}>Notifications, log out, and more</Text>
       </Pressable>
     </ScrollView>
   );
@@ -148,14 +141,11 @@ const styles = StyleSheet.create({
   },
   badgeText: { color: 'white', fontSize: 12, fontWeight: '700' },
   button: {
-    marginTop: 24,
-    alignSelf: 'flex-start',
     backgroundColor: '#222',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 10,
     borderRadius: 999,
   },
-  danger: { backgroundColor: '#b00020' },
   buttonText: { color: 'white', fontWeight: '600' },
   err: { color: '#b00020' },
 });

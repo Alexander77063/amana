@@ -73,7 +73,10 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
 
   const onTap = (n: Notification) => {
     void markRead(n.id);
-    const link = deepLinkFor(n.kind, n.payloadJson);
+    // The in-app row stores `payloadJson` as `{ title, body, data: { kind, bumpRequestId, ... } }`.
+    // `deepLinkFor` expects the inner `data` sub-object — same contract as the push-tap path in App.tsx.
+    const innerData = (n.payloadJson as { data?: unknown } | null)?.data;
+    const link = deepLinkFor(n.kind, innerData);
     if (link.kind === 'bump') {
       navigation.navigate('BumpsInbox');
     }

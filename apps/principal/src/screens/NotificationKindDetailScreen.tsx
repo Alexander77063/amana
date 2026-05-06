@@ -2,6 +2,12 @@ import type { ChannelPreference, NotificationChannel, NotificationKind } from '@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import {
+  koboToNairaDisplay,
+  nairaInputToKoboString,
+  scorePercentInputToThresholdKobo,
+  thresholdKoboToScorePercentDisplay,
+} from '../lib/threshold-conversion';
 import type { MainStackParamList } from '../nav/MainStack';
 import { usePreferencesStore } from '../state/preferences.store';
 
@@ -36,39 +42,6 @@ function kindTitle(kind: NotificationKind): string {
     case 'refund_received':
       return 'Refunds received';
   }
-}
-
-/** Convert naira (string from input) → kobo (string). Returns null on empty/invalid. */
-function nairaInputToKoboString(input: string): string | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-  const naira = Number(trimmed);
-  if (!Number.isFinite(naira) || naira < 0) return null;
-  return Math.round(naira * 100).toString();
-}
-
-/** Convert kobo string → naira display string. */
-function koboToNairaDisplay(kobo: string | null): string {
-  if (kobo === null) return '';
-  const kn = BigInt(kobo);
-  const naira = kn / 100n;
-  const remainder = kn % 100n;
-  if (remainder === 0n) return naira.toString();
-  return `${naira}.${remainder.toString().padStart(2, '0')}`;
-}
-
-/** For anomaly_alert: backend stores percent×100 in thresholdKobo (e.g., 8500 = 0.85 score). */
-function thresholdKoboToScorePercentDisplay(kobo: string | null): string {
-  if (kobo === null) return '';
-  return (Number(kobo) / 100).toString();
-}
-
-function scorePercentInputToThresholdKobo(input: string): string | null {
-  const trimmed = input.trim();
-  if (!trimmed) return null;
-  const pct = Number(trimmed);
-  if (!Number.isFinite(pct) || pct < 0 || pct > 100) return null;
-  return Math.round(pct * 100).toString();
 }
 
 export function NotificationKindDetailScreen({ route, navigation }: Props): JSX.Element {

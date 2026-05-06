@@ -11,7 +11,7 @@
     "build": "echo 'mobile builds via EAS — run: pnpm exec eas build --platform all' && exit 0",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "test": "echo 'principal: typecheck-only; logic-layer tests live in @amana/api-client' && pnpm typecheck"
+    "test": "vitest run --passWithNoTests && pnpm typecheck"
   },
   "dependencies": {
     "@amana/api-client": "workspace:*",
@@ -41,6 +41,7 @@
     "@babel/core": "^7.25.0",
     "@types/node": "^20.0.0",
     "@types/react": "~18.2.79",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "vitest": "2.1.2"
   }
 }

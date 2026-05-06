@@ -200,6 +200,9 @@ importers:
       typescript:
         specifier: 5.5.4
         version: 5.5.4
+      vitest:
+        specifier: 2.1.2
+        version: 2.1.2(@types/node@20.16.11)(terser@5.46.2)
 
   packages/api-client:
     dependencies:

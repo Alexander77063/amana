@@ -5,6 +5,7 @@ import { ApiError } from './errors';
 import { HouseholdApi } from './household-api';
 import { NotificationApi } from './notification-api';
 import { PairingApi } from './pairing-api';
+import { PreferenceApi } from './preference-api';
 import { SubWalletApi } from './sub-wallet-api';
 import type { StoredAuth, TokenStore } from './token-store';
 
@@ -27,6 +28,7 @@ export class AmanaApiClient {
   public readonly device: DeviceApi;
   public readonly household: HouseholdApi;
   public readonly notification: NotificationApi;
+  public readonly preference: PreferenceApi;
   public readonly subWallet: SubWalletApi;
   public readonly pairing: PairingApi;
   private readonly fetchImpl: typeof fetch;
@@ -44,6 +46,7 @@ export class AmanaApiClient {
     this.bump = new BumpApi(this);
     this.notification = new NotificationApi(this);
     this.device = new DeviceApi(this);
+    this.preference = new PreferenceApi(this);
   }
 
   async health(): Promise<{ status: 'ok'; version: string }> {

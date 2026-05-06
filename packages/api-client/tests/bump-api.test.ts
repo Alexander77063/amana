@@ -45,6 +45,13 @@ describe('BumpApi.listForMe', () => {
     expect(r.pending[0]?.id).toBe('b1');
     expect(r.history).toHaveLength(0);
   });
+
+  it("does not append ?status=all (server default) when status === 'all'", async () => {
+    const client = fakeClient(async () => ({ pending: [], history: [] }));
+    const api = new BumpApi(client);
+    await api.listForMe({ status: 'all' });
+    expect(client.request).toHaveBeenCalledWith('/me/bumps');
+  });
 });
 
 describe('BumpApi.decide', () => {

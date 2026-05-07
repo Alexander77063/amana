@@ -1,6 +1,7 @@
 import { sql } from 'drizzle-orm';
-import { jsonb, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, jsonb, pgEnum, pgTable, primaryKey, smallint, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './identity';
+import { subWallets } from './wallet';
 
 export const notificationKindEnum = pgEnum('notification_kind', [
   'bump_requested',
@@ -72,5 +73,32 @@ export const notifications = pgTable('notifications', {
   providerReceipt: text('provider_receipt'),
   errorMessage: text('error_message'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const subwalletSnooze = pgTable(
+  'subwallet_snooze',
+  {
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    subWalletId: uuid('sub_wallet_id')
+      .notNull()
+      .references(() => subWallets.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.userId, t.subWalletId] }),
+  }),
+);
+
+export const userQuietHours = pgTable('user_quiet_hours', {
+  userId: uuid('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  enabled: boolean('enabled').notNull().default(false),
+  startMinute: smallint('start_minute').notNull(),
+  endMinute: smallint('end_minute').notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });

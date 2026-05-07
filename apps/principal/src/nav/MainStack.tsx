@@ -11,6 +11,7 @@ import { NotificationKindDetailScreen } from '../screens/NotificationKindDetailS
 import { NotificationPreferencesScreen } from '../screens/NotificationPreferencesScreen';
 import { NotificationsInboxScreen } from '../screens/NotificationsInboxScreen';
 import { PairingScreen } from '../screens/PairingScreen';
+import { QuietHoursScreen } from '../screens/QuietHoursScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SubWalletDetailScreen } from '../screens/SubWalletDetailScreen';
 import { SubWalletsListScreen } from '../screens/SubWalletsListScreen';
@@ -95,6 +96,11 @@ export function MainStack(): JSX.Element {
         name="NotificationKindDetail"
         component={NotificationKindDetailScreen}
         options={{ title: 'Notification kind' }}
+      />
+      <Stack.Screen
+        name="QuietHours"
+        component={QuietHoursScreen}
+        options={{ title: 'Quiet hours' }}
       />
     </Stack.Navigator>
   );

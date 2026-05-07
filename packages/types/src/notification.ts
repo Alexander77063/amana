@@ -65,7 +65,12 @@ export type UpsertPreferenceInput = {
  */
 export type NotificationDeepLink =
   | { kind: 'bump'; bumpRequestId: string }
-  | { kind: 'transaction'; transactionId: string; subWalletId: string } // 6b-5: deep-link target when txn-detail screen ships
+  | {
+      kind: 'transaction';
+      transactionId: string;
+      /** Null on principal direct-spend (decision #17 — `sub_wallet_id` is NULL on the row). */
+      subWalletId: string | null;
+    }
   | { kind: 'none' };
 
 export type MyNotificationsResponse = {

@@ -74,4 +74,8 @@ export const transactionsRepo = {
   async setNibssSessionId(db: DbOrTx, id: string, sessionId: string): Promise<void> {
     await db.update(transactions).set({ nibssSessionId: sessionId }).where(eq(transactions.id, id));
   },
+
+  async setErrorMessage(db: DbOrTx, id: string, errorMessage: string): Promise<void> {
+    await db.update(transactions).set({ errorMessage }).where(eq(transactions.id, id));
+  },
 };

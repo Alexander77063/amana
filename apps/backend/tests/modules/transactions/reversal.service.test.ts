@@ -136,6 +136,29 @@ describe('reversalService.reverse', () => {
     expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(100_000n);
   });
 
+  it('persists the failure reason to transactions.error_message (6b-6)', async () => {
+    const { txnId } = await seedAndSendNip();
+    await reversalService.reverse(testDb, {
+      transactionId: txnId,
+      reason: 'INSUFFICIENT_FUNDS',
+      failedAt: new Date('2026-05-03T12:01:00Z'),
+    });
+    const row = await transactionsRepo.findById(testDb, txnId);
+    expect(row?.status).toBe('failed');
+    expect(row?.errorMessage).toBe('INSUFFICIENT_FUNDS');
+  });
+
+  it('leaves error_message null when no reason provided (6b-6)', async () => {
+    const { txnId } = await seedAndSendNip();
+    await reversalService.reverse(testDb, {
+      transactionId: txnId,
+      reason: null,
+      failedAt: new Date('2026-05-03T12:01:00Z'),
+    });
+    const row = await transactionsRepo.findById(testDb, txnId);
+    expect(row?.errorMessage).toBeNull();
+  });
+
   it('dispatches txn_failed notifications to principal and agent', async () => {
     const { txnId, principalId, agentId } = await seedAndSendNip();
     await reversalService.reverse(testDb, {

@@ -68,6 +68,9 @@ export const reversalService = {
       // — it does NOT touch `nibss_session_id`. The session ID written by nip-out.service before
       // a 200-FAILED reversal must survive untouched for dispute reconstruction.
       await transactionsRepo.setStatus(txDb, txn.id, 'failed', input.failedAt);
+      if (input.reason) {
+        await transactionsRepo.setErrorMessage(txDb, txn.id, input.reason);
+      }
 
       await auditRepo.append(
         txDb,

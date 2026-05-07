@@ -34,15 +34,22 @@ export function SubWalletsListScreen({ navigation }: Props): JSX.Element {
           contentContainerStyle={styles.list}
           data={list}
           keyExtractor={(s) => s.id}
-          renderItem={({ item }) => (
-            <Pressable
-              style={styles.row}
-              onPress={() => navigation.navigate('SubWalletDetail', { subWalletId: item.id })}
-            >
-              <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.muted}>{item.status}</Text>
-            </Pressable>
-          )}
+          renderItem={({ item }) => {
+            const isSnoozedActive =
+              item.snoozedUntil !== null && new Date(item.snoozedUntil) > new Date();
+            return (
+              <Pressable
+                style={styles.row}
+                onPress={() => navigation.navigate('SubWalletDetail', { subWalletId: item.id })}
+              >
+                <View style={styles.rowText}>
+                  <Text style={styles.name}>{item.name}</Text>
+                  <Text style={styles.muted}>{item.status}</Text>
+                </View>
+                {isSnoozedActive && <Text style={styles.snoozeBadge}>🌙</Text>}
+              </Pressable>
+            );
+          }}
         />
       )}
       <Pressable style={styles.fab} onPress={() => navigation.navigate('CreateSubWallet')}>
@@ -57,11 +64,14 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
   list: { padding: 24, gap: 12 },
   row: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: '#ddd',
-    gap: 4,
   },
+  rowText: { flex: 1, gap: 4 },
+  snoozeBadge: { fontSize: 18, marginLeft: 8 },
   name: { fontSize: 16, fontWeight: '600' },
   muted: { color: '#666' },
   fab: {

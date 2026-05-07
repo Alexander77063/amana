@@ -1,6 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { presetToExpiresAt, type SnoozePreset } from '../lib/snooze-presets';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useSubWalletsStore } from '../state/subwallets.store';
 
@@ -23,6 +24,10 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
   const refreshBalance = useSubWalletsStore((s) => s.refreshBalance);
   const refreshRules = useSubWalletsStore((s) => s.refreshRules);
   const setStatus = useSubWalletsStore((s) => s.setStatus);
+  const snoozeAction = useSubWalletsStore((s) => s.snooze);
+  const unsnoozeAction = useSubWalletsStore((s) => s.unsnooze);
+
+  const [actionSheetOpen, setActionSheetOpen] = useState(false);
 
   useEffect(() => {
     void refreshOne(subWalletId);
@@ -38,6 +43,16 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
     );
   }
 
+  const snoozedUntil = sw?.snoozedUntil ?? null;
+  const isSnoozeActive =
+    snoozedUntil !== null && new Date(snoozedUntil) > new Date();
+
+  const renderSnoozeStatus = (): string => {
+    if (!isSnoozeActive) return 'Off';
+    const ends = new Date(snoozedUntil!);
+    return `Snoozed until ${ends.toLocaleString()}`;
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>{sw.name}</Text>
@@ -47,6 +62,58 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
         <Text style={styles.label}>Balance</Text>
         <Text style={styles.balance}>{formatKobo(balance)}</Text>
       </View>
+
+      <View style={styles.card}>
+        <Text style={styles.label}>Notifications</Text>
+        <View style={styles.snoozeRow}>
+          <Text style={styles.snoozeStatus}>{renderSnoozeStatus()}</Text>
+          {isSnoozeActive ? (
+            <Pressable onPress={() => void unsnoozeAction(subWalletId)}>
+              <Text style={styles.link}>Unmute</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => setActionSheetOpen(true)}>
+              <Text style={styles.link}>Snooze ▾</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      <Modal
+        visible={actionSheetOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActionSheetOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setActionSheetOpen(false)}>
+          <View style={styles.modalSheet}>
+            {[
+              { label: '1 hour', preset: 'one_hour' as SnoozePreset },
+              { label: '4 hours', preset: 'four_hours' as SnoozePreset },
+              { label: 'Until tomorrow morning', preset: 'tomorrow_morning' as SnoozePreset },
+              { label: 'Until I unmute', preset: 'indefinite' as SnoozePreset },
+            ].map(({ label, preset }) => (
+              <Pressable
+                key={preset}
+                style={styles.sheetItem}
+                onPress={() => {
+                  const until = presetToExpiresAt(preset, new Date());
+                  setActionSheetOpen(false);
+                  void snoozeAction(subWalletId, until);
+                }}
+              >
+                <Text style={styles.sheetItemText}>{label}</Text>
+              </Pressable>
+            ))}
+            <Pressable
+              style={[styles.sheetItem, styles.cancelItem]}
+              onPress={() => setActionSheetOpen(false)}
+            >
+              <Text style={[styles.sheetItemText, styles.cancelText]}>Cancel</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
 
       <View style={styles.card}>
         <View style={styles.rowSpread}>
@@ -142,4 +209,12 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.4 },
   buttonText: { color: 'white', fontWeight: '600' },
+  snoozeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  snoozeStatus: { fontSize: 14, color: '#222' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: 'white', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingVertical: 8 },
+  sheetItem: { paddingVertical: 16, paddingHorizontal: 24, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
+  sheetItemText: { fontSize: 16, color: '#222' },
+  cancelItem: { borderBottomWidth: 0 },
+  cancelText: { color: '#666', fontWeight: '600' },
 });

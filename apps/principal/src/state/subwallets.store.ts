@@ -10,6 +10,8 @@ export type SubWalletsState = {
   rulesById: Record<string, ActiveRuleSet | null>;
   errorCode: string | null;
   busy: boolean;
+  /** Monotonic counter to guard against stale optimistic responses. */
+  _snoozeSeq: Record<string, number>;
 
   refreshList(householdId: string): Promise<void>;
   create(householdId: string, agentUserId: string, name: string): Promise<SubWallet>;
@@ -18,6 +20,8 @@ export type SubWalletsState = {
   refreshRules(subWalletId: string): Promise<void>;
   publishRules(subWalletId: string, rules: RuleInput[]): Promise<void>;
   setStatus(subWalletId: string, status: SubWalletStatus): Promise<void>;
+  snooze(subWalletId: string, until: string | null): Promise<void>;
+  unsnooze(subWalletId: string): Promise<void>;
 };
 
 const ERR = (e: unknown): string =>
@@ -30,6 +34,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
   rulesById: {},
   errorCode: null,
   busy: false,
+  _snoozeSeq: {},
 
   async refreshList(householdId) {
     set({ busy: true, errorCode: null });
@@ -110,6 +115,62 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
     } catch (e) {
       set({ busy: false, errorCode: ERR(e) });
       throw e;
+    }
+  },
+
+  async snooze(subWalletId, until) {
+    const seq = (get()._snoozeSeq[subWalletId] ?? 0) + 1;
+    const before = get().byId[subWalletId];
+    if (!before) return;
+    // Optimistic write to byId AND list
+    const optimistic = { ...before, snoozedUntil: until };
+    set({
+      byId: { ...get().byId, [subWalletId]: optimistic },
+      list: get().list.map((s) => (s.id === subWalletId ? optimistic : s)),
+      _snoozeSeq: { ...get()._snoozeSeq, [subWalletId]: seq },
+    });
+    try {
+      const r = await api.subWallet.snooze(subWalletId, until);
+      // Stale-response guard
+      if (get()._snoozeSeq[subWalletId] !== seq) return;
+      const cur = get().byId[subWalletId];
+      if (!cur) return;
+      const reconciled = { ...cur, snoozedUntil: r.snoozedUntil };
+      set({
+        byId: { ...get().byId, [subWalletId]: reconciled },
+        list: get().list.map((s) => (s.id === subWalletId ? reconciled : s)),
+      });
+    } catch (e) {
+      if (get()._snoozeSeq[subWalletId] !== seq) return;
+      set({
+        byId: { ...get().byId, [subWalletId]: before },
+        list: get().list.map((s) => (s.id === subWalletId ? before : s)),
+        errorCode: ERR(e),
+      });
+    }
+  },
+
+  async unsnooze(subWalletId) {
+    const seq = (get()._snoozeSeq[subWalletId] ?? 0) + 1;
+    const before = get().byId[subWalletId];
+    if (!before) return;
+    const optimistic = { ...before, snoozedUntil: null };
+    set({
+      byId: { ...get().byId, [subWalletId]: optimistic },
+      list: get().list.map((s) => (s.id === subWalletId ? optimistic : s)),
+      _snoozeSeq: { ...get()._snoozeSeq, [subWalletId]: seq },
+    });
+    try {
+      await api.subWallet.unsnooze(subWalletId);
+      if (get()._snoozeSeq[subWalletId] !== seq) return;
+      // Server confirmed null — already optimistically applied; nothing to reconcile.
+    } catch (e) {
+      if (get()._snoozeSeq[subWalletId] !== seq) return;
+      set({
+        byId: { ...get().byId, [subWalletId]: before },
+        list: get().list.map((s) => (s.id === subWalletId ? before : s)),
+        errorCode: ERR(e),
+      });
     }
   },
 }));

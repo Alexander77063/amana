@@ -4,6 +4,7 @@ import type {
   NotificationChannel,
   NotificationKind,
   NotificationPreference,
+  QuietHours,
   UpsertPreferenceInput,
 } from '@amana/types';
 import { create } from 'zustand';
@@ -39,10 +40,13 @@ export type PreferencesState = {
   status: PreferencesStatus;
   rows: NotificationPreference[];
   errorCode: string | null;
+  quietHours: QuietHours | null;
 
   bootstrap(): Promise<void>;
   getEffective(kind: NotificationKind, channel: NotificationChannel): EffectivePreference;
   set(input: UpsertPreferenceInput): Promise<void>;
+  loadQuietHours(): Promise<void>;
+  saveQuietHours(input: QuietHours): Promise<void>;
 };
 
 const ERR = (e: unknown): string =>
@@ -67,13 +71,22 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
   status: 'idle',
   rows: [],
   errorCode: null,
+  quietHours: null,
 
   async bootstrap() {
     if (get().status === 'loading') return;
     set({ status: 'loading', errorCode: null });
     try {
-      const r = await api.preference.listForMe();
-      set({ status: 'ready', rows: r.preferences });
+      const [prefs, qh] = await Promise.all([
+        api.preference.listForMe(),
+        api.preference.getQuietHours(),
+      ]);
+      set({
+        status: 'ready',
+        rows: prefs.preferences,
+        quietHours: qh,
+        errorCode: null,
+      });
     } catch (e) {
       set({ status: 'error', errorCode: ERR(e) });
     }
@@ -123,6 +136,26 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       });
     } catch (e) {
       set({ rows: before, errorCode: ERR(e) });
+    }
+  },
+
+  async loadQuietHours() {
+    try {
+      const r = await api.preference.getQuietHours();
+      set({ quietHours: r });
+    } catch (e) {
+      set({ errorCode: ERR(e) });
+    }
+  },
+
+  async saveQuietHours(input) {
+    const before = get().quietHours;
+    set({ quietHours: input }); // optimistic
+    try {
+      const r = await api.preference.upsertQuietHours(input);
+      set({ quietHours: r });
+    } catch (e) {
+      set({ quietHours: before, errorCode: ERR(e) });
     }
   },
 }));

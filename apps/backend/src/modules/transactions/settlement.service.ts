@@ -134,6 +134,7 @@ export const settlementService = {
             recipientUserId: principalUserId,
             dedupeKey,
             amountKobo,
+            subWalletId: txn.subWalletId ?? undefined,
             payload: notifPayload,
           });
         }
@@ -143,6 +144,7 @@ export const settlementService = {
             recipientUserId: agentUserId,
             dedupeKey,
             amountKobo,
+            subWalletId: txn.subWalletId ?? undefined,
             payload: notifPayload,
           });
         }

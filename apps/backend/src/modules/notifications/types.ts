@@ -24,6 +24,11 @@ export type NotificationIntent = {
   amountKobo?: bigint;
   /** Optional anomaly score for threshold filtering on anomaly_alert. */
   anomalyScore?: number;
+  /**
+   * Sub-wallet this intent originates from. Absent for principal direct-spend (decision #17).
+   * FORWARD: per-kind sub-wallet snooze (subwallet_snooze_kind table) — see 6b-5 spec §6a
+   */
+  subWalletId?: string;
 };
 
 /** Result returned by `notificationService.dispatch`. */

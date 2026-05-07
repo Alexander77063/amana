@@ -102,6 +102,7 @@ export const bumpWorkflowService = {
           recipientUserId: resolved.principalUserId,
           dedupeKey: `bump:${result.bumpRequest.id}`,
           amountKobo: input.amountKobo,
+          subWalletId: input.subWalletId,
           payload: {
             bumpRequestId: result.bumpRequest.id,
             transactionId: input.transactionId,
@@ -160,6 +161,7 @@ export const bumpWorkflowService = {
           recipientUserId: result.value.bumpRequest.requestedByUserId,
           dedupeKey: `bump-decided:${result.value.bumpRequest.id}`,
           amountKobo: result.value.bumpRequest.amountKobo,
+          subWalletId: result.value.bumpRequest.subWalletId,
           payload: {
             bumpRequestId: result.value.bumpRequest.id,
             transactionId: result.value.bumpRequest.transactionId,

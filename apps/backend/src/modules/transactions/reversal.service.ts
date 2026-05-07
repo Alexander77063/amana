@@ -115,6 +115,7 @@ export const reversalService = {
             recipientUserId: principalUserId,
             dedupeKey,
             amountKobo,
+            subWalletId: txn.subWalletId ?? undefined,
             payload: notifPayload,
           });
         }
@@ -124,6 +125,7 @@ export const reversalService = {
             recipientUserId: agentUserId,
             dedupeKey,
             amountKobo,
+            subWalletId: txn.subWalletId ?? undefined,
             payload: notifPayload,
           });
         }

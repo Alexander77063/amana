@@ -118,6 +118,7 @@ export const lifecycleService = {
             recipientUserId: principalUserId,
             dedupeKey: `anomaly:${txn.id}`,
             anomalyScore: anomaly.score,
+            subWalletId: txn.subWalletId ?? undefined,
             payload: {
               transactionId: txn.id,
               amountKobo: kobo(txn.amountKobo as bigint),

@@ -134,6 +134,7 @@ export const refundService = {
           kind: 'refund_received' as const,
           dedupeKey: `refund:${refundTxn.id}`,
           amountKobo: input.amountKobo as bigint,
+          subWalletId: original.subWalletId ?? undefined,
           payload: {
             refundTransactionId: refundTxn.id,
             originalTransactionId: originalId,

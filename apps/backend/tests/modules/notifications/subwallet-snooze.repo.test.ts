@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { subwalletSnoozeRepo } from '../../../src/modules/notifications/subwallet-snooze.repo';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { subwalletSnoozeRepo } from '../../../src/modules/notifications/subwallet-snooze.repo';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { factories } from '../../helpers/factories';
@@ -94,7 +94,9 @@ describe('subwalletSnoozeRepo', () => {
 
     it('is idempotent when no row exists', async () => {
       const { principalId, subWalletId } = await seedPrincipalAndSubWallet();
-      await expect(subwalletSnoozeRepo.delete(testDb, principalId, subWalletId)).resolves.toBeUndefined();
+      await expect(
+        subwalletSnoozeRepo.delete(testDb, principalId, subWalletId),
+      ).resolves.toBeUndefined();
     });
   });
 

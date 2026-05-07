@@ -58,9 +58,8 @@ export class SubWalletApi {
   }
 
   unsnooze(subWalletId: string): Promise<{ snoozedUntil: null }> {
-    return this.client.request<{ snoozedUntil: null }>(
-      `/sub-wallets/${subWalletId}/snooze`,
-      { method: 'DELETE' },
-    );
+    return this.client.request<{ snoozedUntil: null }>(`/sub-wallets/${subWalletId}/snooze`, {
+      method: 'DELETE',
+    });
   }
 }

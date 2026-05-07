@@ -81,10 +81,7 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
 
   return (
     <View style={{ flex: 1 }}>
-      <Pressable
-        style={styles.qhRow}
-        onPress={() => navigation.navigate('QuietHours')}
-      >
+      <Pressable style={styles.qhRow} onPress={() => navigation.navigate('QuietHours')}>
         <Text style={styles.qhTitle}>Quiet hours</Text>
         <Text style={styles.qhSummary}>{quietWindowSummary(quietHours)}</Text>
       </Pressable>

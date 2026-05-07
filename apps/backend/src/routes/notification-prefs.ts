@@ -1,5 +1,5 @@
-import { Hono } from 'hono';
 import { QuietHoursSchema } from '@amana/validation';
+import { Hono } from 'hono';
 import { db } from '../db/client';
 import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { prefsRepo } from '../modules/notifications/prefs.repo';

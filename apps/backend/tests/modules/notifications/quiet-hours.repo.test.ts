@@ -28,7 +28,11 @@ describe('quietHoursRepo', () => {
 
     it('returns the persisted row when one exists', async () => {
       const userId = await aUser();
-      await quietHoursRepo.upsert(testDb, userId, { enabled: true, startMinute: 1320, endMinute: 420 });
+      await quietHoursRepo.upsert(testDb, userId, {
+        enabled: true,
+        startMinute: 1320,
+        endMinute: 420,
+      });
       const r = await quietHoursRepo.get(testDb, userId);
       expect(r).toEqual({ enabled: true, startMinute: 1320, endMinute: 420 });
     });
@@ -44,7 +48,11 @@ describe('quietHoursRepo', () => {
     it('updates the existing row on subsequent calls', async () => {
       const userId = await aUser();
       await quietHoursRepo.upsert(testDb, userId, { enabled: false, startMinute: 0, endMinute: 1 });
-      await quietHoursRepo.upsert(testDb, userId, { enabled: true, startMinute: 1320, endMinute: 420 });
+      await quietHoursRepo.upsert(testDb, userId, {
+        enabled: true,
+        startMinute: 1320,
+        endMinute: 420,
+      });
       const r = await quietHoursRepo.get(testDb, userId);
       expect(r).toEqual({ enabled: true, startMinute: 1320, endMinute: 420 });
     });

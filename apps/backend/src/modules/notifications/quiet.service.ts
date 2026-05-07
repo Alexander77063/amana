@@ -24,11 +24,7 @@ export function nowMinuteInTz(now: Date, tz: string): number {
 }
 
 /** True if `minute` falls inside [startMinute, endMinute) with cross-midnight semantics. */
-export function minuteInWindow(
-  minute: number,
-  startMinute: number,
-  endMinute: number,
-): boolean {
+export function minuteInWindow(minute: number, startMinute: number, endMinute: number): boolean {
   if (startMinute <= endMinute) return minute >= startMinute && minute < endMinute;
   return minute >= startMinute || minute < endMinute;
 }

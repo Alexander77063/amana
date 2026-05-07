@@ -65,7 +65,7 @@ export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
     }
     const result = subs.map((sw) => ({
       ...sw,
-      snoozedUntil: snoozeMap.has(sw.id) ? snoozeMap.get(sw.id) ?? null : null,
+      snoozedUntil: snoozeMap.has(sw.id) ? (snoozeMap.get(sw.id) ?? null) : null,
     }));
     return c.json({ subWallets: result }, 200);
   })

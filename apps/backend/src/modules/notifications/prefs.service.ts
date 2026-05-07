@@ -52,12 +52,7 @@ export const prefsService = {
     intent: NotificationIntent,
     channel: NotificationChannel,
   ): Promise<
-    | 'send'
-    | 'skip_silent'
-    | 'skip_threshold'
-    | 'defer_digest'
-    | 'skip_snoozed'
-    | 'skip_quiet_hours'
+    'send' | 'skip_silent' | 'skip_threshold' | 'defer_digest' | 'skip_snoozed' | 'skip_quiet_hours'
   > {
     // 1) Resolve the existing per-(kind, channel) matrix.
     const { preference, thresholdKobo } = await prefsService.getPreference(
@@ -67,11 +62,7 @@ export const prefsService = {
       channel,
     );
 
-    let matrixDecision:
-      | 'send'
-      | 'skip_silent'
-      | 'skip_threshold'
-      | 'defer_digest';
+    let matrixDecision: 'send' | 'skip_silent' | 'skip_threshold' | 'defer_digest';
 
     if (preference === 'silent') {
       matrixDecision = 'skip_silent';
@@ -83,16 +74,13 @@ export const prefsService = {
         if (intent.anomalyScore === undefined) {
           matrixDecision = 'skip_threshold';
         } else {
-          const scoreCutoff =
-            thresholdKobo === null ? 0.85 : Number(thresholdKobo) / 100;
-          matrixDecision =
-            intent.anomalyScore >= scoreCutoff ? 'send' : 'skip_threshold';
+          const scoreCutoff = thresholdKobo === null ? 0.85 : Number(thresholdKobo) / 100;
+          matrixDecision = intent.anomalyScore >= scoreCutoff ? 'send' : 'skip_threshold';
         }
       } else if (intent.amountKobo === undefined || thresholdKobo === null) {
         matrixDecision = 'skip_threshold';
       } else {
-        matrixDecision =
-          intent.amountKobo >= thresholdKobo ? 'send' : 'skip_threshold';
+        matrixDecision = intent.amountKobo >= thresholdKobo ? 'send' : 'skip_threshold';
       }
     } else {
       matrixDecision = 'send';

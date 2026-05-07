@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { prefsRepo } from '../../../src/modules/notifications/prefs.repo';
+import { prefsService } from '../../../src/modules/notifications/prefs.service';
+import { quietHoursRepo } from '../../../src/modules/notifications/quiet-hours.repo';
+import { subwalletSnoozeRepo } from '../../../src/modules/notifications/subwallet-snooze.repo';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
-import { prefsRepo } from '../../../src/modules/notifications/prefs.repo';
-import { quietHoursRepo } from '../../../src/modules/notifications/quiet-hours.repo';
-import { prefsService } from '../../../src/modules/notifications/prefs.service';
-import { subwalletSnoozeRepo } from '../../../src/modules/notifications/subwallet-snooze.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
 

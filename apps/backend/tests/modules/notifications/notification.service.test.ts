@@ -1,16 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { notifications } from '../../../src/db/schema/notifications';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
-import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
-import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
-import { notifications } from '../../../src/db/schema/notifications';
 import { deviceTokensRepo } from '../../../src/modules/notifications/device-tokens.repo';
 import { notificationService } from '../../../src/modules/notifications/notification.service';
 import { notificationsRepo } from '../../../src/modules/notifications/notifications.repo';
 import { prefsRepo } from '../../../src/modules/notifications/prefs.repo';
 import { subwalletSnoozeRepo } from '../../../src/modules/notifications/subwallet-snooze.repo';
+import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
+import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
 

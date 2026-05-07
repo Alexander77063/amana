@@ -1,7 +1,15 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { presetToExpiresAt, type SnoozePreset } from '../lib/snooze-presets';
+import {
+  ActivityIndicator,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { type SnoozePreset, presetToExpiresAt } from '../lib/snooze-presets';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useSubWalletsStore } from '../state/subwallets.store';
 
@@ -44,8 +52,7 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
   }
 
   const snoozedUntil = sw?.snoozedUntil ?? null;
-  const isSnoozeActive =
-    snoozedUntil !== null && new Date(snoozedUntil) > new Date();
+  const isSnoozeActive = snoozedUntil !== null && new Date(snoozedUntil) > new Date();
 
   const renderSnoozeStatus = (): string => {
     if (!isSnoozeActive) return 'Off';
@@ -209,11 +216,26 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.4 },
   buttonText: { color: 'white', fontWeight: '600' },
-  snoozeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  snoozeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 4,
+  },
   snoozeStatus: { fontSize: 14, color: '#222' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: 'white', borderTopLeftRadius: 16, borderTopRightRadius: 16, paddingVertical: 8 },
-  sheetItem: { paddingVertical: 16, paddingHorizontal: 24, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: '#eee' },
+  modalSheet: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    paddingVertical: 8,
+  },
+  sheetItem: {
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#eee',
+  },
   sheetItemText: { fontSize: 16, color: '#222' },
   cancelItem: { borderBottomWidth: 0 },
   cancelText: { color: '#666', fontWeight: '600' },

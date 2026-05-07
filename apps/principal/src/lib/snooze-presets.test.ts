@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { presetToExpiresAt, type SnoozePreset } from './snooze-presets';
+import { type SnoozePreset, presetToExpiresAt } from './snooze-presets';
 
 const HOUR = 60 * 60 * 1000;
 

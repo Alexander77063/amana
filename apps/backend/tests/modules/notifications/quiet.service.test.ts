@@ -1,8 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
-import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
-import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { quietHoursRepo } from '../../../src/modules/notifications/quiet-hours.repo';
 import { quietService } from '../../../src/modules/notifications/quiet.service';
 import { subwalletSnoozeRepo } from '../../../src/modules/notifications/subwallet-snooze.repo';
@@ -11,6 +9,8 @@ import type {
   NotificationIntent,
   NotificationKind,
 } from '../../../src/modules/notifications/types';
+import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
+import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
@@ -134,7 +134,11 @@ describe('quietService.reasonQuiet', () => {
       const { principalId, subWalletId } = await seedPrincipalAndSubWallet();
       await subwalletSnoozeRepo.upsert(testDb, principalId, subWalletId, null);
       expect(
-        await quietService.reasonQuiet(testDb, intent('txn_settled', principalId, undefined), 'push'),
+        await quietService.reasonQuiet(
+          testDb,
+          intent('txn_settled', principalId, undefined),
+          'push',
+        ),
       ).toBeNull();
     });
 

@@ -45,9 +45,7 @@ export const subwalletSnoozeRepo = {
   async delete(db: DbOrTx, userId: string, subWalletId: string): Promise<void> {
     await db
       .delete(subwalletSnooze)
-      .where(
-        and(eq(subwalletSnooze.userId, userId), eq(subwalletSnooze.subWalletId, subWalletId)),
-      );
+      .where(and(eq(subwalletSnooze.userId, userId), eq(subwalletSnooze.subWalletId, subWalletId)));
   },
 
   async listForUser(db: DbOrTx, userId: string): Promise<SnoozeRow[]> {

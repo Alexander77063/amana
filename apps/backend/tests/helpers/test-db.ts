@@ -21,6 +21,7 @@ const TABLES_TO_TRUNCATE = [
   'rules',
   'rule_sets',
   'vendor_recents',
+  'subwallet_snooze',
   'sub_wallets',
   'ledger_accounts',
   'master_wallets',

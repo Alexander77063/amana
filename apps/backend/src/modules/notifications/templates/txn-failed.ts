@@ -3,6 +3,7 @@ import type { RenderedNotification } from '../types';
 
 export type TxnFailedContext = {
   transactionId: string;
+  subWalletId: string | null;
   amountKobo: bigint;
   vendorResolvedName: string;
   reason: string | null;
@@ -15,6 +16,7 @@ export function txnFailed(ctx: TxnFailedContext): RenderedNotification {
     data: {
       kind: 'txn_failed',
       transactionId: ctx.transactionId,
+      subWalletId: ctx.subWalletId,
       reason: ctx.reason,
     },
   };

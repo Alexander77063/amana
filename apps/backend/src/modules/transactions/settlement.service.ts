@@ -121,6 +121,7 @@ export const settlementService = {
 
         const notifPayload = {
           transactionId: txn.id,
+          subWalletId: txn.subWalletId ?? null,
           amountKobo: kobo(txn.amountKobo as bigint),
           vendorResolvedName: txn.vendorResolvedName ?? 'Unknown',
           nibssSessionId: input.nibssSessionId,

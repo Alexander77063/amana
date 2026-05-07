@@ -4,6 +4,7 @@ import type { RenderedNotification } from '../types';
 export type RefundReceivedContext = {
   refundTransactionId: string;
   originalTransactionId: string;
+  subWalletId: string | null;
   amountKobo: bigint;
   vendorResolvedName: string;
 };
@@ -16,6 +17,7 @@ export function refundReceived(ctx: RefundReceivedContext): RenderedNotification
       kind: 'refund_received',
       refundTransactionId: ctx.refundTransactionId,
       originalTransactionId: ctx.originalTransactionId,
+      subWalletId: ctx.subWalletId,
     },
   };
 }

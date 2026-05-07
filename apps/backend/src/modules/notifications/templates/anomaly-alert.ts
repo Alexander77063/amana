@@ -3,6 +3,7 @@ import type { RenderedNotification } from '../types';
 
 export type AnomalyAlertContext = {
   transactionId: string;
+  subWalletId: string | null;
   amountKobo: bigint;
   vendorResolvedName: string;
   anomalyScore: number;
@@ -16,6 +17,7 @@ export function anomalyAlert(ctx: AnomalyAlertContext): RenderedNotification {
     data: {
       kind: 'anomaly_alert',
       transactionId: ctx.transactionId,
+      subWalletId: ctx.subWalletId,
       anomalyScore: ctx.anomalyScore,
     },
   };

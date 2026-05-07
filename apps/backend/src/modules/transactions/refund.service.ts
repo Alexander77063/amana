@@ -138,6 +138,7 @@ export const refundService = {
           payload: {
             refundTransactionId: refundTxn.id,
             originalTransactionId: originalId,
+            subWalletId: original.subWalletId ?? null,
             amountKobo: input.amountKobo as bigint,
             vendorResolvedName: original.vendorResolvedName ?? 'Unknown',
           },

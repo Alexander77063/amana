@@ -121,6 +121,7 @@ export const lifecycleService = {
             subWalletId: txn.subWalletId ?? undefined,
             payload: {
               transactionId: txn.id,
+              subWalletId: txn.subWalletId ?? null,
               amountKobo: kobo(txn.amountKobo as bigint),
               vendorResolvedName: txn.vendorResolvedName ?? 'Unknown',
               anomalyScore: anomaly.score,

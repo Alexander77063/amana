@@ -3,6 +3,7 @@ import type { RenderedNotification } from '../types';
 
 export type TxnSettledContext = {
   transactionId: string;
+  subWalletId: string | null;
   amountKobo: bigint;
   vendorResolvedName: string;
   nibssSessionId: string | null;
@@ -15,6 +16,7 @@ export function txnSettled(ctx: TxnSettledContext): RenderedNotification {
     data: {
       kind: 'txn_settled',
       transactionId: ctx.transactionId,
+      subWalletId: ctx.subWalletId,
       nibssSessionId: ctx.nibssSessionId,
     },
   };

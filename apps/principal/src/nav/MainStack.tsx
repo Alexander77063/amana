@@ -15,6 +15,7 @@ import { QuietHoursScreen } from '../screens/QuietHoursScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SubWalletDetailScreen } from '../screens/SubWalletDetailScreen';
 import { SubWalletsListScreen } from '../screens/SubWalletsListScreen';
+import { TransactionDetailScreen } from '../screens/TransactionDetailScreen';
 
 export type MainStackParamList = {
   HomeDashboard: undefined;
@@ -32,6 +33,7 @@ export type MainStackParamList = {
   NotificationPreferences: undefined;
   NotificationKindDetail: { kind: NotificationKind };
   QuietHours: undefined;
+  TransactionDetail: { transactionId: string };
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -101,6 +103,11 @@ export function MainStack(): JSX.Element {
         name="QuietHours"
         component={QuietHoursScreen}
         options={{ title: 'Quiet hours' }}
+      />
+      <Stack.Screen
+        name="TransactionDetail"
+        component={TransactionDetailScreen}
+        options={{ title: 'Transaction' }}
       />
     </Stack.Navigator>
   );

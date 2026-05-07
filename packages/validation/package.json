@@ -17,12 +17,13 @@
     "dev": "tsc -p tsconfig.json --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check .",
-    "test": "echo 'no tests yet' && exit 0"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "zod": "3.23.8"
   },
   "devDependencies": {
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "vitest": "2.1.2"
   }
 }

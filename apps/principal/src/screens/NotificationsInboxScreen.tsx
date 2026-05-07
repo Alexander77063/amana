@@ -79,8 +79,10 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
     const link = deepLinkFor(n.kind, innerData);
     if (link.kind === 'bump') {
       navigation.navigate('BumpsInbox');
+    } else if (link.kind === 'transaction') {
+      navigation.navigate('TransactionDetail', { transactionId: link.transactionId });
     }
-    // 'transaction' and 'none' deep-links are no-ops in v1 (mark-read only).
+    // 'none' → mark-read only.
   };
 
   // Only show the full-screen loader on initial load (no items yet).

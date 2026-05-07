@@ -19,10 +19,12 @@ function navigateForResponse(response: Notifications.NotificationResponse) {
   if (!data) return;
   const kind = data.kind;
   if (typeof kind !== 'string') return;
-  // Reuse the inbox deep-link mapper.
   const link = deepLinkFor(kind as Parameters<typeof deepLinkFor>[0], data);
-  if (link.kind === 'bump' && navigationRef.isReady()) {
+  if (!navigationRef.isReady()) return;
+  if (link.kind === 'bump') {
     navigationRef.navigate('BumpsInbox');
+  } else if (link.kind === 'transaction') {
+    navigationRef.navigate('TransactionDetail', { transactionId: link.transactionId });
   }
 }
 

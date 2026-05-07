@@ -71,3 +71,11 @@ export type NotificationDeepLink =
 export type MyNotificationsResponse = {
   notifications: Notification[];
 };
+
+export type QuietHours = {
+  enabled: boolean;
+  /** Minute-of-day in Africa/Lagos, 0..1439 (00:00 → 23:59). */
+  startMinute: number;
+  /** Minute-of-day in Africa/Lagos, 0..1439. If endMinute < startMinute, the window crosses midnight. */
+  endMinute: number;
+};

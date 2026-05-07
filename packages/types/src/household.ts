@@ -37,6 +37,8 @@ export type SubWallet = {
   name: string;
   status: SubWalletStatus;
   createdAt: string;
+  /** ISO8601 if currently snoozed and active; null otherwise. */
+  snoozedUntil: string | null;
 };
 
 export type ProvisionedSubWallet = {

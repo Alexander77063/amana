@@ -3,6 +3,7 @@ import { db } from '../db/client';
 import { placeholderAnchorAccountForHousehold } from '../lib/placeholder-anchor';
 import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
+import { subwalletSnoozeRepo } from '../modules/notifications/subwallet-snooze.repo';
 import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../modules/wallet/sub-wallets.repo';
 
@@ -54,7 +55,19 @@ export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
     const mw = await masterWalletsRepo.findByHousehold(db, hh.id);
     if (!mw) return c.json({ error: 'no_master_wallet' }, 500);
     const subs = await subWalletsRepo.listByMaster(db, mw.id);
-    return c.json({ subWallets: subs }, 200);
+    const snoozes = await subwalletSnoozeRepo.listForUser(db, a.userId);
+    const now = new Date();
+    const snoozeMap = new Map<string, string | null>();
+    for (const s of snoozes) {
+      if (s.expiresAt === null || s.expiresAt > now) {
+        snoozeMap.set(s.subWalletId, s.expiresAt?.toISOString() ?? null);
+      }
+    }
+    const result = subs.map((sw) => ({
+      ...sw,
+      snoozedUntil: snoozeMap.has(sw.id) ? snoozeMap.get(sw.id) ?? null : null,
+    }));
+    return c.json({ subWallets: result }, 200);
   })
   .post('/:id/sub-wallets', async (c) => {
     const a = c.get('actor');

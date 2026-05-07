@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
+import { SubWalletSnoozeInputSchema } from '@amana/validation';
 import { db } from '../db/client';
 import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
+import { subwalletSnoozeRepo } from '../modules/notifications/subwallet-snooze.repo';
 import { ruleSetService } from '../modules/rules/rule-set.service';
 import { balanceService } from '../modules/wallet/balance.service';
 import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
@@ -83,4 +85,29 @@ export const subWalletsRoute = new Hono<{ Variables: ActorVariables }>()
       rules: body.rules as Parameters<typeof ruleSetService.publishNewVersion>[1]['rules'],
     });
     return c.json({ ruleSet: result.ruleSet, rules: result.rules }, 201);
+  })
+  .put('/:id/snooze', async (c) => {
+    const a = c.get('actor');
+    if (a.role !== 'principal') return c.json({ error: 'principal_only' }, 403);
+    const check = await ownerCheck(db, c.req.param('id'), a.userId);
+    if (!check.ok) return c.json({ error: check.code }, check.status);
+
+    const body = await c.req.json().catch(() => null);
+    const parsed = SubWalletSnoozeInputSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: 'invalid_param', details: parsed.error.flatten() }, 400);
+    }
+
+    const expiresAt = parsed.data.until === null ? null : new Date(parsed.data.until);
+    await subwalletSnoozeRepo.upsert(db, a.userId, c.req.param('id'), expiresAt);
+    return c.json({ snoozedUntil: parsed.data.until }, 200);
+  })
+  .delete('/:id/snooze', async (c) => {
+    const a = c.get('actor');
+    if (a.role !== 'principal') return c.json({ error: 'principal_only' }, 403);
+    const check = await ownerCheck(db, c.req.param('id'), a.userId);
+    if (!check.ok) return c.json({ error: check.code }, check.status);
+
+    await subwalletSnoozeRepo.delete(db, a.userId, c.req.param('id'));
+    return c.json({ snoozedUntil: null }, 200);
   });

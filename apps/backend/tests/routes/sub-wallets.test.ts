@@ -216,3 +216,151 @@ describe('POST /sub-wallets/:id/rules', () => {
     expect(body.ruleSet.version).toBe(2);
   });
 });
+
+describe('PUT /sub-wallets/:id/snooze', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  it('200 happy path — sets snooze with future ISO', async () => {
+    const { principal, sw } = await seedHouseholdWithSubWallet();
+    const headers = await bearerHeaders(principal);
+    const app = createServer();
+    const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    const res = await app.request(`/sub-wallets/${sw.sub.id}/snooze`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ until: future }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { snoozedUntil: string };
+    expect(body.snoozedUntil).toBe(future);
+  });
+
+  it('200 happy path — indefinite mute with null', async () => {
+    const { principal, sw } = await seedHouseholdWithSubWallet();
+    const headers = await bearerHeaders(principal);
+    const app = createServer();
+    const res = await app.request(`/sub-wallets/${sw.sub.id}/snooze`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ until: null }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { snoozedUntil: null };
+    expect(body.snoozedUntil).toBeNull();
+  });
+
+  it('400 on past timestamp', async () => {
+    const { principal, sw } = await seedHouseholdWithSubWallet();
+    const headers = await bearerHeaders(principal);
+    const app = createServer();
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const res = await app.request(`/sub-wallets/${sw.sub.id}/snooze`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ until: past }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('403 when caller is not the household principal', async () => {
+    const { sw } = await seedHouseholdWithSubWallet();
+    const otherPrincipal = await usersRepo.insert(testDb, {
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
+    });
+    const headers = await bearerHeaders(otherPrincipal);
+    const app = createServer();
+    const res = await app.request(`/sub-wallets/${sw.sub.id}/snooze`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ until: null }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('404 on unknown sub-wallet', async () => {
+    const { principal } = await seedHouseholdWithSubWallet();
+    const headers = await bearerHeaders(principal);
+    const app = createServer();
+    const res = await app.request('/sub-wallets/00000000-0000-0000-0000-000000000000/snooze', {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ until: null }),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('DELETE /sub-wallets/:id/snooze', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  it('200 happy path — clears snooze', async () => {
+    const { principal, sw } = await seedHouseholdWithSubWallet();
+    const headers = await bearerHeaders(principal);
+    const app = createServer();
+    // Set snooze first
+    await app.request(`/sub-wallets/${sw.sub.id}/snooze`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ until: null }),
+    });
+    const res = await app.request(`/sub-wallets/${sw.sub.id}/snooze`, {
+      method: 'DELETE',
+      headers,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { snoozedUntil: null };
+    expect(body.snoozedUntil).toBeNull();
+  });
+
+  it('200 idempotent — succeeds when no row exists', async () => {
+    const { principal, sw } = await seedHouseholdWithSubWallet();
+    const headers = await bearerHeaders(principal);
+    const app = createServer();
+    const res = await app.request(`/sub-wallets/${sw.sub.id}/snooze`, {
+      method: 'DELETE',
+      headers,
+    });
+    expect(res.status).toBe(200);
+  });
+});
+
+describe('GET /households/:id/sub-wallets — surfaces snoozedUntil', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  it('returns snoozedUntil: null when not snoozed', async () => {
+    const { principal, hh, sw } = await seedHouseholdWithSubWallet();
+    const headers = await bearerHeaders(principal);
+    const app = createServer();
+    const res = await app.request(`/households/${hh.id}/sub-wallets`, { headers });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { subWallets: Array<{ id: string; snoozedUntil: null }> };
+    const item = body.subWallets.find((s) => s.id === sw.sub.id);
+    expect(item?.snoozedUntil).toBeNull();
+  });
+
+  it('returns snoozedUntil: <iso> when active snooze exists', async () => {
+    const { principal, hh, sw } = await seedHouseholdWithSubWallet();
+    const headers = await bearerHeaders(principal);
+    const app = createServer();
+    const future = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+    await app.request(`/sub-wallets/${sw.sub.id}/snooze`, {
+      method: 'PUT',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ until: future }),
+    });
+    const res = await app.request(`/households/${hh.id}/sub-wallets`, { headers });
+    const body = (await res.json()) as { subWallets: Array<{ id: string; snoozedUntil: string }> };
+    const item = body.subWallets.find((s) => s.id === sw.sub.id);
+    expect(item?.snoozedUntil).toBe(future);
+  });
+});

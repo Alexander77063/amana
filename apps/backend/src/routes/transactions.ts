@@ -6,6 +6,7 @@ import { anchorAdapterSingleton } from '../integrations/anchor';
 import { kobo } from '../lib/kobo';
 import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
+import { transactionDetailService } from '../modules/transactions/detail.service';
 import { lifecycleService } from '../modules/transactions/lifecycle.service';
 import { nipOutService } from '../modules/transactions/nip-out.service';
 import { txnIntentService } from '../modules/transactions/txn-intent.service';
@@ -84,4 +85,17 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
       now: new Date(),
     });
     return c.json({ status: result.transaction.status }, 200);
+  })
+  .get('/:id', async (c) => {
+    const a = c.get('actor') as Actor;
+    if (a.role !== 'principal') {
+      return c.json({ error: 'principal_only' }, 403);
+    }
+    const id = c.req.param('id');
+    const detail = await transactionDetailService.getByIdForPrincipal(db, id, a.userId);
+    if (!detail) {
+      // CRITICAL: same shape & code for "doesn't exist" AND "not yours" — no existence leak.
+      return c.json({ error: 'not_found' }, 404);
+    }
+    return c.json({ transaction: detail }, 200);
   });

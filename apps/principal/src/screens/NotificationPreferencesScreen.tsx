@@ -2,6 +2,7 @@ import type { NotificationChannel, NotificationKind } from '@amana/types';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { quietWindowSummary } from '../lib/quiet-window-summary';
 import type { MainStackParamList } from '../nav/MainStack';
 import { usePreferencesStore } from '../state/preferences.store';
 
@@ -45,6 +46,7 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
   const errorCode = usePreferencesStore((s) => s.errorCode);
   const bootstrap = usePreferencesStore((s) => s.bootstrap);
   const getEffective = usePreferencesStore((s) => s.getEffective);
+  const quietHours = usePreferencesStore((s) => s.quietHours);
 
   useEffect(() => {
     void bootstrap();
@@ -78,20 +80,29 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
   }
 
   return (
-    <FlatList
-      contentContainerStyle={styles.container}
-      data={KINDS}
-      keyExtractor={(k) => k}
-      renderItem={({ item }) => (
-        <Pressable
-          style={styles.row}
-          onPress={() => navigation.navigate('NotificationKindDetail', { kind: item })}
-        >
-          <Text style={styles.rowTitle}>{kindTitle(item)}</Text>
-          <Text style={styles.muted}>{summarize(item)}</Text>
-        </Pressable>
-      )}
-    />
+    <View style={{ flex: 1 }}>
+      <Pressable
+        style={styles.qhRow}
+        onPress={() => navigation.navigate('QuietHours')}
+      >
+        <Text style={styles.qhTitle}>Quiet hours</Text>
+        <Text style={styles.qhSummary}>{quietWindowSummary(quietHours)}</Text>
+      </Pressable>
+      <FlatList
+        contentContainerStyle={styles.container}
+        data={KINDS}
+        keyExtractor={(k) => k}
+        renderItem={({ item }) => (
+          <Pressable
+            style={styles.row}
+            onPress={() => navigation.navigate('NotificationKindDetail', { kind: item })}
+          >
+            <Text style={styles.rowTitle}>{kindTitle(item)}</Text>
+            <Text style={styles.muted}>{summarize(item)}</Text>
+          </Pressable>
+        )}
+      />
+    </View>
   );
 }
 
@@ -115,4 +126,14 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   buttonText: { color: 'white', fontWeight: '600' },
+  qhRow: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#ddd',
+    gap: 4,
+    backgroundColor: '#fafafa',
+  },
+  qhTitle: { fontSize: 16, fontWeight: '600' },
+  qhSummary: { color: '#666' },
 });

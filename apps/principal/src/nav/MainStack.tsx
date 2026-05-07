@@ -30,6 +30,7 @@ export type MainStackParamList = {
   Settings: undefined;
   NotificationPreferences: undefined;
   NotificationKindDetail: { kind: NotificationKind };
+  QuietHours: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();

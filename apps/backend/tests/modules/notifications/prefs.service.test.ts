@@ -1,7 +1,12 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
+import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { prefsRepo } from '../../../src/modules/notifications/prefs.repo';
+import { quietHoursRepo } from '../../../src/modules/notifications/quiet-hours.repo';
 import { prefsService } from '../../../src/modules/notifications/prefs.service';
+import { subwalletSnoozeRepo } from '../../../src/modules/notifications/subwallet-snooze.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
@@ -127,5 +132,120 @@ describe('prefsService', () => {
       'push',
     );
     expect(decision).toBe('defer_digest');
+  });
+});
+
+async function seedPrincipalAndSubWallet() {
+  const principal = await usersRepo.insert(testDb, {
+    role: 'principal',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '2',
+    bvn: factories.bvn(),
+  });
+  const hh = await householdsRepo.insert(testDb, {
+    principalUserId: principal.id,
+    name: 'HH',
+  });
+  const mw = await masterWalletsRepo.provision(testDb, {
+    householdId: hh.id,
+    anchorVirtualAccount: factories.bankAccount(),
+    anchorBankCode: '058',
+    anchorAccountId: `anchor-acct-${Date.now()}`,
+  });
+  const agent = await usersRepo.insert(testDb, {
+    role: 'agent',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '1',
+  });
+  const sw = await subWalletsRepo.provision(testDb, {
+    masterWalletId: mw.master.id,
+    agentUserId: agent.id,
+    name: 'Driver',
+  });
+  return { principalId: principal.id, subWalletId: sw.sub.id };
+}
+
+describe('prefsService.shouldSend — quiet layer', () => {
+  beforeEach(async () => {
+    await truncateAll();
+    vi.useFakeTimers({ toFake: ['Date'] });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('returns "skip_snoozed" when matrix=send + sub-wallet is snoozed (push, non-breakthrough kind)', async () => {
+    const { principalId, subWalletId } = await seedPrincipalAndSubWallet();
+    await subwalletSnoozeRepo.upsert(testDb, principalId, subWalletId, null);
+    const decision = await prefsService.shouldSend(
+      testDb,
+      {
+        kind: 'txn_settled',
+        recipientUserId: principalId,
+        dedupeKey: 'test:1',
+        payload: {},
+        amountKobo: 1_000_000n,
+        subWalletId,
+      },
+      'push',
+    );
+    expect(decision).toBe('skip_snoozed');
+  });
+
+  it('returns "skip_quiet_hours" when matrix=send + within quiet window (sms, non-breakthrough kind)', async () => {
+    const { principalId, subWalletId } = await seedPrincipalAndSubWallet();
+    // Default for refund_received SMS is 'silent', so override to real_time.
+    await prefsRepo.upsert(testDb, {
+      userId: principalId,
+      kind: 'refund_received',
+      channel: 'sms',
+      preference: 'real_time',
+      thresholdKobo: null,
+    });
+    await quietHoursRepo.upsert(testDb, principalId, {
+      enabled: true,
+      startMinute: 1320,
+      endMinute: 420,
+    });
+    // 03:00 Africa/Lagos = 02:00 UTC — well inside the cross-midnight window.
+    vi.setSystemTime(new Date(Date.UTC(2026, 4, 7, 2, 0)));
+    const decision = await prefsService.shouldSend(
+      testDb,
+      {
+        kind: 'refund_received',
+        recipientUserId: principalId,
+        dedupeKey: 'test:2',
+        payload: {},
+        subWalletId,
+      },
+      'sms',
+    );
+    expect(decision).toBe('skip_quiet_hours');
+  });
+
+  it('returns "skip_silent" (matrix wins) when user has set kind=silent AND sub-wallet is snoozed', async () => {
+    const { principalId, subWalletId } = await seedPrincipalAndSubWallet();
+    await prefsRepo.upsert(testDb, {
+      userId: principalId,
+      kind: 'txn_settled',
+      channel: 'push',
+      preference: 'silent',
+      thresholdKobo: null,
+    });
+    await subwalletSnoozeRepo.upsert(testDb, principalId, subWalletId, null);
+    const decision = await prefsService.shouldSend(
+      testDb,
+      {
+        kind: 'txn_settled',
+        recipientUserId: principalId,
+        dedupeKey: 'test:3',
+        payload: {},
+        subWalletId,
+      },
+      'push',
+    );
+    expect(decision).toBe('skip_silent'); // matrix beats quiet
   });
 });

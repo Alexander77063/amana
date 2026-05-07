@@ -1,9 +1,16 @@
+import { randomUUID } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
+import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
+import { notifications } from '../../../src/db/schema/notifications';
 import { deviceTokensRepo } from '../../../src/modules/notifications/device-tokens.repo';
 import { notificationService } from '../../../src/modules/notifications/notification.service';
 import { notificationsRepo } from '../../../src/modules/notifications/notifications.repo';
 import { prefsRepo } from '../../../src/modules/notifications/prefs.repo';
+import { subwalletSnoozeRepo } from '../../../src/modules/notifications/subwallet-snooze.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
@@ -108,4 +115,73 @@ describe('notificationService.dispatch', () => {
     // We can verify there isn't a second in-app row by querying the DB explicitly if needed;
     // the dedupe path returns the existing row, so total row count for that key on in_app stays at 1.
   });
+});
+
+async function seedPrincipalAndSubWallet() {
+  const principal = await usersRepo.insert(testDb, {
+    role: 'principal',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '2',
+    bvn: factories.bvn(),
+  });
+  await deviceTokensRepo.register(testDb, {
+    userId: principal.id,
+    expoPushToken: `ExponentPushToken[${randomUUID()}]`,
+    platform: 'android',
+  });
+  const hh = await householdsRepo.insert(testDb, {
+    principalUserId: principal.id,
+    name: 'HH',
+  });
+  const mw = await masterWalletsRepo.provision(testDb, {
+    householdId: hh.id,
+    anchorVirtualAccount: factories.bankAccount(),
+    anchorBankCode: '058',
+    anchorAccountId: `anchor-acct-${Date.now()}`,
+  });
+  const agent = await usersRepo.insert(testDb, {
+    role: 'agent',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '1',
+  });
+  const sw = await subWalletsRepo.provision(testDb, {
+    masterWalletId: mw.master.id,
+    agentUserId: agent.id,
+    name: 'Driver',
+  });
+  return { principalId: principal.id, subWalletId: sw.sub.id };
+}
+
+it('dispatch — snooze active causes push + sms to skip with _decision=skip_snoozed; in_app still sends', async () => {
+  const { principalId, subWalletId } = await seedPrincipalAndSubWallet();
+  await subwalletSnoozeRepo.upsert(testDb, principalId, subWalletId, null);
+
+  const result = await notificationService.dispatch(testDb, {
+    kind: 'txn_settled',
+    recipientUserId: principalId,
+    dedupeKey: `txn:${randomUUID()}`,
+    payload: {
+      transactionId: 'txn-snooze-test',
+      amountKobo: 1_000_000n,
+      vendorResolvedName: 'TestVendor',
+      nibssSessionId: null,
+    },
+    amountKobo: 1_000_000n,
+    subWalletId,
+  });
+
+  const byChannel = Object.fromEntries(result.rows.map((r) => [r.channel, r.status]));
+  expect(byChannel.push).toBe('skipped');
+  expect(byChannel.sms).toBe('skipped');
+  expect(byChannel.in_app).toBe('sent');
+
+  // Audit field on the push row
+  const pushRow = await testDb
+    .select()
+    .from(notifications)
+    .where(and(eq(notifications.recipientUserId, principalId), eq(notifications.channel, 'push')))
+    .limit(1);
+  expect((pushRow[0]?.payloadJson as { _decision?: string })._decision).toBe('skip_snoozed');
 });

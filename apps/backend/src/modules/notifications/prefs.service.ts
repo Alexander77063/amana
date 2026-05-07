@@ -1,5 +1,6 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { prefsRepo } from './prefs.repo';
+import { quietService } from './quiet.service';
 import type {
   ChannelPreference,
   NotificationChannel,
@@ -44,32 +45,66 @@ export const prefsService = {
 
   /**
    * Decide whether to send a given intent on a given channel.
-   * Returns 'send' | 'skip_silent' | 'skip_threshold' | 'defer_digest'.
+   * Order: per-(kind, channel) matrix first; then quietService layer when matrix said 'send'.
    */
   async shouldSend(
     db: PostgresJsDatabase,
     intent: NotificationIntent,
     channel: NotificationChannel,
-  ): Promise<'send' | 'skip_silent' | 'skip_threshold' | 'defer_digest'> {
+  ): Promise<
+    | 'send'
+    | 'skip_silent'
+    | 'skip_threshold'
+    | 'defer_digest'
+    | 'skip_snoozed'
+    | 'skip_quiet_hours'
+  > {
+    // 1) Resolve the existing per-(kind, channel) matrix.
     const { preference, thresholdKobo } = await prefsService.getPreference(
       db,
       intent.recipientUserId,
       intent.kind,
       channel,
     );
-    if (preference === 'silent') return 'skip_silent';
-    if (preference === 'digest') return 'defer_digest';
-    if (preference === 'threshold') {
+
+    let matrixDecision:
+      | 'send'
+      | 'skip_silent'
+      | 'skip_threshold'
+      | 'defer_digest';
+
+    if (preference === 'silent') {
+      matrixDecision = 'skip_silent';
+    } else if (preference === 'digest') {
+      matrixDecision = 'defer_digest';
+    } else if (preference === 'threshold') {
       // Threshold semantics: send only when amount/score is at or above the threshold.
       if (intent.kind === 'anomaly_alert') {
-        if (intent.anomalyScore === undefined) return 'skip_threshold';
-        // Score threshold uses fixed 0.85 from spec §10 STR triggers when no per-user threshold set.
-        const scoreCutoff = thresholdKobo === null ? 0.85 : Number(thresholdKobo) / 100; // store as percent×100
-        return intent.anomalyScore >= scoreCutoff ? 'send' : 'skip_threshold';
+        if (intent.anomalyScore === undefined) {
+          matrixDecision = 'skip_threshold';
+        } else {
+          const scoreCutoff =
+            thresholdKobo === null ? 0.85 : Number(thresholdKobo) / 100;
+          matrixDecision =
+            intent.anomalyScore >= scoreCutoff ? 'send' : 'skip_threshold';
+        }
+      } else if (intent.amountKobo === undefined || thresholdKobo === null) {
+        matrixDecision = 'skip_threshold';
+      } else {
+        matrixDecision =
+          intent.amountKobo >= thresholdKobo ? 'send' : 'skip_threshold';
       }
-      if (intent.amountKobo === undefined || thresholdKobo === null) return 'skip_threshold';
-      return intent.amountKobo >= thresholdKobo ? 'send' : 'skip_threshold';
+    } else {
+      matrixDecision = 'send';
     }
+
+    // 2) Matrix non-'send' wins (more specific user pref).
+    if (matrixDecision !== 'send') return matrixDecision;
+
+    // 3) Matrix said 'send' — consult quietService.
+    const quietReason = await quietService.reasonQuiet(db, intent, channel);
+    if (quietReason === 'snooze') return 'skip_snoozed';
+    if (quietReason === 'quiet_hours') return 'skip_quiet_hours';
     return 'send';
   },
 };

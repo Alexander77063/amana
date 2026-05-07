@@ -40,3 +40,4 @@ export { DeviceApi } from './device-api';
 export type { UnregisterDeviceResult } from './device-api';
 export { PreferenceApi } from './preference-api';
 export type { UpsertPreferenceResult } from './preference-api';
+export { TransactionApi } from './transaction-api';

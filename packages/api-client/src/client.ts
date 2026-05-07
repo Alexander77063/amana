@@ -8,6 +8,7 @@ import { PairingApi } from './pairing-api';
 import { PreferenceApi } from './preference-api';
 import { SubWalletApi } from './sub-wallet-api';
 import type { StoredAuth, TokenStore } from './token-store';
+import { TransactionApi } from './transaction-api';
 
 export interface ClientConfig {
   baseUrl: string;
@@ -31,6 +32,7 @@ export class AmanaApiClient {
   public readonly preference: PreferenceApi;
   public readonly subWallet: SubWalletApi;
   public readonly pairing: PairingApi;
+  public readonly transaction: TransactionApi;
   private readonly fetchImpl: typeof fetch;
   private readonly tokenStore?: TokenStore;
   private inflightRefresh: Promise<StoredAuth> | null = null;
@@ -47,6 +49,7 @@ export class AmanaApiClient {
     this.notification = new NotificationApi(this);
     this.device = new DeviceApi(this);
     this.preference = new PreferenceApi(this);
+    this.transaction = new TransactionApi(this);
   }
 
   async health(): Promise<{ status: 'ok'; version: string }> {

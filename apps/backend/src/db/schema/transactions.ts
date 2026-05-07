@@ -41,6 +41,7 @@ export const transactions = pgTable('transactions', {
   anomalyScore: decimal('anomaly_score', { precision: 3, scale: 2 }),
   bumpRequestId: uuid('bump_request_id'), // FK to bump_requests, enforced at DB layer (migration 0013)
   agentNote: text('agent_note'),
+  errorMessage: text('error_message'), // populated when status='failed' (6b-6); null otherwise
   geolocation: geometry('geolocation', { type: 'point', srid: 4326 }),
   attachedMedia: jsonb('attached_media'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

@@ -116,3 +116,38 @@ describe('PreferenceApi.upsert', () => {
     });
   });
 });
+
+describe('PreferenceApi.getQuietHours', () => {
+  it('GETs /me/quiet-hours', async () => {
+    const client = fakeClient(async () => ({
+      enabled: true,
+      startMinute: 1320,
+      endMinute: 420,
+    }));
+    const api = new PreferenceApi(client);
+    const r = await api.getQuietHours();
+    expect(client.request).toHaveBeenCalledWith('/me/quiet-hours');
+    expect(r).toEqual({ enabled: true, startMinute: 1320, endMinute: 420 });
+  });
+});
+
+describe('PreferenceApi.upsertQuietHours', () => {
+  it('PUTs /me/quiet-hours with the body', async () => {
+    const client = fakeClient(async () => ({
+      enabled: true,
+      startMinute: 1320,
+      endMinute: 420,
+    }));
+    const api = new PreferenceApi(client);
+    const r = await api.upsertQuietHours({
+      enabled: true,
+      startMinute: 1320,
+      endMinute: 420,
+    });
+    expect(client.request).toHaveBeenCalledWith('/me/quiet-hours', {
+      method: 'PUT',
+      jsonBody: { enabled: true, startMinute: 1320, endMinute: 420 },
+    });
+    expect(r.enabled).toBe(true);
+  });
+});

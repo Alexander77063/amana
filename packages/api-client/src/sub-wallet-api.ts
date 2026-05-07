@@ -4,6 +4,7 @@ import type {
   RuleRecord,
   SubWallet,
   SubWalletBalance,
+  SubWalletSnoozeInput,
   SubWalletStatus,
 } from '@amana/types';
 import type { AuthedClient } from './household-api';
@@ -44,5 +45,22 @@ export class SubWalletApi {
       method: 'POST',
       jsonBody: input,
     });
+  }
+
+  snooze(subWalletId: string, until: string | null): Promise<{ snoozedUntil: string | null }> {
+    return this.client.request<{ snoozedUntil: string | null }>(
+      `/sub-wallets/${subWalletId}/snooze`,
+      {
+        method: 'PUT',
+        jsonBody: { until } satisfies SubWalletSnoozeInput,
+      },
+    );
+  }
+
+  unsnooze(subWalletId: string): Promise<{ snoozedUntil: null }> {
+    return this.client.request<{ snoozedUntil: null }>(
+      `/sub-wallets/${subWalletId}/snooze`,
+      { method: 'DELETE' },
+    );
   }
 }

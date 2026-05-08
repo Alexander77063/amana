@@ -121,22 +121,22 @@ describe('transactionDetailService.getByIdForPrincipal', () => {
 
     const r = await transactionDetailService.getByIdForPrincipal(testDb, txn.id, principal.id);
     expect(r).not.toBeNull();
-    expect(r!.id).toBe(txn.id);
-    expect(r!.kind).toBe('spend');
-    expect(r!.status).toBe('settled');
-    expect(r!.amountKobo).toBe('12300');
-    expect(r!.vendorAccountMasked).toBe('***6789');
-    expect(r!.vendorResolvedName).toBe('Mama Tola Foodstuffs');
-    expect(r!.subWallet).toEqual({ id: sw.sub.id, name: "Tunde's allowance" });
-    expect(r!.initiatedBy.userId).toBe(agent.id);
-    expect(r!.initiatedBy.role).toBe('agent');
-    expect(r!.initiatedBy.displayName).toBe("Tunde's allowance");
-    expect(r!.nibssSessionId).toBe('100005031234567890');
-    expect(r!.agentNote).toBe('Groceries for the week');
-    expect(r!.settledAt).not.toBeNull();
-    expect(r!.errorMessage).toBeNull();
-    expect(r!.anomalyScore).toBeNull();
-    expect(r!.geolocation).toBeNull();
+    expect(r?.id).toBe(txn.id);
+    expect(r?.kind).toBe('spend');
+    expect(r?.status).toBe('settled');
+    expect(r?.amountKobo).toBe('12300');
+    expect(r?.vendorAccountMasked).toBe('***6789');
+    expect(r?.vendorResolvedName).toBe('Mama Tola Foodstuffs');
+    expect(r?.subWallet).toEqual({ id: sw.sub.id, name: "Tunde's allowance" });
+    expect(r?.initiatedBy.userId).toBe(agent.id);
+    expect(r?.initiatedBy.role).toBe('agent');
+    expect(r?.initiatedBy.displayName).toBe("Tunde's allowance");
+    expect(r?.nibssSessionId).toBe('100005031234567890');
+    expect(r?.agentNote).toBe('Groceries for the week');
+    expect(r?.settledAt).not.toBeNull();
+    expect(r?.errorMessage).toBeNull();
+    expect(r?.anomalyScore).toBeNull();
+    expect(r?.geolocation).toBeNull();
   });
 
   it('returns subWallet=null and principal role for a direct-spend txn', async () => {
@@ -153,10 +153,10 @@ describe('transactionDetailService.getByIdForPrincipal', () => {
     });
     const r = await transactionDetailService.getByIdForPrincipal(testDb, txn.id, principal.id);
     expect(r).not.toBeNull();
-    expect(r!.subWallet).toBeNull();
-    expect(r!.initiatedBy.userId).toBe(principal.id);
-    expect(r!.initiatedBy.role).toBe('principal');
-    expect(r!.initiatedBy.displayName).toBe(principal.phone);
+    expect(r?.subWallet).toBeNull();
+    expect(r?.initiatedBy.userId).toBe(principal.id);
+    expect(r?.initiatedBy.role).toBe('principal');
+    expect(r?.initiatedBy.displayName).toBe(principal.phone);
   });
 
   it('returns errorMessage for a failed txn', async () => {
@@ -175,8 +175,8 @@ describe('transactionDetailService.getByIdForPrincipal', () => {
       sql`UPDATE transactions SET status='failed', error_message='INSUFFICIENT_FUNDS' WHERE id = ${txn.id}`,
     );
     const r = await transactionDetailService.getByIdForPrincipal(testDb, txn.id, principal.id);
-    expect(r!.status).toBe('failed');
-    expect(r!.errorMessage).toBe('INSUFFICIENT_FUNDS');
+    expect(r?.status).toBe('failed');
+    expect(r?.errorMessage).toBe('INSUFFICIENT_FUNDS');
   });
 
   it('returns anomaly score as a plain number (not the Drizzle decimal string)', async () => {
@@ -193,8 +193,8 @@ describe('transactionDetailService.getByIdForPrincipal', () => {
     });
     await testDb.execute(sql`UPDATE transactions SET anomaly_score = 0.91 WHERE id = ${txn.id}`);
     const r = await transactionDetailService.getByIdForPrincipal(testDb, txn.id, principal.id);
-    expect(typeof r!.anomalyScore).toBe('number');
-    expect(r!.anomalyScore).toBeCloseTo(0.91, 2);
+    expect(typeof r?.anomalyScore).toBe('number');
+    expect(r?.anomalyScore).toBeCloseTo(0.91, 2);
   });
 
   it('decodes geolocation to {lat, lng} when present', async () => {
@@ -215,8 +215,8 @@ describe('transactionDetailService.getByIdForPrincipal', () => {
       WHERE id = ${txn.id}
     `);
     const r = await transactionDetailService.getByIdForPrincipal(testDb, txn.id, principal.id);
-    expect(r!.geolocation).not.toBeNull();
-    expect(r!.geolocation!.lng).toBeCloseTo(3.3792, 4);
-    expect(r!.geolocation!.lat).toBeCloseTo(6.5244, 4);
+    expect(r?.geolocation).not.toBeNull();
+    expect(r?.geolocation?.lng).toBeCloseTo(3.3792, 4);
+    expect(r?.geolocation?.lat).toBeCloseTo(6.5244, 4);
   });
 });

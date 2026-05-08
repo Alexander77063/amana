@@ -228,9 +228,7 @@ describe('GET /transactions/:id', () => {
       vendorBankCode: '058',
       vendorResolvedName: 'V',
     });
-    await testDb.execute(
-      sql`UPDATE transactions SET status='bump_pending' WHERE id = ${txn.id}`,
-    );
+    await testDb.execute(sql`UPDATE transactions SET status='bump_pending' WHERE id = ${txn.id}`);
     const app = createServer();
     const res = await app.request(`/transactions/${txn.id}`, {
       headers: await bearerHeaders(principal),
@@ -326,8 +324,8 @@ describe('GET /transactions/:id', () => {
     });
     const body = (await res.json()) as { transaction: TransactionDetail };
     expect(body.transaction.geolocation).not.toBeNull();
-    expect(body.transaction.geolocation!.lng).toBeCloseTo(3.3792, 4);
-    expect(body.transaction.geolocation!.lat).toBeCloseTo(6.5244, 4);
+    expect(body.transaction.geolocation?.lng).toBeCloseTo(3.3792, 4);
+    expect(body.transaction.geolocation?.lat).toBeCloseTo(6.5244, 4);
   });
 
   it('200 — anomaly score returns as plain number even below 0.85 threshold', async () => {
@@ -376,10 +374,9 @@ describe('GET /transactions/:id', () => {
   it('404 — unknown txn id returns not_found', async () => {
     const { principal } = await scaffoldHousehold();
     const app = createServer();
-    const res = await app.request(
-      `/transactions/00000000-0000-0000-0000-000000000000`,
-      { headers: await bearerHeaders(principal) },
-    );
+    const res = await app.request('/transactions/00000000-0000-0000-0000-000000000000', {
+      headers: await bearerHeaders(principal),
+    });
     expect(res.status).toBe(404);
     const body = (await res.json()) as { error: string };
     expect(body.error).toBe('not_found');

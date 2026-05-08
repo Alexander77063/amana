@@ -130,8 +130,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
   const { txn } = state;
   const badge = statusBadgeStyle(txn.status);
   const showAnomaly = txn.anomalyScore !== null && txn.anomalyScore >= 0.85;
-  const initiatorLabel =
-    txn.initiatedBy.role === 'principal' ? 'You' : txn.initiatedBy.displayName;
+  const initiatorLabel = txn.initiatedBy.role === 'principal' ? 'You' : txn.initiatedBy.displayName;
   const subWalletLabel = txn.subWallet ? txn.subWallet.name : 'Direct from master wallet';
 
   return (
@@ -143,9 +142,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
         </View>
       </View>
 
-      {txn.vendorResolvedName ? (
-        <Text style={styles.vendor}>{txn.vendorResolvedName}</Text>
-      ) : null}
+      {txn.vendorResolvedName ? <Text style={styles.vendor}>{txn.vendorResolvedName}</Text> : null}
       {txn.vendorBankCode || txn.vendorAccountMasked ? (
         <Text style={styles.muted}>
           {[txn.vendorBankCode, txn.vendorAccountMasked].filter(Boolean).join(' ')}
@@ -155,10 +152,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
       {txn.status === 'bump_pending' ? (
         <View style={styles.alertBanner}>
           <Text style={styles.alertBannerText}>⏳ Awaiting your decision</Text>
-          <Pressable
-            style={styles.bannerCta}
-            onPress={() => navigation.navigate('BumpsInbox')}
-          >
+          <Pressable style={styles.bannerCta} onPress={() => navigation.navigate('BumpsInbox')}>
             <Text style={styles.bannerCtaText}>Review request</Text>
           </Pressable>
         </View>
@@ -196,9 +190,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
           style={styles.locRow}
           onPress={() => {
             const { lat, lng } = txn.geolocation!;
-            void Linking.openURL(
-              `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
-            );
+            void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
           }}
         >
           <Text style={styles.locText}>📍 View location</Text>

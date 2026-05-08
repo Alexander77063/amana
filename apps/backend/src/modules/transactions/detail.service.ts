@@ -1,6 +1,6 @@
+import type { TransactionDetail } from '@amana/types';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import type { TransactionDetail } from '@amana/types';
 import { maskAccount } from '../../lib/mask-account';
 
 type Row = {

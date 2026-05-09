@@ -59,3 +59,19 @@ export type TransactionDetail = {
 export type TransactionDetailResponse = {
   transaction: TransactionDetail;
 };
+
+export type TransactionSummary = {
+  id: string;
+  kind: TransactionKind;
+  status: TransactionStatus;
+  amountKobo: string;
+  vendorResolvedName: string | null;
+  vendorAccountMasked: string | null;
+  initiatedAt: string;
+  settledAt: string | null;
+};
+
+export type TransactionListResponse = {
+  transactions: TransactionSummary[];
+  nextCursor: string | null;
+};

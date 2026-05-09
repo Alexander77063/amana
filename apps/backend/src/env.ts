@@ -31,6 +31,10 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(60 * 60 * 24),
+  MEDIA_BUCKET: z.string().min(1).default('amana-media-af-south-1'),
+  AWS_REGION: z.string().min(1).default('af-south-1'),
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

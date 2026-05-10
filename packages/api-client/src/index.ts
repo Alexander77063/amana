@@ -41,3 +41,7 @@ export type { UnregisterDeviceResult } from './device-api';
 export { PreferenceApi } from './preference-api';
 export type { UpsertPreferenceResult } from './preference-api';
 export { TransactionApi } from './transaction-api';
+export { VendorApi } from './vendor-api';
+export type { ResolvedVendorResponse, RecentVendorResponse } from './vendor-api';
+export { MediaApi } from './media-api';
+export { MeApi } from './me-api';

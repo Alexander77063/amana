@@ -4,16 +4,20 @@ import { VerifyScreen } from '../screens/VerifyScreen';
 
 export type AuthStackParamList = {
   Phone: undefined;
-  Verify: undefined;
+  Verify: { pendingPhone: string };
 };
+
+type Props = { onLoggedIn: () => void };
 
 const Stack = createNativeStackNavigator<AuthStackParamList>();
 
-export function AuthStack(): JSX.Element {
+export function AuthStack({ onLoggedIn }: Props): JSX.Element {
   return (
     <Stack.Navigator>
       <Stack.Screen name="Phone" component={PhoneScreen} options={{ title: 'Sign in' }} />
-      <Stack.Screen name="Verify" component={VerifyScreen} options={{ title: 'Verify' }} />
+      <Stack.Screen name="Verify" options={{ title: 'Verify' }}>
+        {(props) => <VerifyScreen {...props} onLoggedIn={onLoggedIn} />}
+      </Stack.Screen>
     </Stack.Navigator>
   );
 }

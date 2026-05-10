@@ -29,7 +29,7 @@ export function PhoneScreen({ navigation }: Props): JSX.Element {
     setErrorMsg(null);
     try {
       await api.auth.requestOtp({ phone, purpose: 'login' });
-      navigation.navigate('Verify');
+      navigation.navigate('Verify', { pendingPhone: phone });
     } catch (e: unknown) {
       setErrorMsg(e instanceof Error ? e.message : 'Error');
     } finally {

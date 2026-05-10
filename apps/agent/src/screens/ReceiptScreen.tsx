@@ -63,13 +63,13 @@ export function ReceiptScreen({ route, navigation }: Props): JSX.Element {
           <Text style={styles.btnText}>Show recipient</Text>
         </Pressable>
 
-        {!txn.attachedMedia && (
+        {!Boolean(txn.attachedMedia) && (
           <Pressable style={[styles.btn, styles.btnSecondary]} onPress={() => navigation.navigate('PhotoAttach', { transactionId })}>
             <Text style={[styles.btnText, styles.btnTextSecondary]}>Add photo</Text>
           </Pressable>
         )}
 
-        {txn.attachedMedia && <Text style={styles.photoBadge}>📎 Photo attached</Text>}
+        {Boolean(txn.attachedMedia) && <Text style={styles.photoBadge}>📎 Photo attached</Text>}
       </View>
 
       <Pressable style={styles.doneBtn} onPress={() => navigation.popToTop()}>

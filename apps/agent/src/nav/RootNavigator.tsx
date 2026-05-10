@@ -33,6 +33,10 @@ export function RootNavigator(): JSX.Element {
     }
   }, []);
 
+  const onLoggedIn = useCallback(() => {
+    void checkPairing();
+  }, [checkPairing]);
+
   const onPaired = useCallback(() => {
     void checkPairing();
   }, [checkPairing]);
@@ -68,7 +72,7 @@ export function RootNavigator(): JSX.Element {
 
   return (
     <NavigationContainer>
-      {appState === 'logged_out' && <AuthStack />}
+      {appState === 'logged_out' && <AuthStack onLoggedIn={onLoggedIn} />}
       {appState === 'unpaired' && (
         <PairingStack onPaired={onPaired} pendingToken={pendingToken} />
       )}

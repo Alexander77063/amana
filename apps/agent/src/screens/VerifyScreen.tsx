@@ -13,13 +13,13 @@ import type { AuthStackParamList } from '../nav/AuthStack';
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Verify'> & {
   onLoggedIn: () => void;
-  pendingPhone: string;
 };
 
 const schema = z.object({ code: z.string().regex(/^\d{6}$/, 'Six digits') });
 type FormValues = z.infer<typeof schema>;
 
-export function VerifyScreen({ onLoggedIn, pendingPhone }: Props): JSX.Element {
+export function VerifyScreen({ onLoggedIn, route }: Props): JSX.Element {
+  const { pendingPhone } = route.params;
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { control, handleSubmit, formState } = useForm<FormValues>({

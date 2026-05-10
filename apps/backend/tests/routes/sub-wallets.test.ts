@@ -332,6 +332,87 @@ describe('DELETE /sub-wallets/:id/snooze', () => {
   });
 });
 
+describe('GET /sub-wallets/:id/transactions', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('200 — returns paginated transactions for agent', async () => {
+    const { agent, mw, sw } = await seedHouseholdWithSubWallet();
+    // Insert 3 transactions
+    for (let i = 0; i < 3; i++) {
+      await transactionsRepo.insert(testDb, {
+        masterWalletId: mw.master.id,
+        subWalletId: sw.sub.id,
+        kind: 'spend',
+        amountKobo: kobo(BigInt((i + 1) * 1000)),
+        idempotencyKey: factories.idempotencyKey(),
+        vendorResolvedName: `Vendor ${i}`,
+        vendorAccount: factories.bankAccount(),
+        vendorBankCode: '058',
+      });
+    }
+
+    const app = createServer();
+    const res = await app.request(`/sub-wallets/${sw.sub.id}/transactions`, {
+      headers: await bearerHeaders(agent),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { transactions: unknown[]; nextCursor: string | null };
+    expect(body.transactions).toHaveLength(3);
+    expect(body.nextCursor).toBeNull();
+  });
+
+  it('200 — cursor pagination works', async () => {
+    const { agent, mw, sw } = await seedHouseholdWithSubWallet();
+    // Insert 3 transactions
+    const txns = [];
+    for (let i = 0; i < 3; i++) {
+      const t = await transactionsRepo.insert(testDb, {
+        masterWalletId: mw.master.id,
+        subWalletId: sw.sub.id,
+        kind: 'spend',
+        amountKobo: kobo(BigInt((i + 1) * 1000)),
+        idempotencyKey: factories.idempotencyKey(),
+        vendorBankCode: '058',
+        vendorAccount: factories.bankAccount(),
+      });
+      txns.push(t);
+    }
+
+    const app = createServer();
+    // First page of 2
+    const res1 = await app.request(`/sub-wallets/${sw.sub.id}/transactions?limit=2`, {
+      headers: await bearerHeaders(agent),
+    });
+    expect(res1.status).toBe(200);
+    const page1 = await res1.json() as { transactions: { id: string }[]; nextCursor: string | null };
+    expect(page1.transactions).toHaveLength(2);
+    expect(page1.nextCursor).not.toBeNull();
+
+    // Second page
+    const res2 = await app.request(
+      `/sub-wallets/${sw.sub.id}/transactions?limit=2&cursor=${page1.nextCursor}`,
+      { headers: await bearerHeaders(agent) },
+    );
+    expect(res2.status).toBe(200);
+    const page2 = await res2.json() as { transactions: unknown[]; nextCursor: string | null };
+    expect(page2.transactions).toHaveLength(1);
+    expect(page2.nextCursor).toBeNull();
+  });
+
+  it('403 — wrong agent cannot list transactions', async () => {
+    const { mw, sw } = await seedHouseholdWithSubWallet();
+    const wrongAgent = await usersRepo.insert(testDb, {
+      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+    });
+
+    const app = createServer();
+    const res = await app.request(`/sub-wallets/${sw.sub.id}/transactions`, {
+      headers: await bearerHeaders(wrongAgent),
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
 describe('GET /households/:id/sub-wallets — surfaces snoozedUntil', () => {
   beforeEach(async () => {
     await truncateAll();

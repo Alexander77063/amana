@@ -11,7 +11,7 @@
     "build": "echo 'mobile builds via EAS — run: pnpm exec eas build --platform all' && exit 0",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "test": "echo 'mobile tests land in Sub-plan 7' && exit 0"
+    "test": "vitest run"
   },
   "dependencies": {
     "@amana/api-client": "workspace:*",

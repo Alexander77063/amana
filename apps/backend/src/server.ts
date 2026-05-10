@@ -7,6 +7,7 @@ import { devicesRoute } from './routes/devices';
 import { healthRoute } from './routes/health';
 import { householdsRoute, meHouseholdRoute } from './routes/households';
 import { meBumpsRoute } from './routes/me-bumps';
+import { meSubWalletRoute } from './routes/me-sub-wallet';
 import { notificationPrefsRoute } from './routes/notification-prefs';
 import { notificationsListRoute } from './routes/notifications';
 import { pairingRoute } from './routes/pairing';
@@ -30,6 +31,7 @@ export function createServer(): Hono {
   app.route('/sub-wallets', subWalletsRoute);
   app.route('/', meHouseholdRoute);
   app.route('/', meBumpsRoute);
+  app.route('/', meSubWalletRoute);
   app.route('/', meRoute);
   app.route('/', logoutRoute);
   app.route('/', notificationPrefsRoute);

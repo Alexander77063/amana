@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { db } from '../db/client';
 import { transactions } from '../db/schema';
@@ -11,6 +11,7 @@ import { lifecycleService } from '../modules/transactions/lifecycle.service';
 import { nipOutService } from '../modules/transactions/nip-out.service';
 import { txnIntentService } from '../modules/transactions/txn-intent.service';
 import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
+import { subWalletsRepo } from '../modules/wallet/sub-wallets.repo';
 
 export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(jwtAuth())
@@ -103,4 +104,47 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     }
 
     return c.json({ error: 'forbidden' }, 403);
+  })
+  .patch('/:id/media', async (c) => {
+    const a = c.get('actor') as Actor;
+    const id = c.req.param('id');
+    const body = await c.req.json<{ mediaKey?: string }>();
+    if (!body.mediaKey) return c.json({ error: 'missing_media_key' }, 400);
+
+    const [txn] = await db.select().from(transactions).where(eq(transactions.id, id)).limit(1);
+    if (!txn) return c.json({ error: 'not_found' }, 404);
+    if (!txn.subWalletId || a.role !== 'agent') return c.json({ error: 'forbidden' }, 403);
+    const sw = await subWalletsRepo.findById(db, txn.subWalletId);
+    if (!sw || sw.agentUserId !== a.userId) return c.json({ error: 'forbidden' }, 403);
+    if (txn.status !== 'settled') return c.json({ error: 'not_settled' }, 409);
+
+    await db
+      .update(transactions)
+      .set({ attachedMedia: { key: body.mediaKey, uploadedAt: new Date().toISOString() } })
+      .where(eq(transactions.id, id));
+
+    return c.json({ ok: true }, 200);
+  })
+  .delete('/:id/bump', async (c) => {
+    const a = c.get('actor') as Actor;
+    const id = c.req.param('id');
+
+    const [txn] = await db.select().from(transactions).where(eq(transactions.id, id)).limit(1);
+    if (!txn) return c.json({ error: 'not_found' }, 404);
+    if (!txn.subWalletId || a.role !== 'agent') return c.json({ error: 'forbidden' }, 403);
+    const sw = await subWalletsRepo.findById(db, txn.subWalletId);
+    if (!sw || sw.agentUserId !== a.userId) return c.json({ error: 'forbidden' }, 403);
+    if (txn.status !== 'bump_pending') return c.json({ error: 'not_bump_pending' }, 409);
+
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`UPDATE bump_requests SET status = 'cancelled' WHERE transaction_id = ${id}`,
+      );
+      await tx
+        .update(transactions)
+        .set({ status: 'failed', errorMessage: 'CANCELLED_BY_AGENT' })
+        .where(eq(transactions.id, id));
+    });
+
+    return c.json({ ok: true }, 200);
   });

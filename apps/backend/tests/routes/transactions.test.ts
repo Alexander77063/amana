@@ -459,3 +459,157 @@ describe('GET /transactions/:id', () => {
     expect(body.error).toBe('not_found');
   });
 });
+
+describe('PATCH /transactions/:id/media', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('200 — attaches media key to settled transaction', async () => {
+    const { agent, mw, sw } = await scaffoldHousehold();
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      subWalletId: sw.sub.id,
+      kind: 'spend',
+      amountKobo: kobo(5_000n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    await testDb.execute(
+      sql`UPDATE transactions SET status = 'settled', settled_at = NOW() WHERE id = ${txn.id}`,
+    );
+
+    const app = createServer();
+    const res = await app.request(`/transactions/${txn.id}/media`, {
+      method: 'PATCH',
+      headers: await bearerHeaders(agent),
+      body: JSON.stringify({ mediaKey: 'media/txn-id/photo.jpg' }),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json() as { ok: boolean }).ok).toBe(true);
+  });
+
+  it('409 not_settled — rejects media attach on non-settled transaction', async () => {
+    const { agent, mw, sw } = await scaffoldHousehold();
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      subWalletId: sw.sub.id,
+      kind: 'spend',
+      amountKobo: kobo(1_000n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+
+    const app = createServer();
+    const res = await app.request(`/transactions/${txn.id}/media`, {
+      method: 'PATCH',
+      headers: await bearerHeaders(agent),
+      body: JSON.stringify({ mediaKey: 'media/txn-id/photo.jpg' }),
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json() as { error: string }).error).toBe('not_settled');
+  });
+
+  it('403 — wrong agent cannot attach media', async () => {
+    const { mw, sw } = await scaffoldHousehold();
+    const wrongAgent = await usersRepo.insert(testDb, {
+      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+    });
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      subWalletId: sw.sub.id,
+      kind: 'spend',
+      amountKobo: kobo(1_000n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    await testDb.execute(
+      sql`UPDATE transactions SET status = 'settled', settled_at = NOW() WHERE id = ${txn.id}`,
+    );
+
+    const app = createServer();
+    const res = await app.request(`/transactions/${txn.id}/media`, {
+      method: 'PATCH',
+      headers: await bearerHeaders(wrongAgent),
+      body: JSON.stringify({ mediaKey: 'media/txn-id/photo.jpg' }),
+    });
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('DELETE /transactions/:id/bump', () => {
+  beforeEach(async () => { await truncateAll(); });
+
+  it('200 — agent cancels a bump_pending transaction', async () => {
+    const { agent, mw, sw } = await scaffoldHousehold();
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      subWalletId: sw.sub.id,
+      kind: 'spend',
+      amountKobo: kobo(50_000n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    // Manually set to bump_pending (simulating evaluate result)
+    await testDb.execute(
+      sql`UPDATE transactions SET status = 'bump_pending' WHERE id = ${txn.id}`,
+    );
+    // Insert a bump_request row
+    await testDb.execute(sql`
+      INSERT INTO bump_requests (transaction_id, sub_wallet_id, requested_by_user_id, amount_kobo, vendor_resolved_name, status, expires_at)
+      VALUES (${txn.id}, ${sw.sub.id}, ${agent.id}, 50000, 'Test', 'pending', NOW() + INTERVAL '10 minutes')
+    `);
+
+    const app = createServer();
+    const res = await app.request(`/transactions/${txn.id}/bump`, {
+      method: 'DELETE',
+      headers: await bearerHeaders(agent),
+    });
+    expect(res.status).toBe(200);
+    expect((await res.json() as { ok: boolean }).ok).toBe(true);
+
+    // Verify status updated
+    const [updated] = await testDb.execute<{ status: string; error_message: string }>(
+      sql`SELECT status, error_message FROM transactions WHERE id = ${txn.id}`,
+    );
+    expect(updated?.status).toBe('failed');
+    expect(updated?.error_message).toBe('CANCELLED_BY_AGENT');
+  });
+
+  it('409 not_bump_pending — cannot cancel non-pending transaction', async () => {
+    const { agent, mw, sw } = await scaffoldHousehold();
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      subWalletId: sw.sub.id,
+      kind: 'spend',
+      amountKobo: kobo(1_000n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+
+    const app = createServer();
+    const res = await app.request(`/transactions/${txn.id}/bump`, {
+      method: 'DELETE',
+      headers: await bearerHeaders(agent),
+    });
+    expect(res.status).toBe(409);
+    expect((await res.json() as { error: string }).error).toBe('not_bump_pending');
+  });
+
+  it('403 — wrong agent cannot cancel bump', async () => {
+    const { mw, sw } = await scaffoldHousehold();
+    const wrongAgent = await usersRepo.insert(testDb, {
+      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+    });
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      subWalletId: sw.sub.id,
+      kind: 'spend',
+      amountKobo: kobo(1_000n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    await testDb.execute(
+      sql`UPDATE transactions SET status = 'bump_pending' WHERE id = ${txn.id}`,
+    );
+
+    const app = createServer();
+    const res = await app.request(`/transactions/${txn.id}/bump`, {
+      method: 'DELETE',
+      headers: await bearerHeaders(wrongAgent),
+    });
+    expect(res.status).toBe(403);
+  });
+});

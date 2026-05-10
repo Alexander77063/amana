@@ -78,3 +78,14 @@ describe('BumpApi.decide', () => {
     });
   });
 });
+
+describe('BumpApi.cancelBump', () => {
+  it('DELETEs /transactions/:id/bump', async () => {
+    const client = fakeClient(async () => ({ ok: true }));
+    const api = new BumpApi(client);
+    await api.cancelBump('txn-1');
+    expect(client.request).toHaveBeenCalledWith('/transactions/txn-1/bump', {
+      method: 'DELETE',
+    });
+  });
+});

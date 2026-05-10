@@ -19,4 +19,11 @@ export class BumpApi {
       jsonBody: { decision },
     });
   }
+
+  async cancelBump(transactionId: string): Promise<void> {
+    await this.client.request<{ ok: boolean }>(
+      `/transactions/${encodeURIComponent(transactionId)}/bump`,
+      { method: 'DELETE' },
+    );
+  }
 }

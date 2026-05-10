@@ -88,14 +88,19 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
   })
   .get('/:id', async (c) => {
     const a = c.get('actor') as Actor;
-    if (a.role !== 'principal') {
-      return c.json({ error: 'principal_only' }, 403);
-    }
     const id = c.req.param('id');
-    const detail = await transactionDetailService.getByIdForPrincipal(db, id, a.userId);
-    if (!detail) {
-      // CRITICAL: same shape & code for "doesn't exist" AND "not yours" — no existence leak.
-      return c.json({ error: 'not_found' }, 404);
+
+    if (a.role === 'principal') {
+      const detail = await transactionDetailService.getByIdForPrincipal(db, id, a.userId);
+      if (!detail) return c.json({ error: 'not_found' }, 404);
+      return c.json({ transaction: detail }, 200);
     }
-    return c.json({ transaction: detail }, 200);
+
+    if (a.role === 'agent') {
+      const detail = await transactionDetailService.getByIdForAgent(db, id, a.userId);
+      if (!detail) return c.json({ error: 'not_found' }, 404);
+      return c.json({ transaction: detail }, 200);
+    }
+
+    return c.json({ error: 'forbidden' }, 403);
   });

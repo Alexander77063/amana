@@ -32,6 +32,8 @@ function statusLabel(status: BumpStatus): string {
       return 'Expired';
     case 'pending':
       return 'Pending';
+    case 'cancelled':
+      return 'Cancelled';
   }
 }
 

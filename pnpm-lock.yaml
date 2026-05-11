@@ -226,6 +226,9 @@ importers:
       react-native:
         specifier: 0.74.5
         version: 0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0)
+      react-native-nfc-manager:
+        specifier: ^3.14.14
+        version: 3.17.2(@expo/config-plugins@8.0.11)
       react-native-qrcode-svg:
         specifier: ^6.3.2
         version: 6.3.21(react-native-svg@15.2.0(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0))(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0)

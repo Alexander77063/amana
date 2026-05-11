@@ -68,3 +68,14 @@ jobs:
           NODE_ENV: test
           DATABASE_URL: postgres://amana:amana_dev_only@localhost:5432/amana_dev
         run: pnpm test
+
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-24.04
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

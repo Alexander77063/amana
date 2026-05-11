@@ -13,4 +13,11 @@ export class PairingApi {
       jsonBody: input,
     });
   }
+
+  complete(token: string): Promise<{ subWalletId: string | null }> {
+    return this.client.request<{ subWalletId: string | null }>('/pairing/complete', {
+      method: 'POST',
+      jsonBody: { token },
+    });
+  }
 }

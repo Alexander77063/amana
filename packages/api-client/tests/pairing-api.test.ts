@@ -21,3 +21,16 @@ describe('PairingApi.issue', () => {
     });
   });
 });
+
+describe('PairingApi.complete', () => {
+  it('POSTs /pairing/complete with token', async () => {
+    const client = fakeClient(async () => ({ subWalletId: 'sw-1' }));
+    const api = new PairingApi(client);
+    const r = await api.complete('my-pairing-token');
+    expect(r.subWalletId).toBe('sw-1');
+    expect(client.request).toHaveBeenCalledWith('/pairing/complete', {
+      method: 'POST',
+      jsonBody: { token: 'my-pairing-token' },
+    });
+  });
+});

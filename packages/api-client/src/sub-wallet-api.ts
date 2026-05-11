@@ -6,6 +6,7 @@ import type {
   SubWalletBalance,
   SubWalletSnoozeInput,
   SubWalletStatus,
+  TransactionListResponse,
 } from '@amana/types';
 import type { AuthedClient } from './household-api';
 
@@ -61,5 +62,20 @@ export class SubWalletApi {
     return this.client.request<{ snoozedUntil: null }>(`/sub-wallets/${subWalletId}/snooze`, {
       method: 'DELETE',
     });
+  }
+
+  getTransactions(
+    subWalletId: string,
+    cursor?: string,
+    limit?: number,
+  ): Promise<TransactionListResponse> {
+    const params = new URLSearchParams();
+    if (cursor) params.set('cursor', cursor);
+    if (limit !== undefined) params.set('limit', String(limit));
+    const qs = params.toString();
+    const path = qs
+      ? `/sub-wallets/${subWalletId}/transactions?${qs}`
+      : `/sub-wallets/${subWalletId}/transactions`;
+    return this.client.request<TransactionListResponse>(path);
   }
 }

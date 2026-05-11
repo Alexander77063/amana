@@ -1,11 +1,5 @@
-import { StatusBar } from 'expo-status-bar';
-import { HealthCheck } from './src/screens/HealthCheck';
+import { RootNavigator } from './src/nav/RootNavigator';
 
 export default function App(): JSX.Element {
-  return (
-    <>
-      <StatusBar style="auto" />
-      <HealthCheck />
-    </>
-  );
+  return <RootNavigator />;
 }

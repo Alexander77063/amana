@@ -134,6 +134,13 @@
       "when": 1778193481628,
       "tag": "0018_transactions_error_message",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1746748800000,
+      "tag": "0019_bump_request_cancelled",
+      "breakpoints": true
     }
   ]
 }

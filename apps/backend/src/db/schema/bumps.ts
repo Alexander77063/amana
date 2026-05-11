@@ -10,6 +10,7 @@ export const bumpStatusEnum = pgEnum('bump_status', [
   'raise_limit',
   'denied',
   'expired',
+  'cancelled',
 ]);
 
 export const bumpRequests = pgTable('bump_requests', {

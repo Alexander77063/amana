@@ -5,6 +5,7 @@ import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
 import { subwalletSnoozeRepo } from '../modules/notifications/subwallet-snooze.repo';
 import { ruleSetService } from '../modules/rules/rule-set.service';
+import { transactionListService } from '../modules/transactions/list.service';
 import { balanceService } from '../modules/wallet/balance.service';
 import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../modules/wallet/sub-wallets.repo';
@@ -110,4 +111,19 @@ export const subWalletsRoute = new Hono<{ Variables: ActorVariables }>()
 
     await subwalletSnoozeRepo.delete(db, a.userId, c.req.param('id'));
     return c.json({ snoozedUntil: null }, 200);
+  })
+  .get('/:id/transactions', async (c) => {
+    const a = c.get('actor');
+    if (a.role !== 'agent') return c.json({ error: 'agent_only' }, 403);
+
+    const subWalletId = c.req.param('id');
+    const sw = await subWalletsRepo.findById(db, subWalletId);
+    if (!sw) return c.json({ error: 'not_found' }, 404);
+    if (sw.agentUserId !== a.userId) return c.json({ error: 'forbidden' }, 403);
+
+    const limit = Math.min(Number(c.req.query('limit') ?? '20'), 50);
+    const cursor = c.req.query('cursor') ?? null;
+
+    const result = await transactionListService.listForSubWallet(db, { subWalletId, limit, cursor });
+    return c.json(result, 200);
   });

@@ -3,12 +3,15 @@ import { BumpApi } from './bump-api';
 import { DeviceApi } from './device-api';
 import { ApiError } from './errors';
 import { HouseholdApi } from './household-api';
+import { MediaApi } from './media-api';
+import { MeApi } from './me-api';
 import { NotificationApi } from './notification-api';
 import { PairingApi } from './pairing-api';
 import { PreferenceApi } from './preference-api';
 import { SubWalletApi } from './sub-wallet-api';
 import type { StoredAuth, TokenStore } from './token-store';
 import { TransactionApi } from './transaction-api';
+import { VendorApi } from './vendor-api';
 
 export interface ClientConfig {
   baseUrl: string;
@@ -28,11 +31,14 @@ export class AmanaApiClient {
   public readonly bump: BumpApi;
   public readonly device: DeviceApi;
   public readonly household: HouseholdApi;
+  public readonly media: MediaApi;
+  public readonly me: MeApi;
   public readonly notification: NotificationApi;
   public readonly preference: PreferenceApi;
   public readonly subWallet: SubWalletApi;
   public readonly pairing: PairingApi;
   public readonly transaction: TransactionApi;
+  public readonly vendor: VendorApi;
   private readonly fetchImpl: typeof fetch;
   private readonly tokenStore?: TokenStore;
   private inflightRefresh: Promise<StoredAuth> | null = null;
@@ -50,6 +56,9 @@ export class AmanaApiClient {
     this.device = new DeviceApi(this);
     this.preference = new PreferenceApi(this);
     this.transaction = new TransactionApi(this);
+    this.vendor = new VendorApi(this);
+    this.media = new MediaApi(this);
+    this.me = new MeApi(this);
   }
 
   async health(): Promise<{ status: 'ok'; version: string }> {

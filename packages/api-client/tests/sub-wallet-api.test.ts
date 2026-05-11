@@ -107,3 +107,29 @@ describe('SubWalletApi.publishRules', () => {
     });
   });
 });
+
+describe('SubWalletApi.getTransactions', () => {
+  it('GETs /sub-wallets/:id/transactions with cursor', async () => {
+    const payload = {
+      transactions: [{ id: 'txn1', kind: 'spend', status: 'settled', amountKobo: '5000',
+        vendorResolvedName: 'Vendor', vendorAccountMasked: '***1234',
+        initiatedAt: '2026-05-09T10:00:00Z', settledAt: '2026-05-09T10:01:00Z' }],
+      nextCursor: 'txn1',
+    };
+    const client = fakeClient(async () => payload);
+    const api = new SubWalletApi(client);
+    const r = await api.getTransactions('sw1', 'cursor-id', 10);
+    expect(r.transactions).toHaveLength(1);
+    expect(r.nextCursor).toBe('txn1');
+    expect(client.request).toHaveBeenCalledWith(
+      '/sub-wallets/sw1/transactions?cursor=cursor-id&limit=10',
+    );
+  });
+
+  it('GETs without cursor when not provided', async () => {
+    const client = fakeClient(async () => ({ transactions: [], nextCursor: null }));
+    const api = new SubWalletApi(client);
+    await api.getTransactions('sw1');
+    expect(client.request).toHaveBeenCalledWith('/sub-wallets/sw1/transactions');
+  });
+});

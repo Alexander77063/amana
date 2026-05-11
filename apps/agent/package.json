@@ -11,20 +11,37 @@
     "build": "echo 'mobile builds via EAS — run: pnpm exec eas build --platform all' && exit 0",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
-    "test": "echo 'mobile tests land in Sub-plan 7' && exit 0"
+    "test": "vitest run"
   },
   "dependencies": {
     "@amana/api-client": "workspace:*",
     "@amana/types": "workspace:*",
+    "@hookform/resolvers": "^5.2.2",
+    "@react-navigation/bottom-tabs": "^7.15.13",
+    "@react-navigation/native": "^7.2.2",
+    "@react-navigation/native-stack": "^7.14.12",
     "expo": "~51.0.39",
+    "expo-camera": "^55.0.18",
+    "expo-constants": "~16.0.2",
+    "expo-device": "~6.0.2",
+    "expo-linking": "^55.0.15",
+    "expo-location": "^55.1.9",
+    "expo-notifications": "~0.28.19",
+    "expo-secure-store": "~13.0.2",
     "expo-status-bar": "~1.12.1",
     "react": "18.2.0",
-    "react-native": "0.74.5"
+    "react-hook-form": "^7.75.0",
+    "react-native": "0.74.5",
+    "react-native-nfc-manager": "^3.17.2",
+    "react-native-safe-area-context": "^5.7.0",
+    "react-native-screens": "^4.24.0",
+    "zod": "3.23.8"
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
     "@types/node": "^20.0.0",
     "@types/react": "~18.2.79",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "vitest": "2.1.2"
   }
 }

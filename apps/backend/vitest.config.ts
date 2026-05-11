@@ -8,8 +8,9 @@ export default defineConfig({
     globalSetup: ['tests/helpers/global-setup.ts'],
     pool: 'forks',
     poolOptions: { forks: { singleFork: true } },
-    // truncateAll under accumulated DB load can take >10s; bump hook timeout
-    // to remove flaky-beforeEach noise without masking real failures.
+    // truncateAll and multi-step integration tests under accumulated DB load
+    // can exceed 5s; match testTimeout to hookTimeout.
     hookTimeout: 30000,
+    testTimeout: 30000,
   },
 });

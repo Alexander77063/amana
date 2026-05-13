@@ -56,7 +56,7 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
 
   const renderSnoozeStatus = (): string => {
     if (!isSnoozeActive) return 'Off';
-    const ends = new Date(snoozedUntil!);
+    const ends = new Date(snoozedUntil as string);
     return `Snoozed until ${ends.toLocaleString()}`;
   };
 

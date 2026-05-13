@@ -1,6 +1,6 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useFocusEffect } from '@react-navigation/native';
 import type { TransactionSummary } from '@amana/types';
+import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -59,7 +59,7 @@ export function TransactionListScreen({ navigation }: Props): JSX.Element {
         setRefreshing(false);
       }
     },
-    [sw?.id],
+    [sw],
   );
 
   useFocusEffect(

@@ -1,11 +1,11 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { RecentVendorResponse } from '@amana/api-client';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
 import type { PayStackParamList } from '../nav/PayStack';
-import type { RecentVendorResponse } from '@amana/api-client';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'CaptureMethod'>;
 
@@ -23,7 +23,7 @@ export function CaptureMethodScreen({ navigation }: Props): JSX.Element {
         .then(setRecents)
         .catch(() => {})
         .finally(() => setLoading(false));
-    }, [sw?.id]),
+    }, [sw]),
   );
 
   const goConfirm = (v: RecentVendorResponse) =>

@@ -181,7 +181,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
 
       {showAnomaly ? (
         <View style={styles.section}>
-          <Text style={styles.anomaly}>⚠ Anomaly score {txn.anomalyScore!.toFixed(2)}</Text>
+          <Text style={styles.anomaly}>⚠ Anomaly score {txn.anomalyScore?.toFixed(2)}</Text>
         </View>
       ) : null}
 
@@ -189,7 +189,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
         <Pressable
           style={styles.locRow}
           onPress={() => {
-            const { lat, lng } = txn.geolocation!;
+            const { lat, lng } = txn.geolocation;
             void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
           }}
         >

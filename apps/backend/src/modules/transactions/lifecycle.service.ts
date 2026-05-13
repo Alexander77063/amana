@@ -62,7 +62,8 @@ export const lifecycleService = {
     if (txn.subWalletId === null) {
       // Principal direct spend (Decision #17): skip rule_eval.
       await transactionsRepo.setStatus(db, txn.id, 'in_flight');
-      const updated = (await transactionsRepo.findById(db, txn.id))!;
+      const updated = await transactionsRepo.findById(db, txn.id);
+      if (!updated) throw new Error('transaction disappeared after status update');
       return { kind: 'allow', transaction: updated };
     }
 
@@ -158,7 +159,8 @@ export const lifecycleService = {
 
     if (decision.kind === 'allow') {
       await transactionsRepo.setStatus(db, txn.id, 'in_flight');
-      const updated = (await transactionsRepo.findById(db, txn.id))!;
+      const updated = await transactionsRepo.findById(db, txn.id);
+      if (!updated) throw new Error('transaction disappeared after status update');
       return { kind: 'allow', transaction: updated };
     }
 
@@ -180,7 +182,8 @@ export const lifecycleService = {
         vendorResolvedName: intent.vendorResolvedName ?? 'Unknown vendor',
       }),
     );
-    const updated = (await transactionsRepo.findById(db, txn.id))!;
+    const updated = await transactionsRepo.findById(db, txn.id);
+    if (!updated) throw new Error('transaction disappeared after status update');
     return { kind: 'bump_pending', transaction: updated, bumpRequestId: bump.bumpRequest.id };
   },
 
@@ -191,7 +194,8 @@ export const lifecycleService = {
       throw new Error(`bump not approved: status=${bump.status}`);
     }
     await transactionsRepo.setStatus(db, bump.transactionId, 'in_flight');
-    const updated = (await transactionsRepo.findById(db, bump.transactionId))!;
+    const updated = await transactionsRepo.findById(db, bump.transactionId);
+    if (!updated) throw new Error('transaction disappeared after status update');
     return { kind: 'allow', transaction: updated };
   },
 };

@@ -188,7 +188,7 @@ describe('lifecycleService — bump path', () => {
     expect(token).toBeDefined();
 
     const resumed = await lifecycleService.resumeAfterBump(testDb, {
-      token: token!,
+      token: token as string,
       now: new Date('2026-05-03T12:06:00Z'),
     });
     expect(resumed.kind).toBe('allow');

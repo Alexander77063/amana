@@ -24,6 +24,7 @@ export function SendingScreen({ route, navigation }: Props): JSX.Element {
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: navigateResult omitted — done.current guards double-fire
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener((notification) => {
       const data = notification.request.content.data as Record<string, unknown>;
@@ -35,9 +36,9 @@ export function SendingScreen({ route, navigation }: Props): JSX.Element {
       }
     });
     return () => sub.remove();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactionId]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: navigateResult omitted — done.current guards double-fire
   useEffect(() => {
     let polls = 0;
     const poll = async () => {
@@ -60,7 +61,7 @@ export function SendingScreen({ route, navigation }: Props): JSX.Element {
       setTimeout(() => void poll(), POLL_INTERVAL_MS);
     };
     setTimeout(() => void poll(), POLL_INTERVAL_MS);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactionId]);
 
   return (

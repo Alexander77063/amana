@@ -10,8 +10,11 @@ const LAPLACE_ALPHA = 0.1;
 export function hourOfDay(intent: ScoringIntent, history: AnomalyHistory): number {
   const hour = intent.confirmedAt.getUTCHours();
   const counts = new Array<number>(HOURS).fill(0);
-  for (const t of history.txns) counts[t.confirmedAt.getUTCHours()]! += 1;
+  for (const t of history.txns) {
+    const h = t.confirmedAt.getUTCHours();
+    counts[h] = (counts[h] as number) + 1;
+  }
   const total = history.txns.length;
-  const prob = (counts[hour]! + LAPLACE_ALPHA) / (total + HOURS * LAPLACE_ALPHA);
+  const prob = ((counts[hour] as number) + LAPLACE_ALPHA) / (total + HOURS * LAPLACE_ALPHA);
   return 1 - prob;
 }

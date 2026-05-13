@@ -272,14 +272,14 @@ describe('bumpWorkflowService.consumeToken', () => {
 
     const first = await bumpWorkflowService.consumeToken(
       testDb,
-      tok!,
+      tok as string,
       new Date('2026-05-03T12:06:00Z'),
     );
     expect(first?.id).toBe(created.bumpRequest.id);
 
     const second = await bumpWorkflowService.consumeToken(
       testDb,
-      tok!,
+      tok as string,
       new Date('2026-05-03T12:07:00Z'),
     );
     expect(second).toBeNull();

@@ -1,6 +1,6 @@
+import type { TransactionSummary } from '@amana/types';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
-import type { TransactionSummary } from '@amana/types';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '../lib/api';
@@ -23,7 +23,7 @@ export function HomeScreen({ navigation }: Props): JSX.Element {
         .then((r) => setTxns(r.transactions))
         .catch(() => {})
         .finally(() => setLoading(false));
-    }, [sw?.id]),
+    }, [sw]),
   );
 
   const pendingBump = txns.find((t) => t.status === 'bump_pending');
@@ -38,10 +38,7 @@ export function HomeScreen({ navigation }: Props): JSX.Element {
       {loading && <ActivityIndicator style={{ marginTop: 24 }} />}
 
       {pendingBump && (
-        <Pressable
-          style={styles.badge}
-          onPress={() => navigation.navigate('History')}
-        >
+        <Pressable style={styles.badge} onPress={() => navigation.navigate('History')}>
           <Text style={styles.badgeText}>⚠ Payment pending principal approval — tap to view</Text>
         </Pressable>
       )}

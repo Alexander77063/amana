@@ -262,14 +262,13 @@ Supabase Postgres 15 (eu-west-2 / London)
 
 ### 6.1 Known MVP limitations
 
-| Limitation | Severity | Plan |
-|---|---|---|
-| Anchor KYB pending — NIP transfers non-functional until approved | High | Apply now; typically 1–2 weeks |
-| No staging environment | Medium | Add before beta invite |
-| Cron job not deployed (bump expiry, notification digest) | Low | Separate Fly machine in v1.1 |
-| iOS NFC pairing not available | Low | Architectural constraint; QR covers iOS |
-| Wallet balance computed from ledger scan (no cache) | Low | Materialised balance view in v1.1 when volume justifies |
-| No custom domain configured | Low | DNS CNAME + `fly certs add api.amana-ng.com` |
+| Limitation                                                       | Severity | Plan |
+| Anchor KYB pending — NIP transfers non-functional until approved | High     | Apply now; typically 1–2 weeks 
+| No staging environment                                           | Medium   | Add before beta invite 
+| Cron job not deployed (bump expiry, notification digest)         | Low      | Separate Fly machine in v1.1 
+| iOS NFC pairing not available                                    | Low      | Architectural constraint; QR covers iOS 
+| Wallet balance computed from ledger scan (no cache)              | Low      | Materialised balance view in v1.1 when volume justifies 
+| No custom domain configured                                      | Low      | DNS CNAME + `fly certs add api.amana-ng.com` 
 
 ### 6.2 v1.1 roadmap
 

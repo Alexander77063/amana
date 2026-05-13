@@ -17,7 +17,6 @@
 ### 1.2 Brand pillars
 
 | Pillar | What it means in practice |
-|---|---|
 | **Trust before transaction** | Every UI moment reinforces that this is a trusted relationship, not a surveillance tool |
 | **Calm, not flashy** | No gratuitous animations, no dopamine-loop patterns. Clarity over delight. |
 | **Specifically Nigerian** | Cultural references, amounts in naira (₦), phone numbers as primary identity — not generic fintech |
@@ -69,25 +68,23 @@ Every error state has a recovery action. Never a dead end. "Failed — try again
 
 ### 3.1 Primary palette
 
-| Token | Hex | Usage |
-|---|---|---|
-| `--amana-green` | `#1A6B4A` | Primary brand. CTAs, active states, positive status |
-| `--amana-green-light` | `#E8F5EE` | Green tint backgrounds, success surfaces |
-| `--amana-gold` | `#C89A2E` | Accent. Premium tier indicators, highlight |
-| `--amana-charcoal` | `#1C1C1E` | Primary text, headings |
-| `--amana-slate` | `#6B7280` | Secondary text, labels, hints |
-| `--amana-white` | `#FFFFFF` | Backgrounds, cards |
-| `--amana-off-white` | `#F5F5F0` | Page background (slightly warm, not stark white) |
+| Token                 | Hex       | Usage |
+| `--amana-green`       | `#1A6B4A` | Primary brand. CTAs, active states, positive status 
+| `--amana-green-light` | `#E8F5EE` | Green tint backgrounds, success surfaces 
+| `--amana-gold`        | `#C89A2E` | Accent. Premium tier indicators, highlight 
+| `--amana-charcoal`    | `#1C1C1E` | Primary text, headings 
+| `--amana-slate`       | `#6B7280` | Secondary text, labels, hints 
+| `--amana-white`       | `#FFFFFF` | Backgrounds, cards 
+| `--amana-off-white`   | `#F5F5F0` | Page background (slightly warm, not stark white) 
 
 ### 3.2 Semantic colours
 
-| Token | Hex | Usage |
-|---|---|---|
-| `--status-settled` | `#1A6B4A` | Settled transaction badge |
-| `--status-pending` | `#C89A2E` | Pending, in-flight |
-| `--status-failed` | `#DC2626` | Failed, denied, error |
-| `--status-draft` | `#9CA3AF` | Draft, rule_eval |
-| `--anomaly-amber` | `#F59E0B` | Anomaly badge (score ≥ 0.85) — not red (not accusatory) |
+| Token              | Hex       | Usage |
+| `--status-settled` | `#1A6B4A` | Settled transaction badge 
+| `--status-pending` | `#C89A2E` | Pending, in-flight 
+| `--status-failed`  | `#DC2626` | Failed, denied, error 
+| `--status-draft`   | `#9CA3AF` | Draft, rule_eval 
+| `--anomaly-amber`  | `#F59E0B` | Anomaly badge (score ≥ 0.85) — not red (not accusatory) 
 
 ### 3.3 Colour usage rules
 
@@ -112,15 +109,14 @@ Inter is chosen over display typefaces because:
 
 ### 4.2 Type scale
 
-| Token | Size | Weight | Line height | Usage |
-|---|---|---|---|---|
-| `display` | 32px | 700 | 40px | Hero amounts, large balance display |
-| `heading-1` | 24px | 700 | 32px | Screen titles |
-| `heading-2` | 20px | 600 | 28px | Section headers, card titles |
-| `body-large` | 16px | 400 | 24px | Primary body copy |
-| `body` | 14px | 400 | 20px | Secondary body, descriptions |
-| `label` | 12px | 500 | 16px | Form labels, status badges |
-| `caption` | 11px | 400 | 14px | Timestamps, fine print |
+| Token          | Size | Weight | Line height | Usage |
+| `display`      | 32px | 700    | 40px | Hero amounts, large balance display 
+| `heading-1`    | 24px | 700    | 32px | Screen titles 
+| `heading-2`    | 20px | 600    | 28px | Section headers, card titles 
+| `body-large`   | 16px | 400    | 24px | Primary body copy 
+| `body`         | 14px | 400    | 20px | Secondary body, descriptions 
+| `label`        | 12px | 500    | 16px | Form labels, status badges 
+| `caption`      | 11px | 400    | 14px | Timestamps, fine print 
 
 ### 4.3 Amount display convention
 
@@ -135,12 +131,11 @@ Inter is chosen over display typefaces because:
 
 ### 5.1 Buttons
 
-| Variant | Background | Text | Use case |
-|---|---|---|---|
-| Primary | `--amana-green` | White | Single primary CTA per screen |
-| Secondary | Transparent + `--amana-green` border | `--amana-green` | Secondary actions |
-| Destructive | `#FEF2F2` + `--status-failed` border | `--status-failed` | Deny, cancel, delete |
-| Ghost | Transparent | `--amana-slate` | Tertiary / skip |
+| Variant             | Background                           | Text                   | Use case |
+| Primary             | `--amana-green`                      | White                  | Single primary CTA per screen 
+| Secondary           | Transparent + `--amana-green` border | `--amana-green`        | Secondary actions 
+| Destructive         | `#FEF2F2` + `--status-failed` border | `--status-failed`      | Deny, cancel, delete 
+| Ghost               | Transparent                          | `--amana-slate`        | Tertiary / skip 
 
 - Height: 52px (comfortable touch target)
 - Border radius: 12px
@@ -290,13 +285,12 @@ Every list screen has a designed empty state:
 
 ## 7. Accessibility Requirements
 
-| Requirement | Standard |
-|---|---|
-| Text contrast | WCAG AA minimum (4.5:1 for body, 3:1 for large text) |
-| Touch targets | Minimum 44×44px (Apple HIG / Android Material) |
-| Screen reader labels | All interactive elements have `accessibilityLabel` props |
-| Dynamic type support | Layouts must not break at iOS large text sizes |
-| Colour-blind safe | Status must never be communicated by colour alone (always badge text + colour) |
+| Requirement          | Standard |
+| Text contrast        | WCAG AA minimum (4.5:1 for body, 3:1 for large text) 
+| Touch targets        | Minimum 44×44px (Apple HIG / Android Material) 
+| Screen reader labels | All interactive elements have `accessibilityLabel` props 
+| Dynamic type support | Layouts must not break at iOS large text sizes 
+| Colour-blind safe    | Status must never be communicated by colour alone (always badge text + colour) 
 
 ---
 

@@ -191,7 +191,9 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
           onPress={() => {
             const geo = txn.geolocation;
             if (!geo) return;
-            void Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${geo.lat},${geo.lng}`);
+            void Linking.openURL(
+              `https://www.google.com/maps/search/?api=1&query=${geo.lat},${geo.lng}`,
+            );
           }}
         >
           <Text style={styles.locText}>📍 View location</Text>

@@ -12,8 +12,16 @@ const Stack = createNativeStackNavigator<HistoryStackParamList>();
 export function HistoryStack(): JSX.Element {
   return (
     <Stack.Navigator>
-      <Stack.Screen name="TransactionList" component={TransactionListScreen} options={{ title: 'History' }} />
-      <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen} options={{ title: 'Transaction' }} />
+      <Stack.Screen
+        name="TransactionList"
+        component={TransactionListScreen}
+        options={{ title: 'History' }}
+      />
+      <Stack.Screen
+        name="TransactionDetail"
+        component={TransactionDetailScreen}
+        options={{ title: 'Transaction' }}
+      />
     </Stack.Navigator>
   );
 }

@@ -16,7 +16,10 @@ export function NQRScanScreen({ navigation }: Props): JSX.Element {
     if (busy) return;
     setBusy(true);
     const sw = subWalletMemory.get();
-    if (!sw) { setBusy(false); return; }
+    if (!sw) {
+      setBusy(false);
+      return;
+    }
     try {
       const vendor = await api.vendor.nqrDecode(payload, sw.id);
       navigation.navigate('Confirm', {
@@ -64,7 +67,12 @@ export function NQRScanScreen({ navigation }: Props): JSX.Element {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
   sub: { color: '#666', textAlign: 'center' },
-  btn: { backgroundColor: '#1a1a2e', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 999 },
+  btn: {
+    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
   btnText: { color: 'white', fontWeight: '600' },
   overlay: {
     ...StyleSheet.absoluteFillObject,

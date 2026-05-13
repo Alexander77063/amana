@@ -62,7 +62,12 @@ export function QRScanScreen({ navigation }: Props): JSX.Element {
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
   sub: { color: '#666', textAlign: 'center' },
-  btn: { backgroundColor: '#1a1a2e', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 999 },
+  btn: {
+    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
   btnText: { color: 'white', fontWeight: '600' },
   overlay: {
     ...StyleSheet.absoluteFillObject,

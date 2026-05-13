@@ -1,8 +1,15 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import {
-  ActivityIndicator, FlatList, KeyboardAvoidingView, Platform, Pressable,
-  StyleSheet, Text, TextInput, View,
+  ActivityIndicator,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
@@ -63,7 +70,9 @@ export function AccountEntryScreen({ navigation }: Props): JSX.Element {
         accountMasked: `****${vendor.accountNumber.slice(-4)}`,
       });
     } catch (e: unknown) {
-      setErrorMsg(e instanceof Error ? e.message : 'Name enquiry failed. Check details and try again.');
+      setErrorMsg(
+        e instanceof Error ? e.message : 'Name enquiry failed. Check details and try again.',
+      );
     } finally {
       setBusy(false);
     }
@@ -83,7 +92,14 @@ export function AccountEntryScreen({ navigation }: Props): JSX.Element {
           data={filteredBanks}
           keyExtractor={(b) => b.code}
           renderItem={({ item }) => (
-            <Pressable style={styles.bankRow} onPress={() => { setBankCode(item.code); setShowPicker(false); setBankFilter(''); }}>
+            <Pressable
+              style={styles.bankRow}
+              onPress={() => {
+                setBankCode(item.code);
+                setShowPicker(false);
+                setBankFilter('');
+              }}
+            >
               <Text style={styles.bankName}>{item.name}</Text>
             </Pressable>
           )}
@@ -93,7 +109,10 @@ export function AccountEntryScreen({ navigation }: Props): JSX.Element {
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.container}
+    >
       <Text style={styles.label}>Bank</Text>
       <Pressable style={styles.input} onPress={() => setShowPicker(true)}>
         <Text style={selectedBank ? styles.selected : styles.placeholder}>
@@ -128,11 +147,25 @@ export function AccountEntryScreen({ navigation }: Props): JSX.Element {
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 24, gap: 12 },
   label: { fontSize: 14, fontWeight: '600', color: '#444' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16, backgroundColor: '#fff', justifyContent: 'center' },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+  },
   placeholder: { color: '#999', fontSize: 16 },
   selected: { fontSize: 16 },
   err: { color: '#b00020' },
-  button: { backgroundColor: '#1a1a2e', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 999, alignSelf: 'flex-start' },
+  button: {
+    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 999,
+    alignSelf: 'flex-start',
+  },
   disabled: { opacity: 0.4 },
   buttonText: { color: 'white', fontWeight: '600' },
   bankRow: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },

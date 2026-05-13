@@ -21,7 +21,11 @@ export type RecentVendorResponse = {
 export class VendorApi {
   constructor(private readonly client: AuthedClient) {}
 
-  nameEnquiry(bankCode: string, accountNumber: string, subWalletId: string): Promise<ResolvedVendorResponse> {
+  nameEnquiry(
+    bankCode: string,
+    accountNumber: string,
+    subWalletId: string,
+  ): Promise<ResolvedVendorResponse> {
     const params = new URLSearchParams({ bankCode, accountNumber, subWalletId });
     return this.client.request<ResolvedVendorResponse>(`/vendors/name-enquiry?${params}`);
   }

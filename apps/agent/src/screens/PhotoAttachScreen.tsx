@@ -1,15 +1,7 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '../lib/api';
 import type { PayStackParamList } from '../nav/PayStack';
 
@@ -93,7 +85,13 @@ export function PhotoAttachScreen({ route, navigation }: Props): JSX.Element {
       <View style={{ flex: 1 }}>
         <Image source={{ uri: photoUri }} style={{ flex: 1 }} resizeMode="cover" />
         <View style={styles.previewBar}>
-          <Pressable style={styles.retakeBtn} onPress={() => { setPhotoUri(null); setPhase('camera'); }}>
+          <Pressable
+            style={styles.retakeBtn}
+            onPress={() => {
+              setPhotoUri(null);
+              setPhase('camera');
+            }}
+          >
             <Text style={styles.retakeText}>Retake</Text>
           </Pressable>
           <Pressable style={styles.useBtn} onPress={() => void upload()}>
@@ -138,7 +136,12 @@ const styles = StyleSheet.create({
   sub: { color: '#666', textAlign: 'center' },
   err: { color: '#b00020', textAlign: 'center' },
   successIcon: { fontSize: 64, color: '#2e7d32' },
-  btn: { backgroundColor: '#1a1a2e', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 999 },
+  btn: {
+    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
   btnText: { color: 'white', fontWeight: '600' },
   captureBar: {
     position: 'absolute',

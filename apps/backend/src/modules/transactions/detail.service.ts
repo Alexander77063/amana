@@ -104,9 +104,7 @@ function buildDetail(row: Row): TransactionDetail {
     agentNote: row.agent_note,
     anomalyScore: row.anomaly_score === null ? null : Number(row.anomaly_score),
     geolocation:
-      row.lat !== null && row.lng !== null
-        ? { lat: Number(row.lat), lng: Number(row.lng) }
-        : null,
+      row.lat !== null && row.lng !== null ? { lat: Number(row.lat), lng: Number(row.lng) } : null,
   };
 }
 

@@ -124,6 +124,10 @@ export const subWalletsRoute = new Hono<{ Variables: ActorVariables }>()
     const limit = Math.min(Number(c.req.query('limit') ?? '20'), 50);
     const cursor = c.req.query('cursor') ?? null;
 
-    const result = await transactionListService.listForSubWallet(db, { subWalletId, limit, cursor });
+    const result = await transactionListService.listForSubWallet(db, {
+      subWalletId,
+      limit,
+      cursor,
+    });
     return c.json(result, 200);
   });

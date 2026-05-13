@@ -13,7 +13,11 @@ export function SettingsStack(): JSX.Element {
   return (
     <Stack.Navigator>
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
-      <Stack.Screen name="EnableNotifications" component={EnableNotificationsScreen} options={{ title: 'Notifications', presentation: 'modal' }} />
+      <Stack.Screen
+        name="EnableNotifications"
+        component={EnableNotificationsScreen}
+        options={{ title: 'Notifications', presentation: 'modal' }}
+      />
     </Stack.Navigator>
   );
 }

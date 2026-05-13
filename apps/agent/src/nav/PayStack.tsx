@@ -40,17 +40,57 @@ const Stack = createNativeStackNavigator<PayStackParamList>();
 export function PayStack(): JSX.Element {
   return (
     <Stack.Navigator>
-      <Stack.Screen name="CaptureMethod" component={CaptureMethodScreen} options={{ title: 'Pay' }} />
+      <Stack.Screen
+        name="CaptureMethod"
+        component={CaptureMethodScreen}
+        options={{ title: 'Pay' }}
+      />
       <Stack.Screen name="NQRScan" component={NQRScanScreen} options={{ title: 'Scan QR' }} />
-      <Stack.Screen name="PhoneLookup" component={PhoneLookupScreen} options={{ title: 'Pay by phone' }} />
-      <Stack.Screen name="AccountEntry" component={AccountEntryScreen} options={{ title: 'Pay by account' }} />
-      <Stack.Screen name="Confirm" component={ConfirmScreen} options={{ title: 'Confirm payment' }} />
-      <Stack.Screen name="BumpWait" component={BumpWaitScreen} options={{ title: 'Awaiting approval', headerLeft: () => null }} />
-      <Stack.Screen name="Sending" component={SendingScreen} options={{ title: 'Sending…', headerLeft: () => null }} />
-      <Stack.Screen name="Receipt" component={ReceiptScreen} options={{ title: 'Receipt', headerLeft: () => null }} />
-      <Stack.Screen name="ShowRecipient" component={ShowRecipientScreen} options={{ title: 'Show recipient', presentation: 'modal' }} />
-      <Stack.Screen name="PhotoAttach" component={PhotoAttachScreen} options={{ title: 'Add photo', presentation: 'modal' }} />
-      <Stack.Screen name="Failed" component={FailedScreen} options={{ title: 'Payment failed', headerLeft: () => null }} />
+      <Stack.Screen
+        name="PhoneLookup"
+        component={PhoneLookupScreen}
+        options={{ title: 'Pay by phone' }}
+      />
+      <Stack.Screen
+        name="AccountEntry"
+        component={AccountEntryScreen}
+        options={{ title: 'Pay by account' }}
+      />
+      <Stack.Screen
+        name="Confirm"
+        component={ConfirmScreen}
+        options={{ title: 'Confirm payment' }}
+      />
+      <Stack.Screen
+        name="BumpWait"
+        component={BumpWaitScreen}
+        options={{ title: 'Awaiting approval', headerLeft: () => null }}
+      />
+      <Stack.Screen
+        name="Sending"
+        component={SendingScreen}
+        options={{ title: 'Sending…', headerLeft: () => null }}
+      />
+      <Stack.Screen
+        name="Receipt"
+        component={ReceiptScreen}
+        options={{ title: 'Receipt', headerLeft: () => null }}
+      />
+      <Stack.Screen
+        name="ShowRecipient"
+        component={ShowRecipientScreen}
+        options={{ title: 'Show recipient', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="PhotoAttach"
+        component={PhotoAttachScreen}
+        options={{ title: 'Add photo', presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="Failed"
+        component={FailedScreen}
+        options={{ title: 'Payment failed', headerLeft: () => null }}
+      />
     </Stack.Navigator>
   );
 }

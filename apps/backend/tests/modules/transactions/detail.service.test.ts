@@ -1,12 +1,12 @@
 import { sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { kobo } from '../../../src/lib/kobo';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { transactionDetailService } from '../../../src/modules/transactions/detail.service';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
-import { kobo } from '../../../src/lib/kobo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
@@ -223,21 +223,35 @@ describe('transactionDetailService.getByIdForPrincipal', () => {
 });
 
 describe('transactionDetailService.getByIdForAgent', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
-  it('returns detail for agent\'s own transaction', async () => {
+  it("returns detail for agent's own transaction", async () => {
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const agent = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
     const mw = await masterWalletsRepo.provision(testDb, {
-      householdId: hh.id, anchorVirtualAccount: '0000000003', anchorBankCode: '058', anchorAccountId: 'a3',
+      householdId: hh.id,
+      anchorVirtualAccount: '0000000003',
+      anchorBankCode: '058',
+      anchorAccountId: 'a3',
     });
     const sw = await subWalletsRepo.provision(testDb, {
-      masterWalletId: mw.master.id, agentUserId: agent.id, name: 'Tunde wallet',
+      masterWalletId: mw.master.id,
+      agentUserId: agent.id,
+      name: 'Tunde wallet',
     });
     const txn = await transactionsRepo.insert(testDb, {
       masterWalletId: mw.master.id,
@@ -260,20 +274,35 @@ describe('transactionDetailService.getByIdForAgent', () => {
 
   it('returns null for transaction belonging to a different agent', async () => {
     const principal = await usersRepo.insert(testDb, {
-      role: 'principal', phone: factories.phone(), nin: factories.nin(), kycTier: '2', bvn: factories.bvn(),
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
     });
     const agent1 = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const agent2 = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
     const mw = await masterWalletsRepo.provision(testDb, {
-      householdId: hh.id, anchorVirtualAccount: '0000000004', anchorBankCode: '058', anchorAccountId: 'a4',
+      householdId: hh.id,
+      anchorVirtualAccount: '0000000004',
+      anchorBankCode: '058',
+      anchorAccountId: 'a4',
     });
     const sw1 = await subWalletsRepo.provision(testDb, {
-      masterWalletId: mw.master.id, agentUserId: agent1.id, name: 'sw1',
+      masterWalletId: mw.master.id,
+      agentUserId: agent1.id,
+      name: 'sw1',
     });
     const txn = await transactionsRepo.insert(testDb, {
       masterWalletId: mw.master.id,
@@ -289,7 +318,10 @@ describe('transactionDetailService.getByIdForAgent', () => {
 
   it('returns null for non-existent transaction', async () => {
     const agent = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const r = await transactionDetailService.getByIdForAgent(
       testDb,

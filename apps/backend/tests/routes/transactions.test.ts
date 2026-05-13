@@ -377,12 +377,14 @@ describe('GET /transactions/:id', () => {
       headers: await bearerHeaders(agent),
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as { transaction: { id: string; initiatedBy: { role: string } } };
+    const body = (await res.json()) as {
+      transaction: { id: string; initiatedBy: { role: string } };
+    };
     expect(body.transaction.id).toBe(txn.id);
     expect(body.transaction.initiatedBy.role).toBe('agent');
   });
 
-  it('404 — agent cannot see another household\'s transaction (no existence leak)', async () => {
+  it("404 — agent cannot see another household's transaction (no existence leak)", async () => {
     const { principal: p2, mw: mw2 } = await scaffoldHousehold();
     const txn2 = await transactionsRepo.insert(testDb, {
       masterWalletId: mw2.master.id,
@@ -461,7 +463,9 @@ describe('GET /transactions/:id', () => {
 });
 
 describe('PATCH /transactions/:id/media', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('200 — attaches media key to settled transaction', async () => {
     const { agent, mw, sw } = await scaffoldHousehold();
@@ -483,7 +487,7 @@ describe('PATCH /transactions/:id/media', () => {
       body: JSON.stringify({ mediaKey: 'media/txn-id/photo.jpg' }),
     });
     expect(res.status).toBe(200);
-    expect((await res.json() as { ok: boolean }).ok).toBe(true);
+    expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
   });
 
   it('409 not_settled — rejects media attach on non-settled transaction', async () => {
@@ -503,13 +507,16 @@ describe('PATCH /transactions/:id/media', () => {
       body: JSON.stringify({ mediaKey: 'media/txn-id/photo.jpg' }),
     });
     expect(res.status).toBe(409);
-    expect((await res.json() as { error: string }).error).toBe('not_settled');
+    expect(((await res.json()) as { error: string }).error).toBe('not_settled');
   });
 
   it('403 — wrong agent cannot attach media', async () => {
     const { mw, sw } = await scaffoldHousehold();
     const wrongAgent = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const txn = await transactionsRepo.insert(testDb, {
       masterWalletId: mw.master.id,
@@ -533,7 +540,9 @@ describe('PATCH /transactions/:id/media', () => {
 });
 
 describe('DELETE /transactions/:id/bump', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('200 — agent cancels a bump_pending transaction', async () => {
     const { agent, mw, sw } = await scaffoldHousehold();
@@ -545,9 +554,7 @@ describe('DELETE /transactions/:id/bump', () => {
       idempotencyKey: factories.idempotencyKey(),
     });
     // Manually set to bump_pending (simulating evaluate result)
-    await testDb.execute(
-      sql`UPDATE transactions SET status = 'bump_pending' WHERE id = ${txn.id}`,
-    );
+    await testDb.execute(sql`UPDATE transactions SET status = 'bump_pending' WHERE id = ${txn.id}`);
     // Insert a bump_request row
     await testDb.execute(sql`
       INSERT INTO bump_requests (transaction_id, sub_wallet_id, requested_by_user_id, amount_kobo, vendor_resolved_name, status, expires_at)
@@ -560,7 +567,7 @@ describe('DELETE /transactions/:id/bump', () => {
       headers: await bearerHeaders(agent),
     });
     expect(res.status).toBe(200);
-    expect((await res.json() as { ok: boolean }).ok).toBe(true);
+    expect(((await res.json()) as { ok: boolean }).ok).toBe(true);
 
     // Verify status updated
     const [updated] = await testDb.execute<{ status: string; error_message: string }>(
@@ -586,13 +593,16 @@ describe('DELETE /transactions/:id/bump', () => {
       headers: await bearerHeaders(agent),
     });
     expect(res.status).toBe(409);
-    expect((await res.json() as { error: string }).error).toBe('not_bump_pending');
+    expect(((await res.json()) as { error: string }).error).toBe('not_bump_pending');
   });
 
   it('403 — wrong agent cannot cancel bump', async () => {
     const { mw, sw } = await scaffoldHousehold();
     const wrongAgent = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
     const txn = await transactionsRepo.insert(testDb, {
       masterWalletId: mw.master.id,
@@ -601,9 +611,7 @@ describe('DELETE /transactions/:id/bump', () => {
       amountKobo: kobo(1_000n),
       idempotencyKey: factories.idempotencyKey(),
     });
-    await testDb.execute(
-      sql`UPDATE transactions SET status = 'bump_pending' WHERE id = ${txn.id}`,
-    );
+    await testDb.execute(sql`UPDATE transactions SET status = 'bump_pending' WHERE id = ${txn.id}`);
 
     const app = createServer();
     const res = await app.request(`/transactions/${txn.id}/bump`, {

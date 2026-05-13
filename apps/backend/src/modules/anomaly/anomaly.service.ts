@@ -35,10 +35,10 @@ export const anomalyService = {
       weights.amount_zscore + weights.hour_of_day + weights.vendor_novelty + weights.velocity;
     if (wsum === 0) return { score: 0, features };
     const weighted =
-      features[0]!.value * weights.amount_zscore +
-      features[1]!.value * weights.hour_of_day +
-      features[2]!.value * weights.vendor_novelty +
-      features[3]!.value * weights.velocity;
+      features[0]?.value * weights.amount_zscore +
+      features[1]?.value * weights.hour_of_day +
+      features[2]?.value * weights.vendor_novelty +
+      features[3]?.value * weights.velocity;
     return { score: weighted / wsum, features };
   },
 };

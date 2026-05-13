@@ -16,7 +16,10 @@ export function ShowRecipientScreen({ route, navigation }: Props): JSX.Element {
       <Text style={styles.sent}>{formatNaira(amountKobo)} sent to</Text>
       <Text style={styles.name}>{resolvedName}</Text>
       {sessionId && (
-        <Text style={styles.session}>NIBSS session: {sessionId}{'\n'}Should appear in your bank within 30 seconds.</Text>
+        <Text style={styles.session}>
+          NIBSS session: {sessionId}
+          {'\n'}Should appear in your bank within 30 seconds.
+        </Text>
       )}
       <Pressable style={styles.backBtn} onPress={() => navigation.goBack()}>
         <Text style={styles.backText}>Back</Text>
@@ -26,7 +29,14 @@ export function ShowRecipientScreen({ route, navigation }: Props): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16, backgroundColor: '#fff' },
+  container: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+    gap: 16,
+    backgroundColor: '#fff',
+  },
   sent: { fontSize: 22, color: '#444', textAlign: 'center' },
   name: { fontSize: 48, fontWeight: '800', textAlign: 'center' },
   session: { fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 22 },

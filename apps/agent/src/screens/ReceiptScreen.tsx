@@ -22,7 +22,12 @@ function formatNaira(koboStr: string): string {
 }
 
 function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-NG', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return new Date(iso).toLocaleString('en-NG', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
 }
 
 export function ReceiptScreen({ route, navigation }: Props): JSX.Element {
@@ -39,11 +44,19 @@ export function ReceiptScreen({ route, navigation }: Props): JSX.Element {
   }, [transactionId]);
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" /></View>;
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
   }
 
   if (!txn) {
-    return <View style={styles.center}><Text style={styles.err}>Could not load receipt.</Text></View>;
+    return (
+      <View style={styles.center}>
+        <Text style={styles.err}>Could not load receipt.</Text>
+      </View>
+    );
   }
 
   return (
@@ -52,19 +65,31 @@ export function ReceiptScreen({ route, navigation }: Props): JSX.Element {
       <Text style={styles.vendor}>{txn.vendorResolvedName ?? '—'}</Text>
       <Text style={styles.acct}>{txn.vendorAccountMasked ?? ''}</Text>
       {txn.settledAt && <Text style={styles.meta}>Settled {formatDateTime(txn.settledAt)}</Text>}
-      {txn.nibssSessionId && <Text style={styles.meta} selectable>NIBSS: {txn.nibssSessionId}</Text>}
+      {txn.nibssSessionId && (
+        <Text style={styles.meta} selectable>
+          NIBSS: {txn.nibssSessionId}
+        </Text>
+      )}
 
       <View style={styles.actions}>
-        <Pressable style={styles.btn} onPress={() => navigation.navigate('ShowRecipient', {
-          amountKobo: txn.amountKobo,
-          resolvedName: txn.vendorResolvedName ?? '—',
-          sessionId: txn.nibssSessionId ?? '',
-        })}>
+        <Pressable
+          style={styles.btn}
+          onPress={() =>
+            navigation.navigate('ShowRecipient', {
+              amountKobo: txn.amountKobo,
+              resolvedName: txn.vendorResolvedName ?? '—',
+              sessionId: txn.nibssSessionId ?? '',
+            })
+          }
+        >
           <Text style={styles.btnText}>Show recipient</Text>
         </Pressable>
 
-        {!Boolean(txn.attachedMedia) && (
-          <Pressable style={[styles.btn, styles.btnSecondary]} onPress={() => navigation.navigate('PhotoAttach', { transactionId })}>
+        {!txn.attachedMedia && (
+          <Pressable
+            style={[styles.btn, styles.btnSecondary]}
+            onPress={() => navigation.navigate('PhotoAttach', { transactionId })}
+          >
             <Text style={[styles.btnText, styles.btnTextSecondary]}>Add photo</Text>
           </Pressable>
         )}

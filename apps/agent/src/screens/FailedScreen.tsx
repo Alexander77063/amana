@@ -55,7 +55,12 @@ const styles = StyleSheet.create({
   title: { fontSize: 24, fontWeight: '700' },
   reason: { fontSize: 16, color: '#666', textAlign: 'center' },
   actions: { gap: 12, width: '100%', marginTop: 16 },
-  retryBtn: { backgroundColor: '#1a1a2e', paddingVertical: 14, borderRadius: 999, alignItems: 'center' },
+  retryBtn: {
+    backgroundColor: '#1a1a2e',
+    paddingVertical: 14,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
   retryText: { color: 'white', fontWeight: '600', fontSize: 15 },
   dismissBtn: { paddingVertical: 14, alignItems: 'center' },
   dismissText: { color: '#888', fontSize: 15 },

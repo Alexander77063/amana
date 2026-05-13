@@ -73,9 +73,7 @@ export function RootNavigator(): JSX.Element {
   return (
     <NavigationContainer>
       {appState === 'logged_out' && <AuthStack onLoggedIn={onLoggedIn} />}
-      {appState === 'unpaired' && (
-        <PairingStack onPaired={onPaired} pendingToken={pendingToken} />
-      )}
+      {appState === 'unpaired' && <PairingStack onPaired={onPaired} pendingToken={pendingToken} />}
       {appState === 'paired' && <MainTabs />}
     </NavigationContainer>
   );

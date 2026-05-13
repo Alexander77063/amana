@@ -33,7 +33,9 @@ export function PairingMethodScreen({ navigation, route }: Props): JSX.Element {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Pair your wallet</Text>
-      <Text style={styles.sub}>Choose how to connect with your principal&apos;s Amana account.</Text>
+      <Text style={styles.sub}>
+        Choose how to connect with your principal&apos;s Amana account.
+      </Text>
 
       <Pressable style={styles.option} onPress={() => navigation.navigate('QRScan')}>
         <Text style={styles.optTitle}>Scan QR code</Text>

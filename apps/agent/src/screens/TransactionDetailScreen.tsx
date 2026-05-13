@@ -1,16 +1,9 @@
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ApiError } from '@amana/api-client';
 import type { TransactionDetail } from '@amana/types';
 import { useFocusEffect } from '@react-navigation/native';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { api } from '../lib/api';
 import type { HistoryStackParamList } from '../nav/HistoryStack';
 
@@ -89,25 +82,29 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
         {txn.vendorResolvedName && <Text style={styles.field}>To: {txn.vendorResolvedName}</Text>}
         {txn.vendorAccountMasked && <Text style={styles.field}>{txn.vendorAccountMasked}</Text>}
         <Text style={styles.field}>Initiated: {formatDateTime(txn.initiatedAt)}</Text>
-        {txn.settledAt && <Text style={styles.field}>Settled: {formatDateTime(txn.settledAt)}</Text>}
+        {txn.settledAt && (
+          <Text style={styles.field}>Settled: {formatDateTime(txn.settledAt)}</Text>
+        )}
         {txn.nibssSessionId && (
           <Text style={styles.field} selectable>
             NIBSS: {txn.nibssSessionId}
           </Text>
         )}
         {txn.agentNote && <Text style={styles.field}>Note: {txn.agentNote}</Text>}
-        {txn.errorMessage && <Text style={[styles.field, styles.errField]}>Error: {txn.errorMessage}</Text>}
+        {txn.errorMessage && (
+          <Text style={[styles.field, styles.errField]}>Error: {txn.errorMessage}</Text>
+        )}
         {txn.anomalyScore !== null && txn.anomalyScore >= 0.85 && (
-          <Text style={[styles.field, styles.anomaly]}>⚠ Anomaly score: {txn.anomalyScore.toFixed(2)}</Text>
+          <Text style={[styles.field, styles.anomaly]}>
+            ⚠ Anomaly score: {txn.anomalyScore.toFixed(2)}
+          </Text>
         )}
       </View>
 
       {txn.status === 'settled' && (
         <Pressable
           style={styles.addPhotoBtn}
-          onPress={() =>
-            navigation.getParent()?.navigate('PhotoAttach', { transactionId })
-          }
+          onPress={() => navigation.getParent()?.navigate('PhotoAttach', { transactionId })}
         >
           <Text style={styles.addPhotoText}>Add photo</Text>
         </Pressable>

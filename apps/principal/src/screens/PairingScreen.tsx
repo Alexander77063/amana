@@ -1,10 +1,18 @@
 import { ApiError } from '@amana/api-client';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
+import {
+  ActivityIndicator,
+  Platform,
+  Pressable,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 // @ts-ignore — react-native-nfc-manager types may not resolve in all envs
 import NfcManager, { Ndef, NfcTech } from 'react-native-nfc-manager';
+import QRCode from 'react-native-qrcode-svg';
 import { api } from '../lib/api';
 import { useHouseholdStore } from '../state/household.store';
 
@@ -37,11 +45,16 @@ export function PairingScreen(): JSX.Element {
       .then(() => NfcManager.isEnabled())
       .then((enabled: boolean) => setNfcReady(enabled))
       .catch(() => setNfcReady(false));
-    return () => { void NfcManager.cancelTechnologyRequest().catch(() => {}); };
+    return () => {
+      void NfcManager.cancelTechnologyRequest().catch(() => {});
+    };
   }, []);
 
   const issue = async () => {
-    if (!household) { setState({ kind: 'error', code: 'no_household' }); return; }
+    if (!household) {
+      setState({ kind: 'error', code: 'no_household' });
+      return;
+    }
     setState({ kind: 'loading' });
     try {
       const r = await api.pairing.issue({ householdId: household.id });
@@ -67,7 +80,9 @@ export function PairingScreen(): JSX.Element {
     if (state.kind !== 'issued') return;
     try {
       await Share.share({ message: `amana://pair?token=${state.code}` });
-    } catch { /* user cancelled */ }
+    } catch {
+      /* user cancelled */
+    }
   };
 
   return (
@@ -95,7 +110,9 @@ export function PairingScreen(): JSX.Element {
             <Text style={styles.nfcHint}>📶 NFC active — touch phones to pair</Text>
           )}
           <Text style={styles.muted}>Or share the deep-link:</Text>
-          <Text style={styles.code} selectable>{state.code}</Text>
+          <Text style={styles.code} selectable>
+            {state.code}
+          </Text>
           <Text style={styles.muted}>Expires {new Date(state.expiresAt).toLocaleString()}</Text>
           <View style={styles.row}>
             <Pressable style={styles.button} onPress={() => void share()}>

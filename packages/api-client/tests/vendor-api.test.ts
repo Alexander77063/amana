@@ -6,8 +6,11 @@ function fakeClient(impl: (path: string, init?: unknown) => Promise<unknown>) {
 }
 
 const mockVendor = {
-  bankCode: '058', accountNumber: '0123456789', accountName: 'Mama Tola',
-  source: 'name_enquiry', suggestedAmountKobo: null,
+  bankCode: '058',
+  accountNumber: '0123456789',
+  accountName: 'Mama Tola',
+  source: 'name_enquiry',
+  suggestedAmountKobo: null,
 };
 
 describe('VendorApi.nameEnquiry', () => {

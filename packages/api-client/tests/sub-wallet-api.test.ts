@@ -111,9 +111,18 @@ describe('SubWalletApi.publishRules', () => {
 describe('SubWalletApi.getTransactions', () => {
   it('GETs /sub-wallets/:id/transactions with cursor', async () => {
     const payload = {
-      transactions: [{ id: 'txn1', kind: 'spend', status: 'settled', amountKobo: '5000',
-        vendorResolvedName: 'Vendor', vendorAccountMasked: '***1234',
-        initiatedAt: '2026-05-09T10:00:00Z', settledAt: '2026-05-09T10:01:00Z' }],
+      transactions: [
+        {
+          id: 'txn1',
+          kind: 'spend',
+          status: 'settled',
+          amountKobo: '5000',
+          vendorResolvedName: 'Vendor',
+          vendorAccountMasked: '***1234',
+          initiatedAt: '2026-05-09T10:00:00Z',
+          settledAt: '2026-05-09T10:01:00Z',
+        },
+      ],
       nextCursor: 'txn1',
     };
     const client = fakeClient(async () => payload);

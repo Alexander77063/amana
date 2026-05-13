@@ -40,10 +40,17 @@ export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
       const data = notification.request.content.data as Record<string, unknown>;
       if (data.kind !== 'bump_decided' || data.transactionId !== transactionId) return;
       navigated.current = true;
-      if (data.decision === 'approved' || data.decision === 'approved_once' || data.decision === 'raise_limit') {
+      if (
+        data.decision === 'approved' ||
+        data.decision === 'approved_once' ||
+        data.decision === 'raise_limit'
+      ) {
         navigation.replace('Sending', { transactionId });
       } else {
-        navigation.replace('Failed', { transactionId, errorMessage: `Bump ${String(data.decision ?? 'denied')}` });
+        navigation.replace('Failed', {
+          transactionId,
+          errorMessage: `Bump ${String(data.decision ?? 'denied')}`,
+        });
       }
     });
     return () => sub.remove();
@@ -68,7 +75,9 @@ export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
       <Text style={styles.vendor}>to {resolvedName}</Text>
       <View style={styles.timer}>
         <Text style={styles.timerLabel}>Expires in</Text>
-        <Text style={[styles.timerValue, msLeft < 60_000 && styles.timerRed]}>{formatCountdown(msLeft)}</Text>
+        <Text style={[styles.timerValue, msLeft < 60_000 && styles.timerRed]}>
+          {formatCountdown(msLeft)}
+        </Text>
       </View>
       {errorMsg && <Text style={styles.err}>{errorMsg}</Text>}
       {cancelling ? (
@@ -92,6 +101,13 @@ const styles = StyleSheet.create({
   timerValue: { fontSize: 36, fontWeight: '700', fontVariant: ['tabular-nums'] },
   timerRed: { color: '#b00020' },
   err: { color: '#b00020' },
-  cancelBtn: { marginTop: 16, borderWidth: 1, borderColor: '#b00020', paddingHorizontal: 32, paddingVertical: 12, borderRadius: 999 },
+  cancelBtn: {
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: '#b00020',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 999,
+  },
   cancelText: { color: '#b00020', fontWeight: '600' },
 });

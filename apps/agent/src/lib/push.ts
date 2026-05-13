@@ -2,9 +2,7 @@ import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
 
-export type AgentDeepLink =
-  | { kind: 'transaction'; transactionId: string }
-  | { kind: 'none' };
+export type AgentDeepLink = { kind: 'transaction'; transactionId: string } | { kind: 'none' };
 
 export type AgentPushKind = 'txn_settled' | 'txn_failed' | 'bump_decided';
 

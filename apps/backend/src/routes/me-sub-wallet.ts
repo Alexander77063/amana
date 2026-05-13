@@ -35,8 +35,11 @@ export const meSubWalletRoute = new Hono<{ Variables: ActorVariables }>()
     const row = rows[0];
     if (!row) return c.json({ error: 'not_paired' }, 404);
 
-    return c.json({
-      subWallet: { id: row.sw_id, name: row.sw_name, masterWalletId: row.master_wallet_id },
-      principal: { userId: row.principal_user_id, phone: row.principal_phone },
-    }, 200);
+    return c.json(
+      {
+        subWallet: { id: row.sw_id, name: row.sw_name, masterWalletId: row.master_wallet_id },
+        principal: { userId: row.principal_user_id, phone: row.principal_phone },
+      },
+      200,
+    );
   });

@@ -333,7 +333,9 @@ describe('DELETE /sub-wallets/:id/snooze', () => {
 });
 
 describe('GET /sub-wallets/:id/transactions', () => {
-  beforeEach(async () => { await truncateAll(); });
+  beforeEach(async () => {
+    await truncateAll();
+  });
 
   it('200 — returns paginated transactions for agent', async () => {
     const { agent, mw, sw } = await seedHouseholdWithSubWallet();
@@ -356,7 +358,7 @@ describe('GET /sub-wallets/:id/transactions', () => {
       headers: await bearerHeaders(agent),
     });
     expect(res.status).toBe(200);
-    const body = await res.json() as { transactions: unknown[]; nextCursor: string | null };
+    const body = (await res.json()) as { transactions: unknown[]; nextCursor: string | null };
     expect(body.transactions).toHaveLength(3);
     expect(body.nextCursor).toBeNull();
   });
@@ -384,7 +386,10 @@ describe('GET /sub-wallets/:id/transactions', () => {
       headers: await bearerHeaders(agent),
     });
     expect(res1.status).toBe(200);
-    const page1 = await res1.json() as { transactions: { id: string }[]; nextCursor: string | null };
+    const page1 = (await res1.json()) as {
+      transactions: { id: string }[];
+      nextCursor: string | null;
+    };
     expect(page1.transactions).toHaveLength(2);
     expect(page1.nextCursor).not.toBeNull();
 
@@ -394,7 +399,7 @@ describe('GET /sub-wallets/:id/transactions', () => {
       { headers: await bearerHeaders(agent) },
     );
     expect(res2.status).toBe(200);
-    const page2 = await res2.json() as { transactions: unknown[]; nextCursor: string | null };
+    const page2 = (await res2.json()) as { transactions: unknown[]; nextCursor: string | null };
     expect(page2.transactions).toHaveLength(1);
     expect(page2.nextCursor).toBeNull();
   });
@@ -402,7 +407,10 @@ describe('GET /sub-wallets/:id/transactions', () => {
   it('403 — wrong agent cannot list transactions', async () => {
     const { mw, sw } = await seedHouseholdWithSubWallet();
     const wrongAgent = await usersRepo.insert(testDb, {
-      role: 'agent', phone: factories.phone(), nin: factories.nin(), kycTier: '1',
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
     });
 
     const app = createServer();

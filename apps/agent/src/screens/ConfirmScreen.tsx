@@ -2,8 +2,16 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
-  ScrollView, StyleSheet, Switch, Text, TextInput, View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
@@ -22,7 +30,7 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
   const send = async () => {
     const sw = subWalletMemory.get();
     if (!sw) return;
-    const naira = parseFloat(amountNaira);
+    const naira = Number.parseFloat(amountNaira);
     if (!Number.isFinite(naira) || naira <= 0) {
       setErrorMsg('Enter a valid amount.');
       return;
@@ -35,7 +43,9 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
           geolocation = { lat: loc.coords.latitude, lng: loc.coords.longitude };
         }
       } catch {
@@ -75,7 +85,10 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={{ flex: 1 }}
+    >
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.resolvedName}>{resolvedName}</Text>
         <Text style={styles.accountMasked}>{accountMasked}</Text>
@@ -128,10 +141,30 @@ const styles = StyleSheet.create({
   accountMasked: { fontSize: 15, color: '#888', textAlign: 'center', marginTop: -12 },
   field: { gap: 6 },
   label: { fontSize: 14, fontWeight: '600', color: '#444' },
-  amountInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 24, fontWeight: '600' },
-  noteInput: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 15, minHeight: 72, textAlignVertical: 'top' },
+  amountInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  noteInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    minHeight: 72,
+    textAlignVertical: 'top',
+  },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   err: { color: '#b00020' },
-  button: { backgroundColor: '#1a1a2e', paddingVertical: 16, borderRadius: 999, alignItems: 'center' },
+  button: {
+    backgroundColor: '#1a1a2e',
+    paddingVertical: 16,
+    borderRadius: 999,
+    alignItems: 'center',
+  },
   buttonText: { color: 'white', fontWeight: '700', fontSize: 17 },
 });

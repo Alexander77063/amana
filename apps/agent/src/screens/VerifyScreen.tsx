@@ -1,12 +1,18 @@
+import type { StoredAuth } from '@amana/api-client';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import {
-  KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { z } from 'zod';
-import type { StoredAuth } from '@amana/api-client';
 import { api } from '../lib/api';
 import { secureTokenStore } from '../lib/secure-token-store';
 import type { AuthStackParamList } from '../nav/AuthStack';
@@ -80,8 +86,11 @@ export function VerifyScreen({ onLoggedIn, route }: Props): JSX.Element {
         accessibilityRole="button"
         disabled={busy || formState.isSubmitting}
         onPress={onSubmit}
-        style={({ pressed }) => [styles.button, pressed && styles.pressed,
-          (busy || formState.isSubmitting) && styles.disabled]}
+        style={({ pressed }) => [
+          styles.button,
+          pressed && styles.pressed,
+          (busy || formState.isSubmitting) && styles.disabled,
+        ]}
       >
         <Text style={styles.buttonText}>{busy ? 'Verifying…' : 'Verify'}</Text>
       </Pressable>
@@ -95,7 +104,13 @@ const styles = StyleSheet.create({
   muted: { color: '#666' },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 18 },
   err: { color: '#b00020', marginTop: 4 },
-  button: { backgroundColor: '#1a1a2e', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 999, alignSelf: 'flex-start' },
+  button: {
+    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 999,
+    alignSelf: 'flex-start',
+  },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.4 },
   buttonText: { color: 'white', fontWeight: '600' },

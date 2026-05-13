@@ -2,8 +2,8 @@ import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { db } from '../db/client';
 import { transactions } from '../db/schema';
-import { mediaService } from '../modules/media/media.service';
 import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
+import { mediaService } from '../modules/media/media.service';
 
 export const mediaRoute = new Hono<{ Variables: ActorVariables }>()
   .use(jwtAuth())

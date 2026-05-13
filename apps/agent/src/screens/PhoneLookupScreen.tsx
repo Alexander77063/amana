@@ -1,8 +1,14 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import {
-  ActivityIndicator, KeyboardAvoidingView, Platform, Pressable,
-  StyleSheet, Text, TextInput, View,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
@@ -36,7 +42,10 @@ export function PhoneLookupScreen({ navigation }: Props): JSX.Element {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.container}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.container}
+    >
       <Text style={styles.label}>Phone number</Text>
       <TextInput
         style={styles.input}
@@ -63,6 +72,12 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: '600', color: '#444' },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
   err: { color: '#b00020' },
-  button: { backgroundColor: '#1a1a2e', paddingHorizontal: 32, paddingVertical: 14, borderRadius: 999, alignSelf: 'flex-start' },
+  button: {
+    backgroundColor: '#1a1a2e',
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 999,
+    alignSelf: 'flex-start',
+  },
   buttonText: { color: 'white', fontWeight: '600' },
 });

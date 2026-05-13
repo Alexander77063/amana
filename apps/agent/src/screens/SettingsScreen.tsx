@@ -26,10 +26,7 @@ export function SettingsScreen({ navigation }: Props): JSX.Element {
 
       <View style={styles.section}>
         <Text style={styles.sectionLabel}>Notifications</Text>
-        <Pressable
-          style={styles.row}
-          onPress={() => navigation.navigate('EnableNotifications')}
-        >
+        <Pressable style={styles.row} onPress={() => navigation.navigate('EnableNotifications')}>
           <Text style={styles.rowLabel}>Push notifications</Text>
           <Text style={styles.chevron}>›</Text>
         </Pressable>

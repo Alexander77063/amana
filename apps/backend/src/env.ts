@@ -11,6 +11,7 @@ const EnvSchema = z.object({
   SENTRY_DSN: z.string().url().optional(),
   ANCHOR_API_KEY: z.string().min(1).optional(),
   ANCHOR_WEBHOOK_SECRET: z.string().min(1).optional(),
+  API_BASE_URL: z.string().url().default('http://localhost:3000'),
   ANCHOR_API_BASE_URL: z.string().url().default('https://api.sandbox.getanchor.co'),
   EXPO_ACCESS_TOKEN: z.string().optional(),
   TERMII_API_KEY: z.string().optional(),

@@ -54,6 +54,3 @@ ios/Pods/
 android/.gradle/
 android/build/
 *.keystore
-
-# Claude Code local settings
-.claude/

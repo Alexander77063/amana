@@ -10,6 +10,8 @@ RUN pnpm --filter @amana/types build
 RUN pnpm --filter @amana/validation build
 RUN pnpm --filter @amana/backend build
 RUN pnpm --filter @amana/backend deploy --prod --legacy /standalone
+# dist/ is gitignored so pnpm deploy omits it — copy explicitly
+RUN cp -r apps/backend/dist /standalone/dist
 
 # Stage 2 — runtime
 FROM node:20-alpine AS runtime

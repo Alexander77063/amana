@@ -13,7 +13,7 @@ RUN pnpm --filter @amana/backend build
 RUN apps/backend/node_modules/.bin/esbuild apps/backend/src/index.ts \
     --bundle --platform=node --target=node20 \
     --outfile=apps/backend/dist/index.js \
-    --format=cjs \
+    --format=esm \
     --external:argon2
 RUN pnpm --filter @amana/backend deploy --prod --legacy /standalone
 # dist/ is gitignored so pnpm deploy omits it; copy just the bundle

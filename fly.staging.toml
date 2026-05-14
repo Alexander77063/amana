@@ -1,0 +1,32 @@
+app = 'amana-api-staging'
+primary_region = 'jnb'
+
+[build]
+  dockerfile = 'apps/backend/Dockerfile'
+
+[env]
+  NODE_ENV = 'production'
+  PORT = '3000'
+  API_BASE_URL = 'https://api-staging.amana-ng.com'
+  ANCHOR_API_BASE_URL = 'https://api.sandbox.getanchor.co'
+
+[deploy]
+  release_command = 'node bin/migrate.mjs'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = '10s'
+    interval = '15s'
+    method = 'GET'
+    path = '/health'
+    timeout = '3s'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '256mb'

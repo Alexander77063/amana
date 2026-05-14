@@ -9,12 +9,23 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @amana/types build
 RUN pnpm --filter @amana/validation build
 RUN pnpm --filter @amana/backend build
-# Bundle into a single CJS file — handles ESM/CJS interop for all workspace deps
+# Bundle backend + workspace packages; keep npm packages external (avoids dynamic-require issues)
 RUN apps/backend/node_modules/.bin/esbuild apps/backend/src/index.ts \
     --bundle --platform=node --target=node20 \
     --outfile=apps/backend/dist/index.js \
     --format=esm \
-    --packages=external
+    "--external:@aws-sdk/*" \
+    "--external:@hono/*" \
+    "--external:@sentry/*" \
+    "--external:argon2" \
+    "--external:drizzle-orm" \
+    "--external:expo-server-sdk" \
+    "--external:hono" \
+    "--external:jose" \
+    "--external:node-cron" \
+    "--external:pino" \
+    "--external:postgres" \
+    "--external:zod"
 RUN pnpm --filter @amana/backend deploy --prod --legacy /standalone
 # dist/ is gitignored so pnpm deploy omits it; copy just the bundle
 RUN mkdir -p /standalone/dist && cp apps/backend/dist/index.js /standalone/dist/index.js

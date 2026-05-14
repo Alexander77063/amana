@@ -13,132 +13,121 @@
 ### 1.1 Identity domain
 
 #### `users`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | auto-generated |
-| `role` | enum(`principal`,`agent`) | immutable after creation |
-| `phone` | text UNIQUE | primary identity |
-| `bvn` | text nullable | principals only |
-| `nin` | text | required for all |
-| `kyc_tier` | enum(`1`,`2`,`3`) | Tier 2 for principals |
-| `status` | enum(`active`,`suspended`) | default `active` |
-| `created_at` | timestamptz | |
+| Column       | Type                       | Notes |
+| `id`         | uuid PK                    | auto-generated 
+| `role`       | enum(`principal`,`agent`)  | immutable after creation 
+| `phone`      | text UNIQUE                | primary identity 
+| `bvn`        | text nullable              | principals only 
+| `nin`        | text                       | required for all 
+| `kyc_tier`   | enum(`1`,`2`,`3`)          | Tier 2 for principals 
+| `status`     | enum(`active`,`suspended`) | default `active` 
+| `created_at` | timestamptz | 
 
 #### `households`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `principal_user_id` | uuid FK → users | one principal per household |
-| `name` | text | household display name |
-| `created_at` | timestamptz | |
+| Column              | Type            | Notes |
+| `id`                | uuid PK         | 
+| `principal_user_id` | uuid FK → users | one principal per household 
+| `name`              | text            | household display name 
+| `created_at`        | timestamptz     | 
 
 #### `household_members`
-| Column | Type | Notes |
-|---|---|---|
-| `household_id` | uuid FK → households | composite PK |
-| `user_id` | uuid FK → users | composite PK |
-| `status` | enum(`active`,`suspended`) | |
-| `joined_at` | timestamptz | |
+| Column         | Type                       | Notes |
+| `household_id` | uuid FK → households       | composite PK 
+| `user_id`      | uuid FK → users            | composite PK 
+| `status`       | enum(`active`,`suspended`) | 
+| `joined_at`    | timestamptz                | 
 
 ### 1.2 Wallet domain
 
 #### `master_wallets`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `household_id` | uuid FK → households | one wallet per household |
-| `anchor_virtual_account` | text | NIP-in account number |
-| `anchor_bank_code` | text | NIP-in bank code |
-| `anchor_account_id` | text | Anchor internal reference |
-| `currency` | text | default `NGN` |
-| `status` | enum(`active`,`frozen`) | |
-| `created_at` | timestamptz | |
+| Column                   | Type                    | Notes |
+| `id`                     | uuid PK                 | 
+| `household_id`           | uuid FK → households    | one wallet per household 
+| `anchor_virtual_account` | text                    | NIP-in account number 
+| `anchor_bank_code`       | text                    | NIP-in bank code 
+| `anchor_account_id`      | text                    | Anchor internal reference 
+| `currency`               | text                    | default `NGN` 
+| `status`                 | enum(`active`,`frozen`) | 
+| `created_at`             | timestamptz             | 
 
 #### `sub_wallets`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `master_wallet_id` | uuid FK → master_wallets | |
-| `agent_user_id` | uuid FK → users | the assigned agent |
-| `name` | text | principal-chosen label (e.g. "Amina's wallet") |
-| `status` | enum(`active`,`suspended`,`closed`) | |
-| `created_at` | timestamptz | |
+| Column             | Type                                | Notes |
+| `id`               | uuid PK                             | 
+| `master_wallet_id` | uuid FK → master_wallets            | 
+| `agent_user_id`    | uuid FK → users                     | the assigned agent 
+| `name`             | text                                | principal-chosen label (e.g. "Amina's wallet") 
+| `status`           | enum(`active`,`suspended`,`closed`) | 
+| `created_at`       | timestamptz                         | 
 
 #### `ledger_accounts`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `master_wallet_id` | uuid FK | |
-| `kind` | enum(`master`,`sub`,`suspense`,`fee`,`external`) | |
-| `sub_wallet_id` | uuid FK nullable | only for `sub` kind |
-| `normal_side` | enum(`debit`,`credit`) | double-entry |
+| Column             | Type                                             | Notes |
+| `id`               | uuid PK                                          | 
+| `master_wallet_id` | uuid FK                                          | 
+| `kind`             | enum(`master`,`sub`,`suspense`,`fee`,`external`) | 
+| `sub_wallet_id`    | uuid FK nullable                                 | only for `sub` kind 
+| `normal_side`      | enum(`debit`,`credit`)                           | double-entry 
 
 #### `postings` (append-only)
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `ledger_account_id` | uuid FK → ledger_accounts | |
-| `transaction_id` | uuid FK → transactions | |
-| `amount_kobo` | bigint | |
-| `side` | enum(`debit`,`credit`) | |
-| `created_at` | timestamptz | |
+| Column              | Type                      | Notes |
+| `id`                | uuid PK                   | 
+| `ledger_account_id` | uuid FK → ledger_accounts | 
+| `transaction_id`    | uuid FK → transactions    | 
+| `amount_kobo`       | bigint                    | 
+| `side`              | enum(`debit`,`credit`)    | 
+| `created_at`        | timestamptz               | 
 
 *No UPDATE or DELETE ever runs on `postings`. Enforced by DB trigger (`0005_postings_immutable`).*
 
 ### 1.3 Transaction domain
 
 #### `transactions`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `master_wallet_id` | uuid FK | |
-| `sub_wallet_id` | uuid FK nullable | null = principal direct spend |
-| `kind` | enum(`spend`,`topup`,`refund`,`fee`,`reversal`) | |
-| `amount_kobo` | bigint | stored in kobo (1 NGN = 100 kobo) |
-| `status` | enum(`draft`,`rule_eval`,`bump_pending`,`in_flight`,`settled`,`failed`,`reversed`) | |
-| `idempotency_key` | text UNIQUE | client-supplied |
-| `nibss_session_id` | text nullable | populated on settlement |
-| `vendor_account` | text nullable | destination account number |
-| `vendor_bank_code` | text nullable | destination bank code |
-| `vendor_resolved_name` | text nullable | from name enquiry |
-| `category` | text nullable | merchant category |
-| `anomaly_score` | decimal(3,2) nullable | 0.00–1.00 |
-| `bump_request_id` | uuid FK nullable | FK to bump_requests |
-| `agent_note` | text nullable | |
-| `error_message` | text nullable | populated when status=`failed` |
-| `geolocation` | geometry(Point,4326) nullable | PostGIS point |
-| `attached_media` | jsonb nullable | S3 object references |
-| `created_at` | timestamptz | |
-| `settled_at` | timestamptz nullable | |
+| Column                 | Type                                            | Notes |
+| `id`                   | uuid PK                                         | 
+| `master_wallet_id`     | uuid FK                                         | 
+| `sub_wallet_id`        | uuid FK nullable                                | null = principal direct spend 
+| `kind`                 | enum(`spend`,`topup`,`refund`,`fee`,`reversal`) | 
+| `amount_kobo`          | bigint                                          | stored in kobo (1 NGN = 100 kobo) 
+| `status`               | enum(`draft`,`rule_eval`,`bump_pending`,`in_flight`,`settled`,`failed`,`reversed`)  
+| `idempotency_key`      | text UNIQUE                                     | client-supplied           
+| `nibss_session_id`     | text nullable                                   | populated on settlement 
+| `vendor_account`       | text nullable                                   | destination account number 
+| `vendor_bank_code`     | text nullable                                   | destination bank code 
+| `vendor_resolved_name` | text nullable                                   | from name enquiry 
+| `category`             | text nullable                                   | merchant category 
+| `anomaly_score`        | decimal(3,2) nullable                           | 0.00–1.00 
+| `bump_request_id`      | uuid FK nullable                                | FK to bump_requests 
+| `agent_note`           | text nullable                                   | 
+| `error_message`        | text nullable                                   | populated when status=`failed` 
+| `geolocation`          | geometry(Point,4326) nullable                   | PostGIS point 
+| `attached_media`       | jsonb nullable                                  | S3 object references 
+| `created_at`           | timestamptz                                     | 
+| `settled_at`           | timestamptz nullable                            | 
 
 #### `idempotency_keys`
-| Column | Type | Notes |
-|---|---|---|
-| `key` | text PK | |
-| `transaction_id` | uuid FK | |
-| `created_at` | timestamptz | |
+| Column           | Type        | Notes |
+| `key`            | text PK     | 
+| `transaction_id` | uuid FK     | 
+| `created_at`     | timestamptz | 
 
 ### 1.4 Rules & Bumps domain
 
 #### `rule_sets`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `sub_wallet_id` | uuid FK | |
-| `version` | integer | monotonically increasing |
-| `status` | enum(`active`,`superseded`) | only one active per sub-wallet |
-| `effective_from` | timestamptz | |
-| `created_by_user_id` | uuid FK | |
-| `created_at` | timestamptz | |
+| Column               | Type                        | Notes |
+| `id`                 | uuid PK                     | 
+| `sub_wallet_id`      | uuid FK                     | 
+| `version`            | integer                     | monotonically increasing 
+| `status`             | enum(`active`,`superseded`) | only one active per sub-wallet 
+| `effective_from`     | timestamptz                 | 
+| `created_by_user_id` | uuid FK                     | 
+| `created_at`         | timestamptz                 | 
 
 #### `rules`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `rule_set_id` | uuid FK → rule_sets | |
-| `kind` | enum(`limit`,`category`,`time_window`,`allowlist`,`anomaly_threshold`) | |
-| `config_json` | jsonb | rule parameters (varies by kind) |
-| `priority` | integer | evaluation order |
+| Column        | Type                | Notes |
+| `id`          | uuid PK             | 
+| `rule_set_id` | uuid FK → rule_sets | 
+| `kind`        | enum(`limit`,`category`,`time_window`,`allowlist`,`anomaly_threshold`) | 
+| `config_json` | jsonb               | rule parameters (varies by kind) 
+| `priority`    | integer             | evaluation order 
 
 **Rule config examples:**
 ```json
@@ -156,20 +145,19 @@
 ```
 
 #### `bump_requests`
-| Column | Type | Notes |
-|---|---|---|
-| `id` | uuid PK | |
-| `transaction_id` | uuid FK | |
-| `sub_wallet_id` | uuid FK | |
-| `requested_by_user_id` | uuid FK | agent |
-| `amount_kobo` | bigint | |
-| `vendor_resolved_name` | text | |
-| `agent_note` | text nullable | |
-| `status` | enum(`pending`,`approved_once`,`raise_limit`,`denied`,`expired`,`cancelled`) | |
-| `expires_at` | timestamptz | TTL (default 15 min) |
-| `decided_by_user_id` | uuid FK nullable | principal |
-| `decided_at` | timestamptz nullable | |
-| `created_at` | timestamptz | |
+| Column                 | Type             | Notes |
+| `id`                   | uuid PK          | 
+| `transaction_id`       | uuid FK          | 
+| `sub_wallet_id`        | uuid FK          |
+| `requested_by_user_id` | uuid FK          | agent 
+| `amount_kobo`          | bigint           |  
+| `vendor_resolved_name` | text             |
+| `agent_note`           | text nullable    | 
+| `status`               | enum(`pending`,`approved_once`,`raise_limit`,`denied`,`expired`,`cancelled`) 
+| `expires_at`           | timestamptz      | TTL (default 15 min) 
+| `decided_by_user_id`   | uuid FK nullable | principal 
+| `decided_at`           | timestamptz nullable  
+| `created_at`           | timestamptz      | 
 
 #### `one_shot_tokens`
 | Column | Type | Notes |

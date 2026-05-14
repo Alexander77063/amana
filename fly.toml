@@ -10,7 +10,7 @@ primary_region = 'jnb'
   ANCHOR_API_BASE_URL = 'https://api.sandbox.getanchor.co'
 
 [deploy]
-  release_command = 'node bin/migrate.js'
+  release_command = 'node bin/migrate.mjs'
 
 [http_service]
   internal_port = 3000

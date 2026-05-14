@@ -4,7 +4,10 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "lib": ["ES2022"],
-    "types": ["node"]
+    "types": ["node"],
+    "module": "CommonJS",
+    "moduleResolution": "Node10",
+    "verbatimModuleSyntax": false
   },
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules", "tests"]

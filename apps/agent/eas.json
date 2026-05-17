@@ -14,7 +14,7 @@
       }
     },
     "production": {
-      "autoIncrement": "buildNumber"
+      "autoIncrement": true
     }
   }
 }

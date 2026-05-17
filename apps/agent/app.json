@@ -2,19 +2,33 @@
   "expo": {
     "name": "Amana Agent",
     "slug": "amana-agent",
-    "version": "0.0.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.amana.agent",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used to scan QR codes and capture receipt photos.",
+        "NSLocationWhenInUseUsageDescription": "Used to record the location of transactions.",
+        "NFCReaderUsageDescription": "Used to pair with a principal device via NFC tap."
+      },
+      "entitlements": {
+        "com.apple.developer.nfc.readersession.formats": ["TAG"]
+      }
     },
     "android": {
-      "package": "com.amana.agent"
+      "package": "com.amana.agent",
+      "versionCode": 1
     },
-    "platforms": [
-      "ios",
-      "android"
+    "platforms": ["ios", "android"],
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-notifications",
+        { "color": "#222222" }
+      ]
     ],
     "extra": {
       "eas": {

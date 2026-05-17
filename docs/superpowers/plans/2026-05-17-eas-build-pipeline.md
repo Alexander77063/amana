@@ -145,12 +145,9 @@ git commit -m "feat(agent): EAS project registration + eas.json build profiles"
 
 This task adds the version fields, native permission strings (camera, location, NFC), NFC entitlement, and plugin declarations needed for a successful store build. The `extra.eas.projectId` added by `eas init` in Task 2 must be preserved.
 
-- [ ] **Step 1: Check Play Console for Agent's current versionCode**
+- [ ] **Step 1: Confirm versionCode**
 
-In Play Console, open the Agent app → **Release → Closed testing** → click the existing build → look for **"Version code"** in the build details.
-
-If the Agent app has no existing Play Console entry: use `versionCode: 1`.
-If unsure: use `versionCode: 100` — it is always safe to jump ahead.
+Amana Agent has no existing Google Play listing — this is a fresh app. Use `versionCode: 1`.
 
 - [ ] **Step 2: Replace `apps/agent/app.json`**
 
@@ -179,7 +176,7 @@ Write the complete file below, substituting `YOUR_PROJECT_ID` with the UUID that
     },
     "android": {
       "package": "com.amana.agent",
-      "versionCode": 100
+      "versionCode": 1
     },
     "platforms": ["ios", "android"],
     "plugins": [
@@ -271,9 +268,9 @@ git commit -m "feat(principal): EAS project registration + eas.json build profil
 
 Principal uses NFC for pairing, so it needs the same NFC permission and entitlement as Agent. It does NOT use camera or location.
 
-- [ ] **Step 1: Check Play Console for Principal's current versionCode**
+- [ ] **Step 1: Confirm versionCode**
 
-Same process as Task 3 Step 1, but for the Principal app. Use `versionCode: 100` if unsure.
+Amana Principal has no existing Google Play listing — this is a fresh app. Use `versionCode: 1`.
 
 - [ ] **Step 2: Replace `apps/principal/app.json`**
 
@@ -300,7 +297,7 @@ Copy the `projectId` UUID from the current `app.json` before overwriting. Substi
     },
     "android": {
       "package": "com.amana.principal",
-      "versionCode": 100
+      "versionCode": 1
     },
     "platforms": ["ios", "android"],
     "plugins": [

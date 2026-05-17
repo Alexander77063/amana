@@ -2,27 +2,30 @@
   "expo": {
     "name": "Amana Principal",
     "slug": "amana-principal",
-    "version": "0.0.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "ios": {
       "bundleIdentifier": "com.amana.principal",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "buildNumber": "1",
+      "infoPlist": {
+        "NFCReaderUsageDescription": "Used to pair with an agent device via NFC tap."
+      },
+      "entitlements": {
+        "com.apple.developer.nfc.readersession.formats": ["TAG"]
+      }
     },
     "android": {
-      "package": "com.amana.principal"
+      "package": "com.amana.principal",
+      "versionCode": 1
     },
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "plugins": [
       "expo-secure-store",
       [
         "expo-notifications",
-        {
-          "color": "#222222"
-        }
+        { "color": "#222222" }
       ]
     ],
     "extra": {

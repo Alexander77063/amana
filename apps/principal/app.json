@@ -12,7 +12,10 @@
     "android": {
       "package": "com.amana.principal"
     },
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "plugins": [
       "expo-secure-store",
       [
@@ -21,6 +24,12 @@
           "color": "#222222"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "9fff59a8-3468-4df6-b0d2-dad224af28d8"
+      }
+    },
+    "owner": "alex77063"
   }
 }

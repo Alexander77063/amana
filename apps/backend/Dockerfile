@@ -26,9 +26,27 @@ RUN apps/backend/node_modules/.bin/esbuild apps/backend/src/index.ts \
     "--external:pino" \
     "--external:postgres" \
     "--external:zod"
+RUN apps/backend/node_modules/.bin/esbuild apps/backend/bin/cron.ts \
+    --bundle --platform=node --target=node20 \
+    --outfile=apps/backend/dist/cron.js \
+    --format=esm \
+    "--external:@aws-sdk/*" \
+    "--external:@hono/*" \
+    "--external:@sentry/*" \
+    "--external:argon2" \
+    "--external:drizzle-orm" \
+    "--external:expo-server-sdk" \
+    "--external:hono" \
+    "--external:jose" \
+    "--external:node-cron" \
+    "--external:pino" \
+    "--external:postgres" \
+    "--external:zod"
 RUN pnpm --filter @amana/backend deploy --prod --legacy /standalone
-# dist/ is gitignored so pnpm deploy omits it; copy just the bundle
-RUN mkdir -p /standalone/dist && cp apps/backend/dist/index.js /standalone/dist/index.js
+# dist/ is gitignored so pnpm deploy omits it; copy both bundles
+RUN mkdir -p /standalone/dist \
+    && cp apps/backend/dist/index.js /standalone/dist/index.js \
+    && cp apps/backend/dist/cron.js /standalone/dist/cron.js
 
 # Stage 2 — runtime
 FROM node:20-alpine AS runtime

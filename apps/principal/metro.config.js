@@ -6,13 +6,23 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// Tell Metro to watch the entire workspace so it can resolve @amana/* packages
 config.watchFolders = [workspaceRoot];
-
-// Look for node_modules at both the app level and workspace root level
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
+
+// Resolve @amana/* workspace packages directly from TypeScript source
+// (dist/ is gitignored and not uploaded to EAS build servers)
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  if (moduleName.startsWith('@amana/')) {
+    const pkgName = moduleName.replace('@amana/', '');
+    return {
+      filePath: path.resolve(workspaceRoot, 'packages', pkgName, 'src', 'index.ts'),
+      type: 'sourceFile',
+    };
+  }
+  return context.resolveRequest(context, moduleName, platform);
+};
 
 module.exports = config;

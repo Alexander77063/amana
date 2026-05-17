@@ -5,6 +5,9 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "backgroundColor": "#222222"
+    },
     "ios": {
       "bundleIdentifier": "com.amana.agent",
       "supportsTablet": false,
@@ -12,7 +15,8 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Used to scan QR codes and capture receipt photos.",
         "NSLocationWhenInUseUsageDescription": "Used to record the location of transactions.",
-        "NFCReaderUsageDescription": "Used to pair with a principal device via NFC tap."
+        "NFCReaderUsageDescription": "Used to pair with a principal device via NFC tap.",
+        "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
         "com.apple.developer.nfc.readersession.formats": ["TAG"]
@@ -22,12 +26,17 @@
       "package": "com.amana.agent",
       "versionCode": 1
     },
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "plugins": [
       "expo-secure-store",
       [
         "expo-notifications",
-        { "color": "#222222" }
+        {
+          "color": "#222222"
+        }
       ]
     ],
     "extra": {

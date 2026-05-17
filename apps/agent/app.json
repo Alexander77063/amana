@@ -5,8 +5,22 @@
     "version": "0.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "ios": { "bundleIdentifier": "com.amana.agent", "supportsTablet": false },
-    "android": { "package": "com.amana.agent" },
-    "platforms": ["ios", "android"]
+    "ios": {
+      "bundleIdentifier": "com.amana.agent",
+      "supportsTablet": false
+    },
+    "android": {
+      "package": "com.amana.agent"
+    },
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "d61177fe-f167-45f6-a5bd-25524aff563c"
+      }
+    },
+    "owner": "alex77063"
   }
 }

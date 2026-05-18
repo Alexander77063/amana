@@ -36,6 +36,14 @@
         {
           "color": "#222222"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "targetSdkVersion": 35
+          }
+        }
       ]
     ],
     "extra": {

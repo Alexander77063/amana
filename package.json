@@ -17,10 +17,16 @@
     "format:check": "biome format ."
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@biomejs/biome", "argon2", "esbuild"]
+    "onlyBuiltDependencies": [
+      "@biomejs/biome",
+      "argon2",
+      "esbuild",
+      "sharp"
+    ]
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
+    "sharp": "^0.34.5",
     "turbo": "2.1.3",
     "typescript": "5.5.4"
   }

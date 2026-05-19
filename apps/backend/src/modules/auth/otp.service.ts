@@ -19,7 +19,7 @@ export type VerifyCodeResult =
 
 async function sendSms(phone: string, code: string): Promise<void> {
   if (!env.TERMII_API_KEY) {
-    logger.warn({ phone }, 'otp: TERMII_API_KEY not set, skipping send (dev mode)');
+    logger.warn({ phone, code }, 'otp: TERMII_API_KEY not set — code logged for manual retrieval');
     return;
   }
   const res = await fetch(`${env.TERMII_BASE_URL}/api/sms/send`, {
@@ -35,8 +35,10 @@ async function sendSms(phone: string, code: string): Promise<void> {
     }),
   });
   if (!res.ok) {
-    logger.error({ phone, status: res.status }, 'otp: termii send failed');
-    throw new Error(`termii: ${res.status}`);
+    const body = await res.text().catch(() => '');
+    logger.warn({ phone, code, status: res.status, body }, 'otp: termii send failed — code logged for manual retrieval');
+    // Don't throw: challenge is already committed, code is readable from logs
+    return;
   }
 }
 

@@ -1,6 +1,7 @@
+import { AmountText, Body, Button, Card, Label, Screen, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { api } from '../lib/api';
 import type { PayStackParamList } from '../nav/PayStack';
 
@@ -31,6 +32,7 @@ function formatDateTime(iso: string): string {
 }
 
 export function ReceiptScreen({ route, navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const { transactionId } = route.params;
   const [txn, setTxn] = useState<ReceiptTxn | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,35 +47,61 @@ export function ReceiptScreen({ route, navigation }: Props): JSX.Element {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
+      <Screen title="Receipt">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" />
+        </View>
+      </Screen>
     );
   }
 
   if (!txn) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.err}>Could not load receipt.</Text>
-      </View>
+      <Screen title="Receipt">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Body muted>Could not load receipt.</Body>
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.amount}>{formatNaira(txn.amountKobo)}</Text>
-      <Text style={styles.vendor}>{txn.vendorResolvedName ?? '—'}</Text>
-      <Text style={styles.acct}>{txn.vendorAccountMasked ?? ''}</Text>
-      {txn.settledAt && <Text style={styles.meta}>Settled {formatDateTime(txn.settledAt)}</Text>}
-      {txn.nibssSessionId && (
-        <Text style={styles.meta} selectable>
-          NIBSS: {txn.nibssSessionId}
-        </Text>
-      )}
+    <Screen title="Receipt" scrollable>
+      <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+        <AmountText size="xl" value={formatNaira(txn.amountKobo)} sentiment="credit" />
+      </View>
 
-      <View style={styles.actions}>
-        <Pressable
-          style={styles.btn}
+      <Card accent style={{ gap: 12 }}>
+        {txn.vendorResolvedName && (
+          <View style={{ gap: 2 }}>
+            <Label>TO</Label>
+            <Body>{txn.vendorResolvedName}</Body>
+          </View>
+        )}
+        {txn.vendorAccountMasked && (
+          <View style={{ gap: 2 }}>
+            <Label>ACCOUNT</Label>
+            <Body>{txn.vendorAccountMasked}</Body>
+          </View>
+        )}
+        {txn.settledAt && (
+          <View style={{ gap: 2 }}>
+            <Label>SETTLED</Label>
+            <Body>{formatDateTime(txn.settledAt)}</Body>
+          </View>
+        )}
+        {txn.nibssSessionId && (
+          <View style={{ gap: 2 }}>
+            <Label>NIBSS SESSION</Label>
+            <Body>{txn.nibssSessionId}</Body>
+          </View>
+        )}
+      </Card>
+
+      <View style={{ gap: 12, marginTop: 24 }}>
+        <Button
+          variant="secondary"
+          label="SHOW RECIPIENT"
           onPress={() =>
             navigation.navigate('ShowRecipient', {
               amountKobo: txn.amountKobo,
@@ -81,43 +109,24 @@ export function ReceiptScreen({ route, navigation }: Props): JSX.Element {
               sessionId: txn.nibssSessionId ?? '',
             })
           }
-        >
-          <Text style={styles.btnText}>Show recipient</Text>
-        </Pressable>
+        />
 
         {!txn.attachedMedia && (
-          <Pressable
-            style={[styles.btn, styles.btnSecondary]}
+          <Button
+            variant="secondary"
+            label="ADD PHOTO"
             onPress={() => navigation.navigate('PhotoAttach', { transactionId })}
-          >
-            <Text style={[styles.btnText, styles.btnTextSecondary]}>Add photo</Text>
-          </Pressable>
+          />
         )}
 
-        {Boolean(txn.attachedMedia) && <Text style={styles.photoBadge}>📎 Photo attached</Text>}
-      </View>
+        {Boolean(txn.attachedMedia) && (
+          <Body style={{ textAlign: 'center', color: theme.colors.credit }}>
+            Photo attached
+          </Body>
+        )}
 
-      <Pressable style={styles.doneBtn} onPress={() => navigation.popToTop()}>
-        <Text style={styles.doneBtnText}>Done</Text>
-      </Pressable>
-    </ScrollView>
+        <Button variant="ghost" label="DONE" onPress={() => navigation.popToTop()} />
+      </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  container: { padding: 24, alignItems: 'center', gap: 8 },
-  amount: { fontSize: 48, fontWeight: '800', marginBottom: 4 },
-  vendor: { fontSize: 20, fontWeight: '600' },
-  acct: { fontSize: 14, color: '#888' },
-  meta: { fontSize: 13, color: '#666' },
-  actions: { width: '100%', gap: 12, marginTop: 24 },
-  btn: { backgroundColor: '#1a1a2e', paddingVertical: 14, borderRadius: 999, alignItems: 'center' },
-  btnSecondary: { backgroundColor: '#f0f0f0' },
-  btnText: { color: 'white', fontWeight: '600', fontSize: 15 },
-  btnTextSecondary: { color: '#1a1a2e' },
-  photoBadge: { textAlign: 'center', color: '#2e7d32', fontWeight: '600' },
-  err: { color: '#b00020' },
-  doneBtn: { marginTop: 16 },
-  doneBtnText: { color: '#888', fontSize: 15 },
-});

@@ -12,3 +12,7 @@ export { Caption } from './typography/Caption';
 export { Screen } from './layout/Screen';
 export { Card } from './layout/Card';
 export { Divider } from './layout/Divider';
+
+export { Button } from './controls/Button';
+export { IconButton } from './controls/IconButton';
+export { TextInput } from './controls/TextInput';

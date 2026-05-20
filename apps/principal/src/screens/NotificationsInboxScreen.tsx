@@ -85,7 +85,7 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
     return (
       <Screen title="Notifications" headerRight={headerRight}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Skeleton lines={3} />
+          <Skeleton />
         </View>
       </Screen>
     );
@@ -95,7 +95,7 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
     return (
       <Screen title="Notifications" headerRight={headerRight}>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
-          <Body style={{ color: theme.colors.debit }}>Couldn&apos;t load: {errorCode}</Body>
+          <Body style={{ color: theme.colors.debit }}>{`Couldn't load: ${errorCode ?? ''}`}</Body>
           <Button label="RETRY" onPress={() => void refresh()} />
         </View>
       </Screen>

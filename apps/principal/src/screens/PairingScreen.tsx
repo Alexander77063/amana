@@ -95,7 +95,7 @@ export function PairingScreen(): JSX.Element {
 
       {state.kind === 'loading' && (
         <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 24 }}>
-          <Skeleton lines={1} width={120} />
+          <Skeleton width={120} />
         </View>
       )}
 
@@ -109,7 +109,7 @@ export function PairingScreen(): JSX.Element {
             <Body style={{ color: theme.colors.accent }}>📶 NFC active — touch phones to pair</Body>
           )}
           <Body muted>Or share the deep-link:</Body>
-          <Body strong selectable style={{ fontSize: 22, letterSpacing: 2 }}>
+          <Body strong style={{ fontSize: 22, letterSpacing: 2 }}>
             {state.code}
           </Body>
           <Body muted>Expires {new Date(state.expiresAt).toLocaleString()}</Body>

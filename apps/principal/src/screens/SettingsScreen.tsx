@@ -31,7 +31,7 @@ export function SettingsScreen({ navigation }: Props): JSX.Element {
       <SectionHeader title="ABOUT" />
       <Card>
         <Body strong>App version</Body>
-        <Caption>Amana {version}</Caption>
+        <Caption>{`Amana ${version}`}</Caption>
       </Card>
     </Screen>
   );

@@ -74,8 +74,8 @@ export function QuietHoursScreen({ navigation }: Props): JSX.Element {
     fontSize: 18,
     width: 60,
     textAlign: 'center' as const,
-    color: theme.colors['text.primary'],
-    backgroundColor: theme.colors['bg.surface'],
+    color: theme.colors.text.primary,
+    backgroundColor: theme.colors.bg.surface,
   };
 
   return (

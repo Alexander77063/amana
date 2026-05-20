@@ -170,7 +170,7 @@ function ThresholdControl({
 
   return (
     <View>
-      <View style={{ flexDirection: 'row', borderRadius: 999, backgroundColor: theme.colors['bg.raised'], padding: 4 }}>
+      <View style={{ flexDirection: 'row', borderRadius: 999, backgroundColor: theme.colors.bg.raised, padding: 4 }}>
         <SegBtn
           label="Real-time"
           active={effective.preference === 'real_time'}
@@ -199,8 +199,8 @@ function ThresholdControl({
               borderRadius: 8,
               padding: 12,
               fontSize: 16,
-              color: theme.colors['text.primary'],
-              backgroundColor: theme.colors['bg.surface'],
+              color: theme.colors.text.primary,
+              backgroundColor: theme.colors.bg.surface,
             }}
             value={draft}
             onChangeText={setDraft}
@@ -232,7 +232,7 @@ function SegBtn({
       ]}
       onPress={onPress}
     >
-      <Body style={[{ fontSize: 13 }, active && { color: theme.colors['bg.base'] }]}>{label}</Body>
+      <Body style={{ fontSize: 13, ...(active ? { color: theme.colors.bg.base } : {}) }}>{label}</Body>
     </Pressable>
   );
 }

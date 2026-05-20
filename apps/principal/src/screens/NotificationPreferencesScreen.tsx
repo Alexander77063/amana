@@ -66,7 +66,7 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
     return (
       <Screen title="Notification preferences">
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Skeleton lines={4} />
+          <Skeleton />
         </View>
       </Screen>
     );
@@ -76,7 +76,7 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
     return (
       <Screen title="Notification preferences">
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
-          <Body style={{ color: theme.colors.debit }}>Couldn&apos;t load: {errorCode}</Body>
+          <Body style={{ color: theme.colors.debit }}>{`Couldn't load: ${errorCode ?? ''}`}</Body>
           <Button label="RETRY" onPress={() => void bootstrap()} />
         </View>
       </Screen>

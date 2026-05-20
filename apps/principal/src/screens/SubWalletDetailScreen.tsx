@@ -45,7 +45,7 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
     return (
       <Screen title="Sub-wallet">
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Skeleton lines={3} />
+          <Skeleton />
         </View>
       </Screen>
     );
@@ -97,7 +97,7 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
         >
           <View
             style={{
-              backgroundColor: theme.colors['bg.surface'],
+              backgroundColor: theme.colors.bg.surface,
               borderTopLeftRadius: 16,
               borderTopRightRadius: 16,
               paddingVertical: 8,
@@ -151,9 +151,7 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
         {rules && rules.rules.length === 0 && <Body muted>(empty rule set)</Body>}
         {rules?.rules.map((r) => (
           <View key={r.id} style={{ gap: 4, paddingVertical: 6 }}>
-            <Body strong>
-              {r.kind} (priority {r.priority})
-            </Body>
+            <Body strong>{`${r.kind} (priority ${r.priority})`}</Body>
             <Caption>{JSON.stringify(r.configJson)}</Caption>
           </View>
         ))}

@@ -6,7 +6,7 @@ export function SplashScreen(): JSX.Element {
     <Screen>
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24 }}>
         <CoinSealWordmark size={40} />
-        <Skeleton lines={1} width={120} />
+        <Skeleton width={120} />
       </View>
     </Screen>
   );

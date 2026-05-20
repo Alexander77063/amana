@@ -18,12 +18,12 @@ export function SubWalletsListScreen({ navigation }: Props): JSX.Element {
     if (household) void refreshList(household.id);
   }, [household, refreshList]);
 
-  if (!household) return <Screen title="Sub-wallets" />;
+  if (!household) return <Screen title="Sub-wallets">{null}</Screen>;
 
   if (busy && list.length === 0) {
     return (
       <Screen title="Sub-wallets">
-        <Skeleton lines={3} />
+        <Skeleton />
       </Screen>
     );
   }

@@ -87,7 +87,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
     return (
       <Screen title="Transaction">
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Skeleton lines={4} />
+          <Skeleton />
         </View>
       </Screen>
     );
@@ -182,7 +182,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
       {showAnomaly ? (
         <Card>
           <Body style={{ color: theme.colors.accent }}>
-            ⚠ Anomaly score {txn.anomalyScore?.toFixed(2)}
+            ⚠ Anomaly score {txn.anomalyScore?.toFixed(2) ?? ''}
           </Body>
         </Card>
       ) : null}

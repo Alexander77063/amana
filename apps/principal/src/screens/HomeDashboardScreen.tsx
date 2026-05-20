@@ -41,7 +41,7 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
     return (
       <Screen>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Skeleton lines={3} />
+          <Skeleton />
         </View>
       </Screen>
     );
@@ -51,7 +51,7 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
     return (
       <Screen>
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
-          <Body style={{ color: theme.colors.debit }}>Couldn&apos;t load: {errorCode}</Body>
+          <Body style={{ color: theme.colors.debit }}>{`Couldn't load: ${errorCode ?? ''}`}</Body>
           <Button label="RETRY" onPress={() => void bootstrap()} />
         </View>
       </Screen>
@@ -59,7 +59,7 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
   }
 
   if (!household || !masterWallet) {
-    return <Screen />;
+    return <Screen>{null}</Screen>;
   }
 
   return (
@@ -94,7 +94,7 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
       <Pressable onPress={() => navigation.navigate('Members')}>
         <Card style={{ paddingVertical: 16 }}>
           <Body strong>Agents</Body>
-          <Body muted>{members.length} paired</Body>
+          <Body muted>{`${members.length} paired`}</Body>
         </Card>
       </Pressable>
 

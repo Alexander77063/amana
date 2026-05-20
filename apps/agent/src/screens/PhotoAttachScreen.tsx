@@ -168,7 +168,7 @@ export function PhotoAttachScreen({ route, navigation }: Props): JSX.Element {
         backgroundColor: theme.colors.bg.base,
       }}
     >
-      <Body style={{ color: theme.colors.debit, textAlign: 'center' }}>{errorMsg}</Body>
+      <Body style={{ color: theme.colors.debit, textAlign: 'center' }}>{errorMsg ?? ''}</Body>
       <Button label="TRY AGAIN" onPress={() => setPhase('camera')} fullWidth={false} />
     </View>
   );

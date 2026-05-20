@@ -86,7 +86,7 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
     <Card style={{ gap: 8 }}>
       <AmountText size="lg" value={formatNaira(item.amountKobo)} sentiment="debit" />
       <Body strong>{item.vendorResolvedName}</Body>
-      <Caption>Expires {expiresInLabel(item.expiresAt, now)}</Caption>
+      <Caption>{`Expires ${expiresInLabel(item.expiresAt, now)}`}</Caption>
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
         <Button
           label="APPROVE"
@@ -118,7 +118,7 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
     return (
       <Screen title="Requests">
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Skeleton lines={3} />
+          <Skeleton />
         </View>
       </Screen>
     );
@@ -128,7 +128,7 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
     return (
       <Screen title="Requests">
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
-          <Body style={{ color: theme.colors.debit }}>Couldn&apos;t load: {errorCode}</Body>
+          <Body style={{ color: theme.colors.debit }}>{`Couldn't load: ${errorCode ?? ''}`}</Body>
           <Button label="RETRY" onPress={() => void refresh()} />
         </View>
       </Screen>

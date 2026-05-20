@@ -48,7 +48,7 @@ export function CreateSubWalletScreen({ navigation }: Props): JSX.Element {
     }
   });
 
-  if (!household) return <Screen title="New sub-wallet" />;
+  if (!household) return <Screen title="New sub-wallet">{null}</Screen>;
 
   if (agents.length === 0) {
     return (
@@ -81,13 +81,13 @@ export function CreateSubWalletScreen({ navigation }: Props): JSX.Element {
                 >
                   <Card accent={active}>
                     <Body strong>{m.phone}</Body>
-                    <Caption>KYC tier {m.kycTier}</Caption>
+                    <Caption>{`KYC tier ${m.kycTier}`}</Caption>
                   </Card>
                 </Pressable>
               );
             })}
             {fieldState.error ? (
-              <Body style={{ color: theme.colors.debit }}>{fieldState.error.message}</Body>
+              <Body style={{ color: theme.colors.debit }}>{fieldState.error.message ?? ''}</Body>
             ) : null}
           </View>
         )}

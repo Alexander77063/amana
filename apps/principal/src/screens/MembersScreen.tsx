@@ -15,7 +15,7 @@ export function MembersScreen(): JSX.Element {
   if (status === 'loading') {
     return (
       <Screen title="Agents">
-        <Skeleton lines={3} />
+        <Skeleton />
       </Screen>
     );
   }
@@ -40,9 +40,7 @@ export function MembersScreen(): JSX.Element {
         renderItem={({ item }) => (
           <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#ddd', gap: 4 }}>
             <Body strong>{item.phone}</Body>
-            <Caption>
-              {item.role} · KYC tier {item.kycTier} · {item.status}
-            </Caption>
+            <Caption>{`${item.role} · KYC tier ${item.kycTier} · ${item.status}`}</Caption>
           </View>
         )}
       />

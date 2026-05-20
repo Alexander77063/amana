@@ -28,7 +28,7 @@
       "autoIncrement": true,
       "pnpm": "10.33.2",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://amana-api.fly.dev"
+        "EXPO_PUBLIC_BACKEND_URL": "https://api.amana-ng.com"
       }
     }
   }

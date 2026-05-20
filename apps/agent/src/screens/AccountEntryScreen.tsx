@@ -1,16 +1,13 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
-  KeyboardAvoidingView,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from 'react-native';
+import { Body, Button, Label, Screen, TextInput, useTheme } from '@amana/ui';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
 import type { PayStackParamList } from '../nav/PayStack';
@@ -44,6 +41,7 @@ const BANKS = [
 type Props = NativeStackScreenProps<PayStackParamList, 'AccountEntry'>;
 
 export function AccountEntryScreen({ navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const [bankCode, setBankCode] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [bankFilter, setBankFilter] = useState('');
@@ -80,94 +78,97 @@ export function AccountEntryScreen({ navigation }: Props): JSX.Element {
 
   if (showPicker) {
     return (
-      <View style={styles.container}>
-        <TextInput
-          style={styles.input}
-          placeholder="Search banks…"
-          value={bankFilter}
-          onChangeText={setBankFilter}
-          autoFocus
-        />
+      <Screen title="Select Bank" noPadding>
+        <View style={styles.searchWrapper}>
+          <TextInput
+            placeholder="Search banks…"
+            value={bankFilter}
+            onChangeText={setBankFilter}
+            autoFocus
+          />
+        </View>
         <FlatList
           data={filteredBanks}
           keyExtractor={(b) => b.code}
           renderItem={({ item }) => (
             <Pressable
-              style={styles.bankRow}
+              style={[
+                styles.bankRow,
+                { borderBottomColor: theme.colors.border },
+              ]}
               onPress={() => {
                 setBankCode(item.code);
                 setShowPicker(false);
                 setBankFilter('');
               }}
             >
-              <Text style={styles.bankName}>{item.name}</Text>
+              <Body>{item.name}</Body>
             </Pressable>
           )}
         />
-      </View>
+      </Screen>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <Text style={styles.label}>Bank</Text>
-      <Pressable style={styles.input} onPress={() => setShowPicker(true)}>
-        <Text style={selectedBank ? styles.selected : styles.placeholder}>
-          {selectedBank?.name ?? 'Select bank…'}
-        </Text>
-      </Pressable>
-      <Text style={styles.label}>Account number</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="0123456789"
-        keyboardType="number-pad"
-        maxLength={10}
-        value={accountNumber}
-        onChangeText={setAccountNumber}
-      />
-      {errorMsg && <Text style={styles.err}>{errorMsg}</Text>}
-      {busy ? (
-        <ActivityIndicator />
-      ) : (
-        <Pressable
-          style={[styles.button, (!bankCode || accountNumber.length < 10) && styles.disabled]}
-          disabled={!bankCode || accountNumber.length < 10}
-          onPress={() => void enquire()}
-        >
-          <Text style={styles.buttonText}>Confirm name</Text>
-        </Pressable>
-      )}
-    </KeyboardAvoidingView>
+    <Screen title="Link Account" noPadding>
+      <View style={[styles.formContent, { paddingHorizontal: 20 }]}>
+        <View style={{ marginBottom: 12 }}>
+          <Label style={{ marginBottom: 6 }}>Bank</Label>
+          <Pressable
+            style={[
+              styles.bankSelector,
+              {
+                backgroundColor: theme.colors.bg.surface,
+                borderColor: theme.colors.border,
+              },
+            ]}
+            onPress={() => setShowPicker(true)}
+          >
+            <Text
+              style={[
+                { fontSize: 14 },
+                selectedBank
+                  ? { color: theme.colors.text.primary }
+                  : { color: theme.colors.text.muted },
+              ]}
+            >
+              {selectedBank?.name ?? 'Select bank…'}
+            </Text>
+          </Pressable>
+        </View>
+        <TextInput
+          label="ACCOUNT NUMBER"
+          placeholder="0123456789"
+          keyboardType="number-pad"
+          maxLength={10}
+          value={accountNumber}
+          onChangeText={setAccountNumber}
+        />
+        {errorMsg ? <Body muted>{errorMsg}</Body> : null}
+        <View style={{ marginTop: 8 }}>
+          <Button
+            label="CONFIRM NAME"
+            onPress={() => void enquire()}
+            loading={busy}
+            disabled={busy || !bankCode || accountNumber.length < 10}
+          />
+        </View>
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 12 },
-  label: { fontSize: 14, fontWeight: '600', color: '#444' },
-  input: {
+  searchWrapper: { paddingHorizontal: 20, paddingTop: 12 },
+  bankRow: { paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth },
+  formContent: { flex: 1, gap: 4, paddingTop: 20 },
+  bankSelector: {
     borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    height: 48,
     justifyContent: 'center',
   },
-  placeholder: { color: '#999', fontSize: 16 },
-  selected: { fontSize: 16 },
-  err: { color: '#b00020' },
-  button: {
-    backgroundColor: '#1a1a2e',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-  },
-  disabled: { opacity: 0.4 },
-  buttonText: { color: 'white', fontWeight: '600' },
-  bankRow: { paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  bankName: { fontSize: 15 },
 });

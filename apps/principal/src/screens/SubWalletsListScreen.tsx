@@ -1,6 +1,7 @@
+import { Body, Button, Caption, Card, Screen, Skeleton } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useHouseholdStore } from '../state/household.store';
 import { useSubWalletsStore } from '../state/subwallets.store';
@@ -17,71 +18,53 @@ export function SubWalletsListScreen({ navigation }: Props): JSX.Element {
     if (household) void refreshList(household.id);
   }, [household, refreshList]);
 
-  if (!household) return <View />;
+  if (!household) return <Screen title="Sub-wallets" />;
+
+  if (busy && list.length === 0) {
+    return (
+      <Screen title="Sub-wallets">
+        <Skeleton lines={3} />
+      </Screen>
+    );
+  }
+
+  if (list.length === 0) {
+    return (
+      <Screen title="Sub-wallets">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Body muted>No sub-wallets yet.</Body>
+        </View>
+      </Screen>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      {busy && list.length === 0 ? (
-        <View style={styles.center}>
-          <ActivityIndicator />
-        </View>
-      ) : list.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.muted}>No sub-wallets yet.</Text>
-        </View>
-      ) : (
-        <FlatList
-          contentContainerStyle={styles.list}
-          data={list}
-          keyExtractor={(s) => s.id}
-          renderItem={({ item }) => {
-            const isSnoozedActive =
-              item.snoozedUntil !== null && new Date(item.snoozedUntil) > new Date();
-            return (
-              <Pressable
-                style={styles.row}
-                onPress={() => navigation.navigate('SubWalletDetail', { subWalletId: item.id })}
-              >
-                <View style={styles.rowText}>
-                  <Text style={styles.name}>{item.name}</Text>
-                  <Text style={styles.muted}>{item.status}</Text>
+    <Screen title="Sub-wallets" noPadding>
+      <FlatList
+        contentContainerStyle={{ padding: 24, gap: 12 }}
+        data={list}
+        keyExtractor={(s) => s.id}
+        renderItem={({ item }) => {
+          const isSnoozedActive =
+            item.snoozedUntil !== null && new Date(item.snoozedUntil) > new Date();
+          return (
+            <Pressable
+              onPress={() => navigation.navigate('SubWalletDetail', { subWalletId: item.id })}
+            >
+              <Card style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <View style={{ flex: 1, gap: 4 }}>
+                  <Body strong>{item.name}</Body>
+                  <Caption>{item.status}</Caption>
                 </View>
-                {isSnoozedActive && <Text style={styles.snoozeBadge}>🌙</Text>}
-              </Pressable>
-            );
-          }}
-        />
-      )}
-      <Pressable style={styles.fab} onPress={() => navigation.navigate('CreateSubWallet')}>
-        <Text style={styles.fabText}>＋ New sub-wallet</Text>
-      </Pressable>
-    </View>
+                {isSnoozedActive && <Body>🌙</Body>}
+              </Card>
+            </Pressable>
+          );
+        }}
+      />
+      <View style={{ position: 'absolute', bottom: 32, right: 24 }}>
+        <Button label="＋ NEW SUB-WALLET" onPress={() => navigation.navigate('CreateSubWallet')} />
+      </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  list: { padding: 24, gap: 12 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd',
-  },
-  rowText: { flex: 1, gap: 4 },
-  snoozeBadge: { fontSize: 18, marginLeft: 8 },
-  name: { fontSize: 16, fontWeight: '600' },
-  muted: { color: '#666' },
-  fab: {
-    position: 'absolute',
-    right: 24,
-    bottom: 32,
-    backgroundColor: '#222',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 999,
-  },
-  fabText: { color: 'white', fontWeight: '600' },
-});

@@ -1,16 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Body, Button, Screen, TextInput as UITextInput, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { View } from 'react-native';
 import { z } from 'zod';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useSubWalletsStore } from '../state/subwallets.store';
@@ -35,6 +28,7 @@ export function EditRulesScreen({ navigation, route }: Props): JSX.Element {
   const errorCode = useSubWalletsStore((s) => s.errorCode);
   const refreshRules = useSubWalletsStore((s) => s.refreshRules);
   const publishRules = useSubWalletsStore((s) => s.publishRules);
+  const theme = useTheme();
 
   useEffect(() => {
     void refreshRules(subWalletId);
@@ -79,68 +73,41 @@ export function EditRulesScreen({ navigation, route }: Props): JSX.Element {
   });
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <Text style={styles.title}>Daily limit</Text>
-      <Text style={styles.muted}>
+    <Screen title="Daily limit" keyboardAvoiding scrollable>
+      <Body muted>
         Spend above this in 24 hours triggers a bump request to you. Categories + time windows land
         in a future update.
-      </Text>
+      </Body>
 
       <Controller
         control={control}
         name="dailyLimitNaira"
         render={({ field, fieldState }) => (
           <View>
-            <Text style={styles.label}>Amount (₦)</Text>
-            <TextInput
+            <UITextInput
+              label="AMOUNT (₦)"
               autoFocus
               keyboardType="numeric"
-              style={styles.input}
               value={field.value}
               onChangeText={field.onChange}
               placeholder="50000"
+              error={fieldState.error?.message}
             />
-            {fieldState.error && <Text style={styles.err}>{fieldState.error.message}</Text>}
           </View>
         )}
       />
 
-      {errorCode && <Text style={styles.err}>Server: {errorCode}</Text>}
+      {errorCode ? (
+        <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body>
+      ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        disabled={busy || formState.isSubmitting}
+      <Button
+        label="PUBLISH RULES"
         onPress={onSubmit}
-        style={({ pressed }) => [
-          styles.button,
-          pressed && styles.pressed,
-          (busy || formState.isSubmitting) && styles.disabled,
-        ]}
-      >
-        <Text style={styles.buttonText}>{busy ? 'Saving…' : 'Publish rules'}</Text>
-      </Pressable>
-    </KeyboardAvoidingView>
+        loading={busy || formState.isSubmitting}
+        disabled={busy || formState.isSubmitting}
+        fullWidth
+      />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 12 },
-  title: { fontSize: 22, fontWeight: '600' },
-  label: { fontSize: 12, color: '#666' },
-  muted: { color: '#666' },
-  err: { color: '#b00020' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 18 },
-  button: {
-    backgroundColor: '#222',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-  },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.4 },
-  buttonText: { color: 'white', fontWeight: '600' },
-});

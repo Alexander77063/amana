@@ -1,17 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Body, Button, Card, Caption, Screen, TextInput as UITextInput, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { Pressable, View } from 'react-native';
 import { z } from 'zod';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useHouseholdStore } from '../state/household.store';
@@ -32,6 +24,7 @@ export function CreateSubWalletScreen({ navigation }: Props): JSX.Element {
   const create = useSubWalletsStore((s) => s.create);
   const busy = useSubWalletsStore((s) => s.busy);
   const errorCode = useSubWalletsStore((s) => s.errorCode);
+  const theme = useTheme();
 
   useEffect(() => {
     void refreshMembers();
@@ -55,123 +48,76 @@ export function CreateSubWalletScreen({ navigation }: Props): JSX.Element {
     }
   });
 
-  if (!household) return <View />;
+  if (!household) return <Screen title="New sub-wallet" />;
 
   if (agents.length === 0) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.title}>No paired agents</Text>
-        <Text style={styles.muted}>
-          Pair an agent first, then come back to create a sub-wallet for them.
-        </Text>
-        <Pressable style={styles.button} onPress={() => navigation.navigate('Pairing')}>
-          <Text style={styles.buttonText}>Go to Pairing</Text>
-        </Pressable>
-      </View>
+      <Screen title="New sub-wallet">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+          <Body strong>No paired agents</Body>
+          <Body muted>
+            Pair an agent first, then come back to create a sub-wallet for them.
+          </Body>
+          <Button label="GO TO PAIRING" onPress={() => navigation.navigate('Pairing')} />
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.title}>New sub-wallet</Text>
+    <Screen title="New sub-wallet" keyboardAvoiding scrollable>
+      <Caption>PICK AN AGENT</Caption>
+      <Controller
+        control={control}
+        name="agentUserId"
+        render={({ fieldState }) => (
+          <View style={{ gap: 8 }}>
+            {agents.map((m) => {
+              const active = selectedAgentId === m.userId;
+              return (
+                <Pressable
+                  key={m.userId}
+                  onPress={() => setValue('agentUserId', m.userId, { shouldValidate: true })}
+                >
+                  <Card accent={active}>
+                    <Body strong>{m.phone}</Body>
+                    <Caption>KYC tier {m.kycTier}</Caption>
+                  </Card>
+                </Pressable>
+              );
+            })}
+            {fieldState.error ? (
+              <Body style={{ color: theme.colors.debit }}>{fieldState.error.message}</Body>
+            ) : null}
+          </View>
+        )}
+      />
 
-        <Text style={styles.label}>Pick an agent</Text>
-        <Controller
-          control={control}
-          name="agentUserId"
-          render={({ fieldState }) => (
-            <View style={styles.agentList}>
-              {agents.map((m) => {
-                const active = selectedAgentId === m.userId;
-                return (
-                  <Pressable
-                    key={m.userId}
-                    onPress={() => setValue('agentUserId', m.userId, { shouldValidate: true })}
-                    style={[styles.agentRow, active && styles.agentRowActive]}
-                  >
-                    <Text style={[styles.agentPhone, active && styles.agentPhoneActive]}>
-                      {m.phone}
-                    </Text>
-                    <Text style={[styles.muted, active && styles.agentMutedActive]}>
-                      KYC tier {m.kycTier}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-              {fieldState.error && <Text style={styles.err}>{fieldState.error.message}</Text>}
-            </View>
-          )}
-        />
+      <Controller
+        control={control}
+        name="name"
+        render={({ field, fieldState }) => (
+          <UITextInput
+            label="SUB-WALLET NAME"
+            value={field.value}
+            onChangeText={field.onChange}
+            placeholder="e.g. School fees, Driver, Kitchen"
+            error={fieldState.error?.message}
+          />
+        )}
+      />
 
-        <Controller
-          control={control}
-          name="name"
-          render={({ field, fieldState }) => (
-            <View>
-              <Text style={styles.label}>Sub-wallet name</Text>
-              <TextInput
-                style={styles.input}
-                value={field.value}
-                onChangeText={field.onChange}
-                placeholder="e.g. School fees, Driver, Kitchen"
-              />
-              {fieldState.error && <Text style={styles.err}>{fieldState.error.message}</Text>}
-            </View>
-          )}
-        />
+      {errorCode ? (
+        <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body>
+      ) : null}
 
-        {errorCode && <Text style={styles.err}>Server: {errorCode}</Text>}
-
-        <Pressable
-          accessibilityRole="button"
-          disabled={busy || formState.isSubmitting}
-          onPress={onSubmit}
-          style={({ pressed }) => [
-            styles.button,
-            pressed && styles.pressed,
-            (busy || formState.isSubmitting) && styles.disabled,
-          ]}
-        >
-          <Text style={styles.buttonText}>{busy ? 'Creating…' : 'Create sub-wallet'}</Text>
-        </Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      <Button
+        label={busy ? 'CREATING…' : 'CREATE SUB-WALLET'}
+        onPress={onSubmit}
+        loading={busy}
+        disabled={busy || formState.isSubmitting}
+        fullWidth
+      />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scroll: { padding: 24, gap: 16 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  title: { fontSize: 22, fontWeight: '600' },
-  label: { fontSize: 12, color: '#666' },
-  muted: { color: '#666' },
-  err: { color: '#b00020' },
-  agentList: { gap: 8 },
-  agentRow: {
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    gap: 4,
-  },
-  agentRowActive: { borderColor: '#222', backgroundColor: '#222' },
-  agentPhone: { fontSize: 16, fontWeight: '600', color: '#222' },
-  agentPhoneActive: { color: 'white' },
-  agentMutedActive: { color: '#ccc' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 18 },
-  button: {
-    backgroundColor: '#222',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-  },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.4 },
-  buttonText: { color: 'white', fontWeight: '600' },
-});

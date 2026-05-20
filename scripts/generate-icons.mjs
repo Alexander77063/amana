@@ -7,10 +7,10 @@
  *   assets/splash-icon.png   — 512×512, transparent bg + white A mark (centred on splash screen)
  */
 
+import { mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
-import { mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
@@ -28,18 +28,16 @@ function aSvg({ size = 1024, strokeColor, bgColor = null } = {}) {
   const pts = {
     apexX: Math.round(512 * scale),
     apexY: Math.round(168 * scale),
-    blX:   Math.round(196 * scale),
-    blY:   Math.round(836 * scale),
-    brX:   Math.round(828 * scale),
-    brY:   Math.round(836 * scale),
-    cbLX:  Math.round(323 * scale),
-    cbRX:  Math.round(701 * scale),
-    cbY:   Math.round(568 * scale),
+    blX: Math.round(196 * scale),
+    blY: Math.round(836 * scale),
+    brX: Math.round(828 * scale),
+    brY: Math.round(836 * scale),
+    cbLX: Math.round(323 * scale),
+    cbRX: Math.round(701 * scale),
+    cbY: Math.round(568 * scale),
   };
 
-  const bg = bgColor
-    ? `<rect width="${size}" height="${size}" fill="${bgColor}"/>`
-    : '';
+  const bg = bgColor ? `<rect width="${size}" height="${size}" fill="${bgColor}"/>` : '';
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
   ${bg}
@@ -56,37 +54,28 @@ function aSvg({ size = 1024, strokeColor, bgColor = null } = {}) {
 
 async function writePng(svg, outPath) {
   await sharp(Buffer.from(svg)).png().toFile(outPath);
-  console.log('  ✓', outPath.replace(root, '.'));
+  console.info('  ✓', outPath.replace(root, '.'));
 }
 
 // ─── Apps ────────────────────────────────────────────────────────────────────
 const apps = [
-  { name: 'agent',     accentColor: '#0EA5E9' }, // sky blue  — action / forward
+  { name: 'agent', accentColor: '#0EA5E9' }, // sky blue  — action / forward
   { name: 'principal', accentColor: '#F59E0B' }, // amber     — authority / wealth
 ];
 
 for (const { name, accentColor } of apps) {
-  console.log(`\n${name} (${accentColor})`);
+  console.info(`\n${name} (${accentColor})`);
   const dir = join(root, 'apps', name, 'assets');
   mkdirSync(dir, { recursive: true });
 
   // Full icon: dark bg + coloured A
-  await writePng(
-    aSvg({ strokeColor: accentColor, bgColor: BG }),
-    join(dir, 'icon.png'),
-  );
+  await writePng(aSvg({ strokeColor: accentColor, bgColor: BG }), join(dir, 'icon.png'));
 
   // Adaptive icon foreground: transparent bg + coloured A
-  await writePng(
-    aSvg({ strokeColor: accentColor }),
-    join(dir, 'adaptive-icon.png'),
-  );
+  await writePng(aSvg({ strokeColor: accentColor }), join(dir, 'adaptive-icon.png'));
 
   // Splash logo: 512px, transparent bg + white A (overlaid on dark splash bg)
-  await writePng(
-    aSvg({ size: 512, strokeColor: '#FFFFFF' }),
-    join(dir, 'splash-icon.png'),
-  );
+  await writePng(aSvg({ size: 512, strokeColor: '#FFFFFF' }), join(dir, 'splash-icon.png'));
 }
 
-console.log('\nDone.');
+console.info('\nDone.');

@@ -17,12 +17,7 @@
     "format:check": "biome format ."
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "@biomejs/biome",
-      "argon2",
-      "esbuild",
-      "sharp"
-    ]
+    "onlyBuiltDependencies": ["@biomejs/biome", "argon2", "esbuild", "sharp"]
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",

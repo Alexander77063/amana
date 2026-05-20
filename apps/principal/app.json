@@ -19,9 +19,7 @@
         "NFCReaderUsageDescription": "Used to pair with an agent device via NFC tap."
       },
       "entitlements": {
-        "com.apple.developer.nfc.readersession.formats": [
-          "TAG"
-        ]
+        "com.apple.developer.nfc.readersession.formats": ["TAG"]
       }
     },
     "android": {
@@ -32,10 +30,7 @@
         "backgroundColor": "#1C1C1E"
       }
     },
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "plugins": [
       "expo-secure-store",
       [

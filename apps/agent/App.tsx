@@ -8,14 +8,18 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
     this.state = { error: null };
   }
   static getDerivedStateFromError(error: unknown) {
-    return { error: error instanceof Error ? `${error.message}\n\n${error.stack ?? ''}` : String(error) };
+    return {
+      error: error instanceof Error ? `${error.message}\n\n${error.stack ?? ''}` : String(error),
+    };
   }
   render() {
     if (this.state.error) {
       return (
         <ScrollView contentContainerStyle={{ padding: 24, paddingTop: 60 }}>
           <Text style={{ color: 'red', fontWeight: '700', marginBottom: 8 }}>CRASH</Text>
-          <Text style={{ color: 'red', fontFamily: 'monospace', fontSize: 12 }}>{this.state.error}</Text>
+          <Text style={{ color: 'red', fontFamily: 'monospace', fontSize: 12 }}>
+            {this.state.error}
+          </Text>
         </ScrollView>
       );
     }

@@ -17,7 +17,10 @@ const EnvSchema = z.object({
   TERMII_API_KEY: z.string().optional(),
   TERMII_BASE_URL: z.string().default('https://api.ng.termii.com'),
   TERMII_SENDER_ID: z.string().default('Amana'),
-  DEV_OTP_BYPASS_CODE: z.string().regex(/^\d{6}$/).optional(),
+  DEV_OTP_BYPASS_CODE: z
+    .string()
+    .regex(/^\d{6}$/)
+    .optional(),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 chars'),
   JWT_ISSUER: z.string().default('amana'),
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(300),

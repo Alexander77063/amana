@@ -1,6 +1,7 @@
+import { Badge, Body, Card, Screen, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import NfcManager, { Ndef, NfcEvents } from 'react-native-nfc-manager';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
@@ -9,6 +10,7 @@ import type { PairingStackParamList } from '../nav/PairingStack';
 type Props = NativeStackScreenProps<PairingStackParamList, 'NFCPair'> & { onPaired: () => void };
 
 export function NFCPairScreen({ navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const [phase, setPhase] = useState<'waiting' | 'reading' | 'error'>('waiting');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -61,26 +63,36 @@ export function NFCPairScreen({ navigation }: Props): JSX.Element {
   }, [navigation]);
 
   return (
-    <View style={styles.container}>
-      {phase === 'waiting' && (
-        <>
-          <Text style={styles.title}>Hold phones together</Text>
-          <Text style={styles.sub}>
-            Touch the backs of both Android phones. The principal&apos;s app will emit the pairing
-            token via NFC.
-          </Text>
-          <ActivityIndicator size="large" style={{ marginTop: 24 }} />
-        </>
-      )}
-      {phase === 'reading' && <ActivityIndicator size="large" />}
-      {phase === 'error' && <Text style={styles.err}>{errorMsg}</Text>}
-    </View>
+    <Screen title="NFC Pairing">
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <Card style={{ alignItems: 'center', gap: 12, width: '100%' }}>
+          {phase === 'waiting' && (
+            <>
+              <Badge label="WAITING" variant="neutral" />
+              <Body strong>Hold phones together</Body>
+              <Body muted style={{ textAlign: 'center' }}>
+                Touch the backs of both Android phones. The principal's app will emit the pairing
+                token via NFC.
+              </Body>
+              <ActivityIndicator size="large" style={{ marginTop: 8 }} />
+            </>
+          )}
+          {phase === 'reading' && (
+            <>
+              <Badge label="READING" variant="warning" />
+              <ActivityIndicator size="large" />
+            </>
+          )}
+          {phase === 'error' && (
+            <>
+              <Badge label="ERROR" variant="error" />
+              <Body style={{ textAlign: 'center', color: theme.colors.debit }}>
+                {errorMsg ?? 'NFC error'}
+              </Body>
+            </>
+          )}
+        </Card>
+      </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 22, fontWeight: '600', textAlign: 'center' },
-  sub: { color: '#666', textAlign: 'center' },
-  err: { color: '#b00020', textAlign: 'center' },
-});

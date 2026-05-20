@@ -1,6 +1,7 @@
+import { Body, Button, Card, Heading, Screen, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
 import type { PairingStackParamList } from '../nav/PairingStack';
@@ -10,6 +11,7 @@ type Props = NativeStackScreenProps<PairingStackParamList, 'PairingMethod'> & {
 };
 
 export function PairingMethodScreen({ navigation, route }: Props): JSX.Element {
+  const theme = useTheme();
   const pendingToken = route.params?.pendingToken;
 
   useEffect(() => {
@@ -31,47 +33,29 @@ export function PairingMethodScreen({ navigation, route }: Props): JSX.Element {
   }, [pendingToken, navigation]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Pair your wallet</Text>
-      <Text style={styles.sub}>
-        Choose how to connect with your principal&apos;s Amana account.
-      </Text>
+    <Screen title="Pair with Principal">
+      <View style={{ gap: 12, marginTop: 8 }}>
+        <Card style={{ gap: 8 }}>
+          <Heading size="md">Scan QR code</Heading>
+          <Body muted>Principal shows a QR — you scan it.</Body>
+          <Button label="SCAN QR" onPress={() => navigation.navigate('QRScan')} />
+        </Card>
 
-      <Pressable style={styles.option} onPress={() => navigation.navigate('QRScan')}>
-        <Text style={styles.optTitle}>Scan QR code</Text>
-        <Text style={styles.optSub}>Principal shows a QR — you scan it.</Text>
-      </Pressable>
+        {Platform.OS === 'android' && (
+          <Card style={{ gap: 8 }}>
+            <Heading size="md">NFC tap</Heading>
+            <Body muted>Touch phones together. Android only.</Body>
+            <Button label="USE NFC" onPress={() => navigation.navigate('NFCPair')} />
+          </Card>
+        )}
 
-      {Platform.OS === 'android' && (
-        <Pressable style={styles.option} onPress={() => navigation.navigate('NFCPair')}>
-          <Text style={styles.optTitle}>NFC tap</Text>
-          <Text style={styles.optSub}>Touch phones together. Android only.</Text>
-        </Pressable>
-      )}
-
-      <View style={[styles.option, styles.passive]}>
-        <Text style={styles.optTitle}>SMS link</Text>
-        <Text style={styles.optSub}>
-          Ask your principal to share a link. Tap it and this screen will complete automatically.
-        </Text>
+        <Card style={{ gap: 8 }}>
+          <Heading size="md">SMS link</Heading>
+          <Body muted>
+            Ask your principal to share a link. Tap it and this screen will complete automatically.
+          </Body>
+        </Card>
       </View>
-    </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16 },
-  title: { fontSize: 22, fontWeight: '600' },
-  sub: { color: '#666', fontSize: 14 },
-  option: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 12,
-    padding: 16,
-    gap: 4,
-    backgroundColor: '#fff',
-  },
-  passive: { backgroundColor: '#f5f5f5' },
-  optTitle: { fontSize: 16, fontWeight: '600' },
-  optSub: { fontSize: 13, color: '#666' },
-});

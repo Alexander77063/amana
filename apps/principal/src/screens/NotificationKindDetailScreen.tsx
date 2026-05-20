@@ -1,7 +1,8 @@
 import type { ChannelPreference, NotificationChannel, NotificationKind } from '@amana/types';
+import { Badge, Body, Card, Screen, SectionHeader, TextInput as UITextInput, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useLayoutEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Pressable, Switch, TextInput, View } from 'react-native';
 import {
   koboToNairaDisplay,
   nairaInputToKoboString,
@@ -44,40 +45,34 @@ function kindTitle(kind: NotificationKind): string {
   }
 }
 
-export function NotificationKindDetailScreen({ route, navigation }: Props): JSX.Element {
+export function NotificationKindDetailScreen({ route }: Props): JSX.Element {
   const { kind } = route.params;
   const getEffective = usePreferencesStore((s) => s.getEffective);
   const setPref = usePreferencesStore((s) => s.set);
 
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: kindTitle(kind) });
-  }, [navigation, kind]);
-
   const isThreshold = isThresholdKind(kind);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
+    <Screen title={kindTitle(kind)} scrollable>
       {CHANNELS.map((channel) => {
         const eff = getEffective(kind, channel);
         return (
-          <View key={channel} style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{CHANNEL_LABELS[channel]}</Text>
-              {eff.isDefault && (
-                <View style={styles.defaultPill}>
-                  <Text style={styles.defaultPillText}>Default</Text>
-                </View>
-              )}
+          <View key={channel} style={{ gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <SectionHeader title={CHANNEL_LABELS[channel]} />
+              {eff.isDefault && <Badge label="Default" variant="neutral" />}
             </View>
-            {isThreshold ? (
-              <ThresholdControl kind={kind} channel={channel} effective={eff} onSet={setPref} />
-            ) : (
-              <BinaryControl kind={kind} channel={channel} effective={eff} onSet={setPref} />
-            )}
+            <Card>
+              {isThreshold ? (
+                <ThresholdControl kind={kind} channel={channel} effective={eff} onSet={setPref} />
+              ) : (
+                <BinaryControl kind={kind} channel={channel} effective={eff} onSet={setPref} />
+              )}
+            </Card>
           </View>
         );
       })}
-    </ScrollView>
+    </Screen>
   );
 }
 
@@ -99,8 +94,8 @@ function BinaryControl({
 }): JSX.Element {
   const on = effective.preference !== 'silent';
   return (
-    <View style={styles.controlRow}>
-      <Text style={styles.muted}>{on ? 'On' : 'Off'}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Body muted>{on ? 'On' : 'Off'}</Body>
       <Switch
         value={on}
         onValueChange={(next) => {
@@ -132,6 +127,7 @@ function ThresholdControl({
     thresholdKobo?: string | null;
   }) => Promise<void>;
 }): JSX.Element {
+  const theme = useTheme();
   const isAnomaly = kind === 'anomaly_alert';
   const [draft, setDraft] = useState(() => {
     if (effective.thresholdKobo === null) return '';
@@ -141,8 +137,6 @@ function ThresholdControl({
   });
 
   // Re-sync draft when entering 'threshold' mode and a server-saved value is present.
-  // Avoids the "empty input despite saved threshold" UX trap when a user toggles
-  // silent → threshold mid-screen with a preserved thresholdKobo.
   useEffect(() => {
     if (effective.preference !== 'threshold' || effective.thresholdKobo === null) return;
     setDraft(
@@ -153,9 +147,6 @@ function ThresholdControl({
   }, [effective.preference, effective.thresholdKobo, isAnomaly]);
 
   const choose = (next: ChannelPreference) => {
-    // Preserve the saved thresholdKobo across all mode toggles. Backend stores it
-    // regardless of preference; shouldSend only consults it when preference === 'threshold',
-    // so the saved value is harmless when off and ready when the user toggles back.
     void onSet({
       kind,
       channel,
@@ -168,7 +159,7 @@ function ThresholdControl({
     const koboStr = isAnomaly
       ? scorePercentInputToThresholdKobo(draft)
       : nairaInputToKoboString(draft);
-    if (koboStr === null) return; // ignore invalid input; user can correct
+    if (koboStr === null) return;
     void onSet({
       kind,
       channel,
@@ -179,7 +170,7 @@ function ThresholdControl({
 
   return (
     <View>
-      <View style={styles.segmented}>
+      <View style={{ flexDirection: 'row', borderRadius: 999, backgroundColor: theme.colors['bg.raised'], padding: 4 }}>
         <SegBtn
           label="Real-time"
           active={effective.preference === 'real_time'}
@@ -197,12 +188,20 @@ function ThresholdControl({
         />
       </View>
       {effective.preference === 'threshold' && (
-        <View style={styles.thresholdInput}>
-          <Text style={styles.muted}>
+        <View style={{ marginTop: 12, gap: 6 }}>
+          <Body muted>
             {isAnomaly ? 'Score above (%, 0–100):' : 'Notify me above (₦):'}
-          </Text>
+          </Body>
           <TextInput
-            style={styles.input}
+            style={{
+              borderWidth: 0.5,
+              borderColor: theme.colors.border,
+              borderRadius: 8,
+              padding: 12,
+              fontSize: 16,
+              color: theme.colors['text.primary'],
+              backgroundColor: theme.colors['bg.surface'],
+            }}
             value={draft}
             onChangeText={setDraft}
             onBlur={commitThreshold}
@@ -224,38 +223,16 @@ function SegBtn({
   active: boolean;
   onPress: () => void;
 }): JSX.Element {
+  const theme = useTheme();
   return (
-    <Pressable style={[styles.seg, active && styles.segActive]} onPress={onPress}>
-      <Text style={[styles.segText, active && styles.segTextActive]}>{label}</Text>
+    <Pressable
+      style={[
+        { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 999 },
+        active && { backgroundColor: theme.colors.accent },
+      ]}
+      onPress={onPress}
+    >
+      <Body style={[{ fontSize: 13 }, active && { color: theme.colors['bg.base'] }]}>{label}</Body>
     </Pressable>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 24, gap: 24 },
-  section: { gap: 8 },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sectionTitle: { fontSize: 16, fontWeight: '600' },
-  defaultPill: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: '#e0e0e0',
-  },
-  defaultPillText: { fontSize: 11, fontWeight: '600', color: '#444' },
-  controlRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  muted: { color: '#666' },
-  segmented: { flexDirection: 'row', borderRadius: 999, backgroundColor: '#f3f3f3', padding: 4 },
-  seg: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 999 },
-  segActive: { backgroundColor: '#222' },
-  segText: { fontSize: 13, color: '#444', fontWeight: '500' },
-  segTextActive: { color: 'white' },
-  thresholdInput: { marginTop: 12, gap: 6 },
-  input: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#bbb',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-  },
-});

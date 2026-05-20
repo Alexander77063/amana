@@ -1,14 +1,12 @@
 import type { Notification, NotificationKind } from '@amana/types';
+import { Body, Button, Caption, Screen, Skeleton, useTheme } from '@amana/ui';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useCallback, useLayoutEffect } from 'react';
+import { useCallback } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   RefreshControl,
-  StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { deepLinkFor } from '../lib/push';
@@ -53,23 +51,13 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
   const markRead = useNotificationsStore((s) => s.markRead);
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
   const unreadCount = useNotificationsStore((s) => s.unreadCount);
+  const theme = useTheme();
 
   useFocusEffect(
     useCallback(() => {
       void refresh();
     }, [refresh]),
   );
-
-  useLayoutEffect(() => {
-    navigation.setOptions({
-      headerRight: () =>
-        unreadCount > 0 ? (
-          <Pressable onPress={() => void markAllRead()}>
-            <Text style={styles.headerAction}>Mark all read</Text>
-          </Pressable>
-        ) : null,
-    });
-  }, [navigation, unreadCount, markAllRead]);
 
   const onTap = (n: Notification) => {
     void markRead(n.id);
@@ -85,87 +73,91 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
     // 'none' → mark-read only.
   };
 
+  const headerRight =
+    unreadCount > 0 ? (
+      <Pressable onPress={() => void markAllRead()}>
+        <Body style={{ color: theme.colors.accent }}>Mark all read</Body>
+      </Pressable>
+    ) : undefined;
+
   // Only show the full-screen loader on initial load (no items yet).
-  // For pull-to-refresh and on-focus refreshes, the RefreshControl spinner handles the visual.
   if ((status === 'idle' || status === 'loading') && items.length === 0) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
+      <Screen title="Notifications" headerRight={headerRight}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Skeleton lines={3} />
+        </View>
+      </Screen>
     );
   }
 
   if (status === 'error') {
     return (
-      <View style={styles.center}>
-        <Text style={styles.err}>Couldn&apos;t load: {errorCode}</Text>
-        <Pressable style={styles.button} onPress={() => void refresh()}>
-          <Text style={styles.buttonText}>Retry</Text>
-        </Pressable>
-      </View>
+      <Screen title="Notifications" headerRight={headerRight}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+          <Body style={{ color: theme.colors.debit }}>Couldn&apos;t load: {errorCode}</Body>
+          <Button label="RETRY" onPress={() => void refresh()} />
+        </View>
+      </Screen>
     );
   }
 
   if (items.length === 0) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.muted}>Nothing here yet.</Text>
-      </View>
+      <Screen title="Notifications" headerRight={headerRight}>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Body muted>Nothing here yet.</Body>
+        </View>
+      </Screen>
     );
   }
 
   const now = new Date();
 
   return (
-    <FlatList
-      contentContainerStyle={styles.container}
-      data={items}
-      keyExtractor={(n) => n.id}
-      renderItem={({ item }) => {
-        const unread = item.status !== 'read';
-        const payload = (item.payloadJson ?? {}) as Record<string, unknown>;
-        const body = typeof payload.body === 'string' ? payload.body : '';
-        return (
-          <Pressable style={styles.row} onPress={() => onTap(item)}>
-            {unread && <View style={styles.dot} />}
-            <View style={styles.rowText}>
-              <Text style={[styles.title, unread && styles.bold]}>{titleFor(item.kind)}</Text>
-              {body ? <Text style={styles.body}>{body}</Text> : null}
-              <Text style={styles.muted}>{relativeTime(item.createdAt, now)}</Text>
-            </View>
-          </Pressable>
-        );
-      }}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />}
-    />
+    <Screen title="Notifications" noPadding headerRight={headerRight}>
+      <FlatList
+        contentContainerStyle={{ paddingVertical: 8 }}
+        data={items}
+        keyExtractor={(n) => n.id}
+        renderItem={({ item }) => {
+          const unread = item.status !== 'read';
+          const payload = (item.payloadJson ?? {}) as Record<string, unknown>;
+          const body = typeof payload.body === 'string' ? payload.body : '';
+          return (
+            <Pressable
+              style={{
+                flexDirection: 'row',
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                borderBottomWidth: 0.5,
+                borderBottomColor: theme.colors.border,
+                gap: 12,
+                alignItems: 'flex-start',
+              }}
+              onPress={() => onTap(item)}
+            >
+              {unread && (
+                <View
+                  style={{
+                    width: 8,
+                    height: 8,
+                    borderRadius: 4,
+                    backgroundColor: theme.colors.accent,
+                    marginTop: 6,
+                  }}
+                />
+              )}
+              <View style={{ flex: 1, gap: 2 }}>
+                <Body strong={unread}>{titleFor(item.kind)}</Body>
+                {body ? <Body>{body}</Body> : null}
+                <Caption>{relativeTime(item.createdAt, now)}</Caption>
+              </View>
+            </Pressable>
+          );
+        }}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />}
+      />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { paddingVertical: 8 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  row: {
-    flexDirection: 'row',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd',
-    gap: 12,
-    alignItems: 'flex-start',
-  },
-  rowText: { flex: 1, gap: 2 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#1769ff', marginTop: 6 },
-  title: { fontSize: 14, color: '#222' },
-  bold: { fontWeight: '700' },
-  body: { fontSize: 14, color: '#444' },
-  muted: { color: '#666', fontSize: 12 },
-  err: { color: '#b00020' },
-  button: {
-    backgroundColor: '#222',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  buttonText: { color: 'white', fontWeight: '600' },
-  headerAction: { color: '#1769ff', fontSize: 14, fontWeight: '600' },
-});

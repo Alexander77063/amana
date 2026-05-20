@@ -1,7 +1,8 @@
 import type { QuietHours } from '@amana/types';
+import { Body, Button, Card, Caption, Screen, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useEffect, useLayoutEffect, useState } from 'react';
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Switch, TextInput, View } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
 import { usePreferencesStore } from '../state/preferences.store';
 
@@ -25,10 +26,7 @@ export function QuietHoursScreen({ navigation }: Props): JSX.Element {
   const quietHours = usePreferencesStore((s) => s.quietHours);
   const saveQuietHours = usePreferencesStore((s) => s.saveQuietHours);
   const errorCode = usePreferencesStore((s) => s.errorCode);
-
-  useLayoutEffect(() => {
-    navigation.setOptions({ title: 'Quiet hours' });
-  }, [navigation]);
+  const theme = useTheme();
 
   const initial: QuietHours = quietHours ?? {
     enabled: false,
@@ -68,27 +66,41 @@ export function QuietHoursScreen({ navigation }: Props): JSX.Element {
     setSaving(false);
   };
 
-  return (
-    <View style={styles.container}>
-      <View style={styles.row}>
-        <Text style={styles.label}>Quiet hours</Text>
-        <Switch value={enabled} onValueChange={setEnabled} />
-      </View>
+  const timeInputStyle = {
+    borderWidth: 0.5,
+    borderColor: theme.colors.border,
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 18,
+    width: 60,
+    textAlign: 'center' as const,
+    color: theme.colors['text.primary'],
+    backgroundColor: theme.colors['bg.surface'],
+  };
 
-      <View style={styles.timeBlock}>
-        <Text style={styles.subLabel}>Start</Text>
-        <View style={styles.timeRow}>
+  return (
+    <Screen title="Quiet hours" scrollable keyboardAvoiding>
+      <Card>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Body strong>Quiet hours</Body>
+          <Switch value={enabled} onValueChange={setEnabled} />
+        </View>
+      </Card>
+
+      <Card>
+        <Caption>Start</Caption>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
           <TextInput
-            style={styles.timeInput}
+            style={timeInputStyle}
             value={startHH}
             onChangeText={setStartHH}
             keyboardType="number-pad"
             maxLength={2}
             placeholder="22"
           />
-          <Text style={styles.colon}>:</Text>
+          <Body strong>:</Body>
           <TextInput
-            style={styles.timeInput}
+            style={timeInputStyle}
             value={startMM}
             onChangeText={setStartMM}
             keyboardType="number-pad"
@@ -96,22 +108,22 @@ export function QuietHoursScreen({ navigation }: Props): JSX.Element {
             placeholder="00"
           />
         </View>
-      </View>
+      </Card>
 
-      <View style={styles.timeBlock}>
-        <Text style={styles.subLabel}>End</Text>
-        <View style={styles.timeRow}>
+      <Card>
+        <Caption>End</Caption>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 }}>
           <TextInput
-            style={styles.timeInput}
+            style={timeInputStyle}
             value={endHH}
             onChangeText={setEndHH}
             keyboardType="number-pad"
             maxLength={2}
             placeholder="07"
           />
-          <Text style={styles.colon}>:</Text>
+          <Body strong>:</Body>
           <TextInput
-            style={styles.timeInput}
+            style={timeInputStyle}
             value={endMM}
             onChangeText={setEndMM}
             keyboardType="number-pad"
@@ -119,51 +131,23 @@ export function QuietHoursScreen({ navigation }: Props): JSX.Element {
             placeholder="00"
           />
         </View>
-      </View>
+      </Card>
 
-      <Text style={styles.help}>
+      <Body muted>
         Notifications about anomaly alerts and bump requests will still come through.
-      </Text>
+      </Body>
 
-      {errorCode && <Text style={styles.err}>Couldn&apos;t save: {errorCode}</Text>}
+      {errorCode ? (
+        <Body style={{ color: theme.colors.debit }}>Couldn&apos;t save: {errorCode}</Body>
+      ) : null}
 
-      <Pressable
-        style={[styles.button, (!valid || saving) && styles.buttonDisabled]}
+      <Button
+        label="SAVE"
         onPress={onSave}
+        loading={saving}
         disabled={!valid || saving}
-      >
-        <Text style={styles.buttonText}>{saving ? 'Saving…' : 'Save'}</Text>
-      </Pressable>
-    </View>
+        fullWidth
+      />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 24, gap: 24 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  label: { fontSize: 16, fontWeight: '600' },
-  subLabel: { color: '#666', fontSize: 13, marginBottom: 6 },
-  timeBlock: { gap: 4 },
-  timeRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  timeInput: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: '#bbb',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 18,
-    width: 60,
-    textAlign: 'center',
-  },
-  colon: { fontSize: 20, fontWeight: '600' },
-  help: { color: '#666', fontSize: 13 },
-  err: { color: '#b00020' },
-  button: {
-    backgroundColor: '#222',
-    paddingVertical: 12,
-    borderRadius: 999,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: { opacity: 0.5 },
-  buttonText: { color: 'white', fontWeight: '600', fontSize: 16 },
-});

@@ -1,5 +1,14 @@
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  useFonts,
+} from '@expo-google-fonts/plus-jakarta-sans';
+import { StatusBar } from 'expo-status-bar';
 import { Component, type ReactNode } from 'react';
 import { ScrollView, Text } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ThemeProvider } from '@amana/ui';
 import { RootNavigator } from './src/nav/RootNavigator';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
@@ -28,9 +37,20 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
 }
 
 export default function App(): JSX.Element {
+  const [fontsLoaded] = useFonts({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+  });
+
   return (
     <ErrorBoundary>
-      <RootNavigator />
+      <SafeAreaProvider>
+        <StatusBar style="auto" />
+        <ThemeProvider fontsLoaded={fontsLoaded}>
+          <RootNavigator />
+        </ThemeProvider>
+      </SafeAreaProvider>
     </ErrorBoundary>
   );
 }

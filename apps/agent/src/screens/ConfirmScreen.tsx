@@ -1,18 +1,8 @@
+import { AmountText, Body, Button, Card, Label, Screen, TextInput, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { StyleSheet, Switch, View } from 'react-native';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
 import type { PayStackParamList } from '../nav/PayStack';
@@ -20,6 +10,7 @@ import type { PayStackParamList } from '../nav/PayStack';
 type Props = NativeStackScreenProps<PayStackParamList, 'Confirm'>;
 
 export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const { resolvedName, bankCode, accountNumber, accountMasked } = route.params;
   const [amountNaira, setAmountNaira] = useState('');
   const [note, setNote] = useState('');
@@ -85,86 +76,56 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={{ flex: 1 }}
-    >
-      <ScrollView contentContainerStyle={styles.container}>
-        <Text style={styles.resolvedName}>{resolvedName}</Text>
-        <Text style={styles.accountMasked}>{accountMasked}</Text>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>Amount (₦)</Text>
-          <TextInput
-            style={styles.amountInput}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
-            value={amountNaira}
-            onChangeText={setAmountNaira}
-            autoFocus
+    <Screen title="Confirm Payment" keyboardAvoiding scrollable>
+      <Card style={{ alignItems: 'center', gap: 4, marginBottom: 8 }}>
+        <Body strong>{resolvedName}</Body>
+        <Body muted>{accountMasked}</Body>
+        {amountNaira ? (
+          <AmountText
+            size="xl"
+            value={`₦${Number.parseFloat(amountNaira || '0').toLocaleString('en-NG', { minimumFractionDigits: 2 })}`}
+            sentiment="debit"
+            style={{ marginTop: 8 }}
           />
-        </View>
+        ) : null}
+      </Card>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Note (optional)</Text>
-          <TextInput
-            style={styles.noteInput}
-            placeholder="What is this for?"
-            value={note}
-            onChangeText={setNote}
-            multiline
-          />
-        </View>
+      <TextInput
+        label="AMOUNT (₦)"
+        keyboardType="decimal-pad"
+        placeholder="0.00"
+        value={amountNaira}
+        onChangeText={setAmountNaira}
+        autoFocus
+        style={{ fontSize: 24, fontWeight: '600', height: 56 }}
+      />
 
-        <View style={styles.row}>
-          <Text style={styles.label}>Capture GPS location</Text>
-          <Switch value={gpsEnabled} onValueChange={setGpsEnabled} />
-        </View>
+      <TextInput
+        label="NOTE (OPTIONAL)"
+        placeholder="What is this for?"
+        value={note}
+        onChangeText={setNote}
+        multiline
+        style={{ minHeight: 72, textAlignVertical: 'top', height: undefined }}
+      />
 
-        {errorMsg && <Text style={styles.err}>{errorMsg}</Text>}
+      <View style={styles.row}>
+        <Body>Capture GPS location</Body>
+        <Switch value={gpsEnabled} onValueChange={setGpsEnabled} />
+      </View>
 
-        {busy ? (
-          <ActivityIndicator style={{ marginTop: 8 }} />
-        ) : (
-          <Pressable style={styles.button} onPress={() => void send()}>
-            <Text style={styles.buttonText}>Send payment</Text>
-          </Pressable>
-        )}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      {errorMsg ? <Body style={{ color: theme.colors.debit }}>{errorMsg}</Body> : null}
+
+      <Button
+        label="CONFIRM PAYMENT"
+        onPress={() => void send()}
+        loading={busy}
+        style={{ marginTop: 8 }}
+      />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 24, gap: 20 },
-  resolvedName: { fontSize: 28, fontWeight: '700', textAlign: 'center' },
-  accountMasked: { fontSize: 15, color: '#888', textAlign: 'center', marginTop: -12 },
-  field: { gap: 6 },
-  label: { fontSize: 14, fontWeight: '600', color: '#444' },
-  amountInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  noteInput: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 15,
-    minHeight: 72,
-    textAlignVertical: 'top',
-  },
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  err: { color: '#b00020' },
-  button: {
-    backgroundColor: '#1a1a2e',
-    paddingVertical: 16,
-    borderRadius: 999,
-    alignItems: 'center',
-  },
-  buttonText: { color: 'white', fontWeight: '700', fontSize: 17 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
 });

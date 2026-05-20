@@ -1,4 +1,5 @@
 import type { TransactionSummary } from '@amana/types';
+import { Badge, Screen, SectionHeader, TransactionRow, useTheme } from '@amana/ui';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
@@ -26,15 +27,15 @@ function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' });
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  settled: '#2e7d32',
-  failed: '#b00020',
-  bump_pending: '#a15a00',
-  in_flight: '#1769ff',
-  reversed: '#888',
-};
+function statusVariant(status: string): 'success' | 'error' | 'warning' | 'neutral' {
+  if (status === 'settled') return 'success';
+  if (status === 'failed' || status === 'reversed') return 'error';
+  if (status === 'bump_pending') return 'warning';
+  return 'neutral';
+}
 
 export function TransactionListScreen({ navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const sw = subWalletMemory.get();
   const [txns, setTxns] = useState<TransactionSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -74,66 +75,62 @@ export function TransactionListScreen({ navigation }: Props): JSX.Element {
   };
 
   return (
-    <FlatList
-      data={txns}
-      keyExtractor={(item) => item.id}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-      contentContainerStyle={styles.list}
-      ListEmptyComponent={
-        loading ? (
-          <ActivityIndicator style={{ marginTop: 40 }} />
-        ) : (
-          <Text style={styles.empty}>No transactions yet.</Text>
-        )
-      }
-      renderItem={({ item }) => (
-        <Pressable
-          style={styles.row}
-          onPress={() => navigation.navigate('TransactionDetail', { transactionId: item.id })}
-        >
-          <View style={styles.rowLeft}>
-            <Text style={styles.vendor}>{item.vendorResolvedName ?? '—'}</Text>
-            <Text style={styles.date}>{formatDate(item.initiatedAt)}</Text>
-          </View>
-          <View style={styles.rowRight}>
-            <Text style={styles.amount}>{formatNaira(item.amountKobo)}</Text>
-            <Text style={[styles.status, { color: STATUS_COLOR[item.status] ?? '#888' }]}>
-              {item.status}
-            </Text>
-          </View>
-        </Pressable>
-      )}
-      ListFooterComponent={
-        nextCursor ? (
-          loadingMore ? (
-            <ActivityIndicator style={{ padding: 16 }} />
+    <Screen title="Transactions" noPadding>
+      <FlatList
+        data={txns}
+        keyExtractor={(item) => item.id}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        ListHeaderComponent={<SectionHeader title="ALL TRANSACTIONS" />}
+        ListEmptyComponent={
+          loading ? (
+            <ActivityIndicator style={{ marginTop: 40 }} />
           ) : (
-            <Pressable style={styles.loadMore} onPress={() => void loadPage(nextCursor, true)}>
-              <Text style={styles.loadMoreText}>Load more</Text>
-            </Pressable>
+            <Text style={[styles.empty, { color: theme.colors.text.muted }]}>
+              No transactions yet.
+            </Text>
           )
-        ) : null
-      }
-    />
+        }
+        renderItem={({ item }) => (
+          <View>
+            <TransactionRow
+              merchant={item.vendorResolvedName ?? '—'}
+              timestamp={formatDate(item.initiatedAt)}
+              amount={formatNaira(item.amountKobo)}
+              sentiment="debit"
+              onPress={() =>
+                navigation.navigate('TransactionDetail', { transactionId: item.id })
+              }
+            />
+            {item.status !== 'settled' && (
+              <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
+                <Badge label={item.status} variant={statusVariant(item.status)} />
+              </View>
+            )}
+          </View>
+        )}
+        ListFooterComponent={
+          nextCursor ? (
+            loadingMore ? (
+              <ActivityIndicator style={{ padding: 16 }} />
+            ) : (
+              <Pressable
+                style={styles.loadMore}
+                onPress={() => void loadPage(nextCursor, true)}
+              >
+                <Text style={[styles.loadMoreText, { color: theme.colors.accent }]}>
+                  Load more
+                </Text>
+              </Pressable>
+            )
+          ) : null
+        }
+      />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { paddingHorizontal: 16, paddingTop: 8 },
-  empty: { textAlign: 'center', color: '#888', marginTop: 40 },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  rowLeft: { gap: 4, flex: 1 },
-  rowRight: { alignItems: 'flex-end', gap: 4 },
-  vendor: { fontSize: 15, fontWeight: '500' },
-  date: { fontSize: 12, color: '#888' },
-  amount: { fontSize: 15, fontWeight: '600' },
-  status: { fontSize: 11, textTransform: 'capitalize' },
+  empty: { textAlign: 'center', marginTop: 40 },
   loadMore: { padding: 16, alignItems: 'center' },
-  loadMoreText: { color: '#1a1a2e', fontWeight: '600' },
+  loadMoreText: { fontWeight: '600' },
 });

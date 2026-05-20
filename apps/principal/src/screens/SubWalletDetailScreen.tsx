@@ -1,12 +1,9 @@
+import { AmountText, Body, Button, Card, Caption, Label, Screen, Skeleton, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Modal,
   Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import { type SnoozePreset, presetToExpiresAt } from '../lib/snooze-presets';
@@ -34,6 +31,7 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
   const setStatus = useSubWalletsStore((s) => s.setStatus);
   const snoozeAction = useSubWalletsStore((s) => s.snooze);
   const unsnoozeAction = useSubWalletsStore((s) => s.unsnooze);
+  const theme = useTheme();
 
   const [actionSheetOpen, setActionSheetOpen] = useState(false);
 
@@ -45,9 +43,11 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
 
   if (!sw) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
+      <Screen title="Sub-wallet">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Skeleton />
+        </View>
+      </Screen>
     );
   }
 
@@ -61,30 +61,29 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>{sw.name}</Text>
-      <Text style={styles.muted}>Status: {sw.status}</Text>
+    <Screen title={sw.name} scrollable>
+      <Body muted>Status: {sw.status}</Body>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Balance</Text>
-        <Text style={styles.balance}>{formatKobo(balance)}</Text>
-      </View>
+      <Card>
+        <Label>BALANCE</Label>
+        <AmountText size="xl" value={formatKobo(balance)} sentiment="neutral" />
+      </Card>
 
-      <View style={styles.card}>
-        <Text style={styles.label}>Notifications</Text>
-        <View style={styles.snoozeRow}>
-          <Text style={styles.snoozeStatus}>{renderSnoozeStatus()}</Text>
+      <Card>
+        <Label>NOTIFICATIONS</Label>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+          <Body>{renderSnoozeStatus()}</Body>
           {isSnoozeActive ? (
             <Pressable onPress={() => void unsnoozeAction(subWalletId)}>
-              <Text style={styles.link}>Unmute</Text>
+              <Body style={{ color: theme.colors.accent }}>Unmute</Body>
             </Pressable>
           ) : (
             <Pressable onPress={() => setActionSheetOpen(true)}>
-              <Text style={styles.link}>Snooze ▾</Text>
+              <Body style={{ color: theme.colors.accent }}>Snooze ▾</Body>
             </Pressable>
           )}
         </View>
-      </View>
+      </Card>
 
       <Modal
         visible={actionSheetOpen}
@@ -92,8 +91,18 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
         animationType="fade"
         onRequestClose={() => setActionSheetOpen(false)}
       >
-        <Pressable style={styles.modalBackdrop} onPress={() => setActionSheetOpen(false)}>
-          <View style={styles.modalSheet}>
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' }}
+          onPress={() => setActionSheetOpen(false)}
+        >
+          <View
+            style={{
+              backgroundColor: theme.colors.bg.surface,
+              borderTopLeftRadius: 16,
+              borderTopRightRadius: 16,
+              paddingVertical: 8,
+            }}
+          >
             {[
               { label: '1 hour', preset: 'one_hour' as SnoozePreset },
               { label: '4 hours', preset: 'four_hours' as SnoozePreset },
@@ -102,141 +111,80 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
             ].map(({ label, preset }) => (
               <Pressable
                 key={preset}
-                style={styles.sheetItem}
+                style={{
+                  paddingVertical: 16,
+                  paddingHorizontal: 24,
+                  borderBottomWidth: 0.5,
+                  borderBottomColor: theme.colors.border,
+                }}
                 onPress={() => {
                   const until = presetToExpiresAt(preset, new Date());
                   setActionSheetOpen(false);
                   void snoozeAction(subWalletId, until);
                 }}
               >
-                <Text style={styles.sheetItemText}>{label}</Text>
+                <Body>{label}</Body>
               </Pressable>
             ))}
             <Pressable
-              style={[styles.sheetItem, styles.cancelItem]}
+              style={{ paddingVertical: 16, paddingHorizontal: 24 }}
               onPress={() => setActionSheetOpen(false)}
             >
-              <Text style={[styles.sheetItemText, styles.cancelText]}>Cancel</Text>
+              <Body muted>Cancel</Body>
             </Pressable>
           </View>
         </Pressable>
       </Modal>
 
-      <View style={styles.card}>
-        <View style={styles.rowSpread}>
-          <Text style={styles.label}>Active rules</Text>
+      <Card>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Label>ACTIVE RULES</Label>
           <Pressable onPress={() => navigation.navigate('EditRules', { subWalletId })}>
-            <Text style={styles.link}>Edit</Text>
+            <Body style={{ color: theme.colors.accent }}>Edit</Body>
           </Pressable>
         </View>
         {rules === null && (
-          <Text style={styles.muted}>
+          <Body muted>
             No rules published yet — agent can spend without limit until you set one.
-          </Text>
+          </Body>
         )}
-        {rules && rules.rules.length === 0 && <Text style={styles.muted}>(empty rule set)</Text>}
+        {rules && rules.rules.length === 0 && <Body muted>(empty rule set)</Body>}
         {rules?.rules.map((r) => (
-          <View key={r.id} style={styles.ruleRow}>
-            <Text style={styles.ruleKind}>
-              {r.kind} (priority {r.priority})
-            </Text>
-            <Text style={styles.muted}>{JSON.stringify(r.configJson)}</Text>
+          <View key={r.id} style={{ gap: 4, paddingVertical: 6 }}>
+            <Body strong>{`${r.kind} (priority ${r.priority})`}</Body>
+            <Caption>{JSON.stringify(r.configJson)}</Caption>
           </View>
         ))}
-      </View>
+      </Card>
 
-      <View style={styles.actions}>
+      <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
         {sw.status !== 'suspended' && (
-          <Pressable
-            disabled={busy}
-            style={({ pressed }) => [
-              styles.button,
-              styles.warning,
-              pressed && styles.pressed,
-              busy && styles.disabled,
-            ]}
+          <Button
+            variant="secondary"
+            label="SUSPEND"
             onPress={() => void setStatus(subWalletId, 'suspended')}
-          >
-            <Text style={styles.buttonText}>Suspend</Text>
-          </Pressable>
+            disabled={busy}
+            loading={busy}
+          />
         )}
         {sw.status === 'suspended' && (
-          <Pressable
-            disabled={busy}
-            style={({ pressed }) => [
-              styles.button,
-              pressed && styles.pressed,
-              busy && styles.disabled,
-            ]}
+          <Button
+            label="RESUME"
             onPress={() => void setStatus(subWalletId, 'active')}
-          >
-            <Text style={styles.buttonText}>Resume</Text>
-          </Pressable>
+            disabled={busy}
+            loading={busy}
+          />
         )}
         {sw.status !== 'closed' && (
-          <Pressable
-            disabled={busy}
-            style={({ pressed }) => [
-              styles.button,
-              styles.danger,
-              pressed && styles.pressed,
-              busy && styles.disabled,
-            ]}
+          <Button
+            variant="secondary"
+            label="CLOSE"
             onPress={() => void setStatus(subWalletId, 'closed')}
-          >
-            <Text style={styles.buttonText}>Close</Text>
-          </Pressable>
+            disabled={busy}
+            loading={busy}
+          />
         )}
       </View>
-    </ScrollView>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 24, gap: 16 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 24, fontWeight: '600' },
-  muted: { color: '#666' },
-  label: { fontSize: 12, color: '#666' },
-  link: { color: '#1c5fff', fontWeight: '600' },
-  card: { padding: 16, gap: 8, borderRadius: 12, backgroundColor: '#f3f3f3' },
-  balance: { fontSize: 32, fontWeight: '700' },
-  rowSpread: { flexDirection: 'row', justifyContent: 'space-between' },
-  ruleRow: { gap: 4, paddingVertical: 6 },
-  ruleKind: { fontWeight: '600' },
-  actions: { flexDirection: 'row', gap: 12, flexWrap: 'wrap', marginTop: 16 },
-  button: {
-    backgroundColor: '#222',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
-  warning: { backgroundColor: '#a8590f' },
-  danger: { backgroundColor: '#b00020' },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.4 },
-  buttonText: { color: 'white', fontWeight: '600' },
-  snoozeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  snoozeStatus: { fontSize: 14, color: '#222' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalSheet: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    paddingVertical: 8,
-  },
-  sheetItem: {
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#eee',
-  },
-  sheetItemText: { fontSize: 16, color: '#222' },
-  cancelItem: { borderBottomWidth: 0 },
-  cancelText: { color: '#666', fontWeight: '600' },
-});

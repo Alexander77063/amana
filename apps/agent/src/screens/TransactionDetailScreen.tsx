@@ -1,9 +1,10 @@
 import { ApiError } from '@amana/api-client';
 import type { TransactionDetail } from '@amana/types';
+import { AmountText, Badge, Body, Button, Card, Label, Screen, useTheme } from '@amana/ui';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { api } from '../lib/api';
 import type { HistoryStackParamList } from '../nav/HistoryStack';
 
@@ -38,7 +39,15 @@ const STATUS_LABEL: Record<string, string> = {
   draft: 'Draft',
 };
 
+function statusVariant(status: string): 'success' | 'error' | 'warning' | 'neutral' {
+  if (status === 'settled') return 'success';
+  if (status === 'failed' || status === 'reversed') return 'error';
+  if (status === 'bump_pending') return 'warning';
+  return 'neutral';
+}
+
 export function TransactionDetailScreen({ route, navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const { transactionId } = route.params;
   const [state, setState] = useState<ScreenState>({ kind: 'loading' });
 
@@ -57,78 +66,98 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
 
   if (state.kind === 'loading') {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
+      <Screen title="Transaction">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" />
+        </View>
+      </Screen>
     );
   }
 
   if (state.kind === 'error') {
     return (
-      <View style={styles.center}>
-        <Text style={styles.err}>Could not load transaction: {state.code}</Text>
-      </View>
+      <Screen title="Transaction">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Body muted>Could not load transaction: {state.code}</Body>
+        </View>
+      </Screen>
     );
   }
 
   const { txn } = state;
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.amount}>{formatNaira(txn.amountKobo)}</Text>
-      <Text style={styles.status}>{STATUS_LABEL[txn.status] ?? txn.status}</Text>
-
-      <View style={styles.section}>
-        {txn.vendorResolvedName && <Text style={styles.field}>To: {txn.vendorResolvedName}</Text>}
-        {txn.vendorAccountMasked && <Text style={styles.field}>{txn.vendorAccountMasked}</Text>}
-        <Text style={styles.field}>Initiated: {formatDateTime(txn.initiatedAt)}</Text>
-        {txn.settledAt && (
-          <Text style={styles.field}>Settled: {formatDateTime(txn.settledAt)}</Text>
-        )}
-        {txn.nibssSessionId && (
-          <Text style={styles.field} selectable>
-            NIBSS: {txn.nibssSessionId}
-          </Text>
-        )}
-        {txn.agentNote && <Text style={styles.field}>Note: {txn.agentNote}</Text>}
-        {txn.errorMessage && (
-          <Text style={[styles.field, styles.errField]}>Error: {txn.errorMessage}</Text>
-        )}
-        {txn.anomalyScore !== null && txn.anomalyScore >= 0.85 && (
-          <Text style={[styles.field, styles.anomaly]}>
-            ⚠ Anomaly score: {txn.anomalyScore.toFixed(2)}
-          </Text>
-        )}
+    <Screen title="Transaction" scrollable>
+      <View style={{ alignItems: 'center', gap: 8, paddingVertical: 24 }}>
+        <AmountText size="xl" value={formatNaira(txn.amountKobo)} sentiment="debit" />
+        <Badge
+          label={STATUS_LABEL[txn.status] ?? txn.status}
+          variant={statusVariant(txn.status)}
+        />
       </View>
 
+      <Card style={{ gap: 12 }}>
+        {txn.vendorResolvedName && (
+          <View style={{ gap: 2 }}>
+            <Label>TO</Label>
+            <Body>{txn.vendorResolvedName}</Body>
+          </View>
+        )}
+        {txn.vendorAccountMasked && (
+          <View style={{ gap: 2 }}>
+            <Label>ACCOUNT</Label>
+            <Body>{txn.vendorAccountMasked}</Body>
+          </View>
+        )}
+        <View style={{ gap: 2 }}>
+          <Label>INITIATED</Label>
+          <Body>{formatDateTime(txn.initiatedAt)}</Body>
+        </View>
+        {txn.settledAt && (
+          <View style={{ gap: 2 }}>
+            <Label>SETTLED</Label>
+            <Body>{formatDateTime(txn.settledAt)}</Body>
+          </View>
+        )}
+        {txn.nibssSessionId && (
+          <View style={{ gap: 2 }}>
+            <Label>NIBSS SESSION</Label>
+            <Body>{txn.nibssSessionId}</Body>
+          </View>
+        )}
+        {txn.agentNote && (
+          <View style={{ gap: 2 }}>
+            <Label>NOTE</Label>
+            <Body>{txn.agentNote}</Body>
+          </View>
+        )}
+        {txn.errorMessage && (
+          <View style={{ gap: 2 }}>
+            <Label>ERROR</Label>
+            <Body style={{ color: theme.colors.debit }}>{txn.errorMessage}</Body>
+          </View>
+        )}
+        {txn.anomalyScore !== null && txn.anomalyScore >= 0.85 && (
+          <View style={{ gap: 2 }}>
+            <Label>ANOMALY SCORE</Label>
+            <Body style={{ color: theme.colors.accent }}>
+              {txn.anomalyScore.toFixed(2)}
+            </Body>
+          </View>
+        )}
+      </Card>
+
       {txn.status === 'settled' && (
-        <Pressable
-          style={styles.addPhotoBtn}
-          onPress={() => navigation.getParent()?.navigate('PhotoAttach', { transactionId })}
-        >
-          <Text style={styles.addPhotoText}>Add photo</Text>
-        </Pressable>
+        <View style={{ marginTop: 16 }}>
+          <Button
+            variant="secondary"
+            label="ADD PHOTO"
+            onPress={() =>
+              navigation.getParent()?.navigate('PhotoAttach', { transactionId })
+            }
+          />
+        </View>
       )}
-    </ScrollView>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  container: { padding: 24, gap: 8 },
-  amount: { fontSize: 40, fontWeight: '800', textAlign: 'center' },
-  status: { textAlign: 'center', color: '#666', marginBottom: 8 },
-  section: { gap: 6 },
-  field: { fontSize: 14, color: '#444' },
-  errField: { color: '#b00020' },
-  anomaly: { color: '#a15a00', fontWeight: '600' },
-  addPhotoBtn: {
-    marginTop: 16,
-    backgroundColor: '#1a1a2e',
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignItems: 'center',
-  },
-  addPhotoText: { color: 'white', fontWeight: '600' },
-  err: { color: '#b00020' },
-});

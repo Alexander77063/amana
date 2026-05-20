@@ -11,9 +11,9 @@ const Stack = createNativeStackNavigator<AuthStackParamList>();
 
 export function AuthStack(): JSX.Element {
   return (
-    <Stack.Navigator>
-      <Stack.Screen name="Phone" component={PhoneScreen} options={{ title: 'Sign in' }} />
-      <Stack.Screen name="Verify" component={VerifyScreen} options={{ title: 'Verify' }} />
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Phone" component={PhoneScreen} />
+      <Stack.Screen name="Verify" component={VerifyScreen} />
     </Stack.Navigator>
   );
 }

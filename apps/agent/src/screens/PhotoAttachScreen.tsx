@@ -1,7 +1,8 @@
+import { Body, Button, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, View } from 'react-native';
 import { api } from '../lib/api';
 import type { PayStackParamList } from '../nav/PayStack';
 
@@ -10,6 +11,7 @@ type Props = NativeStackScreenProps<PayStackParamList, 'PhotoAttach'>;
 type Phase = 'camera' | 'preview' | 'uploading' | 'done' | 'error';
 
 export function PhotoAttachScreen({ route, navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const { transactionId } = route.params;
   const [permission, requestPermission] = useCameraPermissions();
   const [phase, setPhase] = useState<Phase>('camera');
@@ -56,13 +58,27 @@ export function PhotoAttachScreen({ route, navigation }: Props): JSX.Element {
 
   if (!permission) return <ActivityIndicator style={{ flex: 1 }} />;
 
+  // Permission denied — themed non-camera UI
   if (!permission.granted) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.sub}>Camera access is needed to attach a photo.</Text>
-        <Pressable style={styles.btn} onPress={() => void requestPermission()}>
-          <Text style={styles.btnText}>Allow camera</Text>
-        </Pressable>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          gap: 16,
+          backgroundColor: theme.colors.bg.base,
+        }}
+      >
+        <Body muted style={{ textAlign: 'center' }}>
+          Camera access is needed to attach a photo.
+        </Body>
+        <Button
+          label="GRANT CAMERA PERMISSION"
+          onPress={() => void requestPermission()}
+          fullWidth={false}
+        />
       </View>
     );
   }
@@ -85,18 +101,22 @@ export function PhotoAttachScreen({ route, navigation }: Props): JSX.Element {
       <View style={{ flex: 1 }}>
         <Image source={{ uri: photoUri }} style={{ flex: 1 }} resizeMode="cover" />
         <View style={styles.previewBar}>
-          <Pressable
-            style={styles.retakeBtn}
+          <Button
+            variant="secondary"
+            label="RETAKE"
             onPress={() => {
               setPhotoUri(null);
               setPhase('camera');
             }}
-          >
-            <Text style={styles.retakeText}>Retake</Text>
-          </Pressable>
-          <Pressable style={styles.useBtn} onPress={() => void upload()}>
-            <Text style={styles.useText}>Use photo</Text>
-          </Pressable>
+            fullWidth={false}
+            style={{ flex: 1 }}
+          />
+          <Button
+            label="USE PHOTO"
+            onPress={() => void upload()}
+            fullWidth={false}
+            style={{ flex: 1 }}
+          />
         </View>
       </View>
     );
@@ -104,45 +124,57 @@ export function PhotoAttachScreen({ route, navigation }: Props): JSX.Element {
 
   if (phase === 'uploading') {
     return (
-      <View style={styles.center}>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 16,
+          backgroundColor: theme.colors.bg.base,
+        }}
+      >
         <ActivityIndicator size="large" />
-        <Text style={styles.sub}>Uploading photo…</Text>
+        <Body muted>Uploading photo…</Body>
       </View>
     );
   }
 
   if (phase === 'done') {
     return (
-      <View style={styles.center}>
-        <Text style={styles.successIcon}>✓</Text>
-        <Text style={styles.sub}>Photo attached!</Text>
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 16,
+          backgroundColor: theme.colors.bg.base,
+        }}
+      >
+        <Body style={{ color: theme.colors.credit, fontSize: 64 }}>✓</Body>
+        <Body muted>Photo attached!</Body>
       </View>
     );
   }
 
   // phase === 'error'
   return (
-    <View style={styles.center}>
-      <Text style={styles.err}>{errorMsg}</Text>
-      <Pressable style={styles.btn} onPress={() => setPhase('camera')}>
-        <Text style={styles.btnText}>Try again</Text>
-      </Pressable>
+    <View
+      style={{
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 16,
+        padding: 24,
+        backgroundColor: theme.colors.bg.base,
+      }}
+    >
+      <Body style={{ color: theme.colors.debit, textAlign: 'center' }}>{errorMsg ?? ''}</Body>
+      <Button label="TRY AGAIN" onPress={() => setPhase('camera')} fullWidth={false} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
-  sub: { color: '#666', textAlign: 'center' },
-  err: { color: '#b00020', textAlign: 'center' },
-  successIcon: { fontSize: 64, color: '#2e7d32' },
-  btn: {
-    backgroundColor: '#1a1a2e',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
-  btnText: { color: 'white', fontWeight: '600' },
   captureBar: {
     position: 'absolute',
     bottom: 40,
@@ -168,19 +200,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingHorizontal: 32,
+    gap: 12,
   },
-  retakeBtn: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 999,
-  },
-  retakeText: { color: 'white', fontWeight: '600' },
-  useBtn: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    backgroundColor: '#1a1a2e',
-    borderRadius: 999,
-  },
-  useText: { color: 'white', fontWeight: '600' },
 });

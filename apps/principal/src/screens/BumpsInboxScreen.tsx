@@ -1,15 +1,12 @@
 import type { BumpRequest, BumpStatus } from '@amana/types';
+import { AmountText, Badge, Body, Button, Caption, Card, Screen, SectionHeader, Skeleton, useTheme } from '@amana/ui';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
-  Pressable,
   RefreshControl,
-  StyleSheet,
-  Text,
   View,
 } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
@@ -63,6 +60,7 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
   const refresh = useBumpsStore((s) => s.refresh);
   const decide = useBumpsStore((s) => s.decide);
   const permissionStatus = usePushStore((s) => s.permissionStatus);
+  const theme = useTheme();
 
   // Refresh on focus.
   useFocusEffect(
@@ -85,127 +83,92 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
   const now = useMemo(() => new Date(), []);
 
   const renderPending = ({ item }: { item: BumpRequest }) => (
-    <View style={styles.card}>
-      <Text style={styles.amount}>{formatNaira(item.amountKobo)}</Text>
-      <Text style={styles.vendor}>{item.vendorResolvedName}</Text>
-      <Text style={styles.muted}>Expires {expiresInLabel(item.expiresAt, now)}</Text>
-      <View style={styles.actions}>
-        <Pressable
-          style={[styles.button, decidingId === item.id && styles.disabled]}
-          disabled={decidingId !== null}
+    <Card style={{ gap: 8 }}>
+      <AmountText size="lg" value={formatNaira(item.amountKobo)} sentiment="debit" />
+      <Body strong>{item.vendorResolvedName}</Body>
+      <Caption>{`Expires ${expiresInLabel(item.expiresAt, now)}`}</Caption>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+        <Button
+          label="APPROVE"
           onPress={() => void decide(item.id, 'approve_once')}
-        >
-          <Text style={styles.buttonText}>Approve</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.button, styles.deny, decidingId === item.id && styles.disabled]}
           disabled={decidingId !== null}
+          loading={decidingId === item.id}
+        />
+        <Button
+          variant="secondary"
+          label="DENY"
           onPress={() => void decide(item.id, 'deny')}
-        >
-          <Text style={styles.buttonText}>Deny</Text>
-        </Pressable>
+          disabled={decidingId !== null}
+        />
       </View>
-    </View>
+    </Card>
   );
 
   const renderHistory = ({ item }: { item: BumpRequest }) => (
-    <View style={[styles.card, styles.dim]}>
-      <Text style={styles.amount}>{formatNaira(item.amountKobo)}</Text>
-      <Text style={styles.vendor}>{item.vendorResolvedName}</Text>
-      <Text style={styles.pill}>{statusLabel(item.status)}</Text>
-    </View>
+    <Card style={{ gap: 8, opacity: 0.6 }}>
+      <AmountText size="md" value={formatNaira(item.amountKobo)} sentiment="neutral" />
+      <Body>{item.vendorResolvedName}</Body>
+      <Badge label={statusLabel(item.status)} variant="neutral" />
+    </Card>
   );
 
   // Only show the full-screen loader on initial load (no data yet).
-  // For pull-to-refresh and on-focus refreshes, the RefreshControl spinner handles the visual.
   const hasData = pending.length > 0 || history.length > 0;
   if ((status === 'idle' || status === 'loading') && !hasData) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
+      <Screen title="Requests">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Skeleton />
+        </View>
+      </Screen>
     );
   }
 
   if (status === 'error') {
     return (
-      <View style={styles.center}>
-        <Text style={styles.err}>Couldn&apos;t load: {errorCode}</Text>
-        <Pressable style={styles.button} onPress={() => void refresh()}>
-          <Text style={styles.buttonText}>Retry</Text>
-        </Pressable>
-      </View>
+      <Screen title="Requests">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+          <Body style={{ color: theme.colors.debit }}>{`Couldn't load: ${errorCode ?? ''}`}</Body>
+          <Button label="RETRY" onPress={() => void refresh()} />
+        </View>
+      </Screen>
     );
   }
 
   if (pending.length === 0 && history.length === 0) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.muted}>No requests need your decision.</Text>
-      </View>
+      <Screen title="Requests">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Body muted>No requests need your decision.</Body>
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <FlatList
-      contentContainerStyle={styles.container}
-      data={[
-        ...pending.map((b) => ({ kind: 'pending' as const, b })),
-        ...history.map((b) => ({ kind: 'history' as const, b })),
-      ]}
-      keyExtractor={(row) => row.b.id}
-      ListHeaderComponent={pending.length > 0 ? <Text style={styles.section}>Pending</Text> : null}
-      renderItem={({ item, index }) => {
-        const showHistoryHeader =
-          item.kind === 'history' && (index === 0 || (index > 0 && pending.length === index));
-        return (
-          <>
-            {showHistoryHeader && <Text style={styles.section}>Recent</Text>}
-            {item.kind === 'pending'
-              ? renderPending({ item: item.b })
-              : renderHistory({ item: item.b })}
-          </>
-        );
-      }}
-      refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />}
-    />
+    <Screen title="Requests" noPadding>
+      <FlatList
+        contentContainerStyle={{ padding: 16, gap: 12 }}
+        data={[
+          ...pending.map((b) => ({ kind: 'pending' as const, b })),
+          ...history.map((b) => ({ kind: 'history' as const, b })),
+        ]}
+        keyExtractor={(row) => row.b.id}
+        ListHeaderComponent={pending.length > 0 ? <SectionHeader title="PENDING" /> : null}
+        renderItem={({ item, index }) => {
+          const showHistoryHeader =
+            item.kind === 'history' && (index === 0 || (index > 0 && pending.length === index));
+          return (
+            <>
+              {showHistoryHeader && <SectionHeader title="RECENT" />}
+              {item.kind === 'pending'
+                ? renderPending({ item: item.b })
+                : renderHistory({ item: item.b })}
+            </>
+          );
+        }}
+        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />}
+      />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { padding: 16, gap: 12 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  section: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#666',
-    textTransform: 'uppercase',
-    marginTop: 8,
-  },
-  card: { padding: 16, borderRadius: 12, backgroundColor: '#f3f3f3', gap: 6 },
-  dim: { opacity: 0.6 },
-  amount: { fontSize: 22, fontWeight: '700' },
-  vendor: { fontSize: 14, color: '#444' },
-  muted: { color: '#666' },
-  err: { color: '#b00020' },
-  pill: {
-    alignSelf: 'flex-start',
-    fontSize: 12,
-    fontWeight: '600',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: '#e0e0e0',
-    color: '#222',
-  },
-  actions: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  button: {
-    backgroundColor: '#222',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  deny: { backgroundColor: '#b00020' },
-  disabled: { opacity: 0.5 },
-  buttonText: { color: 'white', fontWeight: '600' },
-});

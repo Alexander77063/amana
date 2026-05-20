@@ -1,7 +1,8 @@
+import { AmountText, Badge, Body, Button, Card, Heading, Label, Screen, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 import { api } from '../lib/api';
 import type { PayStackParamList } from '../nav/PayStack';
 
@@ -21,6 +22,7 @@ function formatNaira(koboStr: string): string {
 }
 
 export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const { transactionId, amountKobo, resolvedName, expiresAt } = route.params;
   const [msLeft, setMsLeft] = useState(() => new Date(expiresAt).getTime() - Date.now());
   const [cancelling, setCancelling] = useState(false);
@@ -69,45 +71,32 @@ export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Awaiting principal approval</Text>
-      <Text style={styles.amount}>{formatNaira(amountKobo)}</Text>
-      <Text style={styles.vendor}>to {resolvedName}</Text>
-      <View style={styles.timer}>
-        <Text style={styles.timerLabel}>Expires in</Text>
-        <Text style={[styles.timerValue, msLeft < 60_000 && styles.timerRed]}>
-          {formatCountdown(msLeft)}
-        </Text>
+    <Screen title="Waiting for Approval">
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <AmountText size="xl" value={formatNaira(amountKobo)} sentiment="debit" />
+        <Body muted>to {resolvedName}</Body>
+
+        <Card style={{ alignItems: 'center', gap: 4, width: '100%' }}>
+          <Label>EXPIRES IN</Label>
+          <Heading size="lg" style={{ fontVariant: ['tabular-nums'], color: msLeft < 60_000 ? theme.colors.debit : theme.colors.text.primary }}>
+            {formatCountdown(msLeft)}
+          </Heading>
+          <Badge
+            label="Awaiting principal approval"
+            variant="warning"
+          />
+        </Card>
+
+        {errorMsg ? <Body style={{ color: theme.colors.debit }}>{errorMsg}</Body> : null}
+
+        <Button
+          variant="ghost"
+          label="CANCEL"
+          onPress={() => void cancel()}
+          loading={cancelling}
+          style={{ marginTop: 8 }}
+        />
       </View>
-      {errorMsg && <Text style={styles.err}>{errorMsg}</Text>}
-      {cancelling ? (
-        <ActivityIndicator />
-      ) : (
-        <Pressable style={styles.cancelBtn} onPress={() => void cancel()}>
-          <Text style={styles.cancelText}>Cancel payment</Text>
-        </Pressable>
-      )}
-    </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
-  title: { fontSize: 18, fontWeight: '600', color: '#444', textAlign: 'center' },
-  amount: { fontSize: 40, fontWeight: '800' },
-  vendor: { fontSize: 16, color: '#666' },
-  timer: { alignItems: 'center', marginTop: 8 },
-  timerLabel: { fontSize: 13, color: '#888' },
-  timerValue: { fontSize: 36, fontWeight: '700', fontVariant: ['tabular-nums'] },
-  timerRed: { color: '#b00020' },
-  err: { color: '#b00020' },
-  cancelBtn: {
-    marginTop: 16,
-    borderWidth: 1,
-    borderColor: '#b00020',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 999,
-  },
-  cancelText: { color: '#b00020', fontWeight: '600' },
-});

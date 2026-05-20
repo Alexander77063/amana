@@ -1,8 +1,9 @@
 import type { RecentVendorResponse } from '@amana/api-client';
+import { Body, Card, Heading, Screen, SectionHeader, TransactionRow, useTheme } from '@amana/ui';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
 import type { PayStackParamList } from '../nav/PayStack';
@@ -10,6 +11,7 @@ import type { PayStackParamList } from '../nav/PayStack';
 type Props = NativeStackScreenProps<PayStackParamList, 'CaptureMethod'>;
 
 export function CaptureMethodScreen({ navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const sw = subWalletMemory.get();
   const [recents, setRecents] = useState<RecentVendorResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,57 +37,49 @@ export function CaptureMethodScreen({ navigation }: Props): JSX.Element {
     });
 
   return (
-    <View style={styles.container}>
-      <Pressable style={styles.action} onPress={() => navigation.navigate('NQRScan')}>
-        <Text style={styles.actionTitle}>Scan QR code</Text>
-        <Text style={styles.actionSub}>NIBSS NQR or bank QR</Text>
-      </Pressable>
-      <Pressable style={styles.action} onPress={() => navigation.navigate('PhoneLookup')}>
-        <Text style={styles.actionTitle}>Pay by phone number</Text>
-      </Pressable>
-      <Pressable style={styles.action} onPress={() => navigation.navigate('AccountEntry')}>
-        <Text style={styles.actionTitle}>Pay by account number</Text>
-      </Pressable>
+    <Screen title="Capture Payment" noPadding>
+      <FlatList
+        data={recents}
+        keyExtractor={(item) => `${item.bankCode}-${item.accountNumber}`}
+        ListHeaderComponent={
+          <View style={{ padding: 20, gap: 12 }}>
+            <Card style={{ gap: 8 }}>
+              <Heading size="md">Scan QR code</Heading>
+              <Body muted>NIBSS NQR or bank QR</Body>
+              <Pressable onPress={() => navigation.navigate('NQRScan')}>
+                <Body style={{ color: theme.colors.accent }}>Scan now</Body>
+              </Pressable>
+            </Card>
 
-      {loading && <ActivityIndicator style={{ marginTop: 16 }} />}
+            <Card style={{ gap: 4 }}>
+              <Heading size="md">Pay by phone number</Heading>
+              <Pressable onPress={() => navigation.navigate('PhoneLookup')}>
+                <Body style={{ color: theme.colors.accent }}>Look up</Body>
+              </Pressable>
+            </Card>
 
-      {recents.length > 0 && (
-        <FlatList
-          data={recents}
-          keyExtractor={(item) => `${item.bankCode}-${item.accountNumber}`}
-          ListHeaderComponent={<Text style={styles.sectionLabel}>Recents</Text>}
-          renderItem={({ item }) => (
-            <Pressable style={styles.recent} onPress={() => goConfirm(item)}>
-              <Text style={styles.recentName}>{item.accountName}</Text>
-              <Text style={styles.recentSub}>****{item.accountNumber.slice(-4)}</Text>
-            </Pressable>
-          )}
-        />
-      )}
-    </View>
+            <Card style={{ gap: 4 }}>
+              <Heading size="md">Pay by account number</Heading>
+              <Pressable onPress={() => navigation.navigate('AccountEntry')}>
+                <Body style={{ color: theme.colors.accent }}>Enter details</Body>
+              </Pressable>
+            </Card>
+
+            {loading && <ActivityIndicator style={{ marginTop: 8 }} />}
+
+            {recents.length > 0 && <SectionHeader title="RECENTS" />}
+          </View>
+        }
+        renderItem={({ item }) => (
+          <TransactionRow
+            merchant={item.accountName}
+            timestamp={`****${item.accountNumber.slice(-4)}`}
+            amount=""
+            sentiment="debit"
+            onPress={() => goConfirm(item)}
+          />
+        )}
+      />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 12 },
-  action: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 12,
-    padding: 16,
-  },
-  actionTitle: { fontSize: 16, fontWeight: '600' },
-  actionSub: { fontSize: 13, color: '#666', marginTop: 2 },
-  sectionLabel: { fontSize: 13, color: '#888', fontWeight: '600', marginTop: 8, marginBottom: 4 },
-  recent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  recentName: { fontSize: 15 },
-  recentSub: { fontSize: 13, color: '#888' },
-});

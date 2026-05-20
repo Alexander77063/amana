@@ -1,81 +1,69 @@
-/**
- * Generates app icons and splash assets for Amana Agent and Amana Principal.
- *
- * Outputs per app:
- *   assets/icon.png          — 1024×1024, dark bg + coloured A mark (App Store / Play Store icon)
- *   assets/adaptive-icon.png — 1024×1024, transparent bg + coloured A mark (Android adaptive foreground)
- *   assets/splash-icon.png   — 512×512, transparent bg + white A mark (centred on splash screen)
- */
-
-import { mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const root = join(__dirname, '..');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const root = path.resolve(__dirname, '..');
 
-// ─── Design constants ────────────────────────────────────────────────────────
-const BG = '#1C1C1E';
-
-// Geometric A lettermark — three line segments on a 1024×1024 canvas
-// Apex (512,168), bottom-left (196,836), bottom-right (828,836)
-// Crossbar at y=568: left x≈323, right x≈701
-function aSvg({ size = 1024, strokeColor, bgColor = null } = {}) {
-  const scale = size / 1024;
-  const sw = Math.round(84 * scale);
-
-  const pts = {
-    apexX: Math.round(512 * scale),
-    apexY: Math.round(168 * scale),
-    blX: Math.round(196 * scale),
-    blY: Math.round(836 * scale),
-    brX: Math.round(828 * scale),
-    brY: Math.round(836 * scale),
-    cbLX: Math.round(323 * scale),
-    cbRX: Math.round(701 * scale),
-    cbY: Math.round(568 * scale),
-  };
-
-  const bg = bgColor ? `<rect width="${size}" height="${size}" fill="${bgColor}"/>` : '';
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-  ${bg}
-  <polyline
-    points="${pts.blX},${pts.blY} ${pts.apexX},${pts.apexY} ${pts.brX},${pts.brY}"
-    stroke="${strokeColor}" stroke-width="${sw}"
-    stroke-linejoin="miter" stroke-miterlimit="10" stroke-linecap="square"
-    fill="none"
-  />
-  <line x1="${pts.cbLX}" y1="${pts.cbY}" x2="${pts.cbRX}" y2="${pts.cbY}"
-    stroke="${strokeColor}" stroke-width="${sw}" stroke-linecap="square"/>
-</svg>`;
+// Coin Seal SVG — viewBox 0 0 100 100 scaled to target size
+function coinSealSvg(size, rimColor = '#C9A227', bodyColor = '#0D1B2A') {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 100 100">
+    <polygon points="50,3 90.7,26.5 90.7,73.5 50,97 9.3,73.5 9.3,26.5" fill="${rimColor}"/>
+    <polygon points="50,10 84.6,30 84.6,70 50,90 15.4,70 15.4,30" fill="${bodyColor}"/>
+    <polygon points="50,17 78.6,33.5 78.6,66.5 50,83 21.4,66.5 21.4,33.5" fill="none" stroke="${rimColor}" stroke-width="1.5"/>
+    <polygon points="50,38 51.91,45.38 58.49,41.51 54.62,48.09 62,50 54.62,51.91 58.49,58.49 51.91,54.62 50,62 48.09,54.62 41.51,58.49 45.38,51.91 38,50 45.38,48.09 41.51,41.51 48.09,45.38" fill="${rimColor}"/>
+  </svg>`;
 }
 
-async function writePng(svg, outPath) {
-  await sharp(Buffer.from(svg)).png().toFile(outPath);
-  console.info('  ✓', outPath.replace(root, '.'));
+async function generateIcon(outputPath, canvasSize, markSize) {
+  const navy = { r: 13, g: 27, b: 42, alpha: 1 };
+  const offset = Math.round((canvasSize - markSize) / 2);
+
+  await sharp({
+    create: { width: canvasSize, height: canvasSize, channels: 4, background: navy },
+  })
+    .composite([{
+      input: Buffer.from(coinSealSvg(markSize)),
+      top: offset,
+      left: offset,
+    }])
+    .png()
+    .toFile(outputPath);
+
+  console.log(`✓ ${outputPath}`);
 }
 
-// ─── Apps ────────────────────────────────────────────────────────────────────
-const apps = [
-  { name: 'agent', accentColor: '#0EA5E9' }, // sky blue  — action / forward
-  { name: 'principal', accentColor: '#F59E0B' }, // amber     — authority / wealth
-];
+async function generateSplash(outputPath, canvasSize, markSize) {
+  // Splash uses transparent background + white mark
+  const offset = Math.round((canvasSize - markSize) / 2);
 
-for (const { name, accentColor } of apps) {
-  console.info(`\n${name} (${accentColor})`);
-  const dir = join(root, 'apps', name, 'assets');
-  mkdirSync(dir, { recursive: true });
+  await sharp({
+    create: { width: canvasSize, height: canvasSize, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  })
+    .composite([{
+      input: Buffer.from(coinSealSvg(markSize, '#FFFFFF', 'transparent')),
+      top: offset,
+      left: offset,
+    }])
+    .png()
+    .toFile(outputPath);
 
-  // Full icon: dark bg + coloured A
-  await writePng(aSvg({ strokeColor: accentColor, bgColor: BG }), join(dir, 'icon.png'));
-
-  // Adaptive icon foreground: transparent bg + coloured A
-  await writePng(aSvg({ strokeColor: accentColor }), join(dir, 'adaptive-icon.png'));
-
-  // Splash logo: 512px, transparent bg + white A (overlaid on dark splash bg)
-  await writePng(aSvg({ size: 512, strokeColor: '#FFFFFF' }), join(dir, 'splash-icon.png'));
+  console.log(`✓ ${outputPath}`);
 }
 
-console.info('\nDone.');
+const apps = ['agent', 'principal'];
+
+for (const app of apps) {
+  const assets = path.join(root, 'apps', app, 'assets');
+
+  // 1024×1024 app icon — mark at 60% (614px)
+  await generateIcon(path.join(assets, 'icon.png'), 1024, 614);
+
+  // 1024×1024 adaptive icon (Android)
+  await generateIcon(path.join(assets, 'adaptive-icon.png'), 1024, 614);
+
+  // 512×512 splash icon — transparent bg, white mark at 60% (307px)
+  await generateSplash(path.join(assets, 'splash-icon.png'), 512, 307);
+}
+
+console.log('All icons generated.');

@@ -1,5 +1,6 @@
+import { Body, Caption, Screen, Skeleton } from '@amana/ui';
 import { useEffect } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, View } from 'react-native';
+import { FlatList, View } from 'react-native';
 import { useHouseholdStore } from '../state/household.store';
 
 export function MembersScreen(): JSX.Element {
@@ -13,49 +14,36 @@ export function MembersScreen(): JSX.Element {
 
   if (status === 'loading') {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
+      <Screen title="Agents">
+        <Skeleton />
+      </Screen>
     );
   }
 
   if (members.length === 0) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.muted}>No agents paired yet.</Text>
-        <Text style={styles.muted}>
+      <Screen title="Agents">
+        <Body muted>No agents paired yet.</Body>
+        <Body muted>
           Use &quot;Pair an agent&quot; from the home screen to issue a code.
-        </Text>
-      </View>
+        </Body>
+      </Screen>
     );
   }
 
   return (
-    <FlatList
-      contentContainerStyle={styles.list}
-      data={members}
-      keyExtractor={(m) => m.userId}
-      renderItem={({ item }) => (
-        <View style={styles.row}>
-          <Text style={styles.phone}>{item.phone}</Text>
-          <Text style={styles.muted}>
-            {item.role} · KYC tier {item.kycTier} · {item.status}
-          </Text>
-        </View>
-      )}
-    />
+    <Screen title="Agents" noPadding>
+      <FlatList
+        contentContainerStyle={{ padding: 24, gap: 12 }}
+        data={members}
+        keyExtractor={(m) => m.userId}
+        renderItem={({ item }) => (
+          <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#ddd', gap: 4 }}>
+            <Body strong>{item.phone}</Body>
+            <Caption>{`${item.role} · KYC tier ${item.kycTier} · ${item.status}`}</Caption>
+          </View>
+        )}
+      />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8, padding: 24 },
-  list: { padding: 24, gap: 12 },
-  row: {
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd',
-    gap: 4,
-  },
-  phone: { fontSize: 16, fontWeight: '600' },
-  muted: { color: '#666' },
-});

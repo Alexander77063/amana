@@ -29,6 +29,12 @@ importers:
       '@amana/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@amana/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@expo-google-fonts/plus-jakarta-sans':
+        specifier: ^0.2.3
+        version: 0.2.3
       '@hookform/resolvers':
         specifier: ^3.10.0
         version: 3.10.0(react-hook-form@7.75.0(react@18.2.0))
@@ -56,6 +62,9 @@ importers:
       expo-device:
         specifier: ~6.0.2
         version: 6.0.2(expo@51.0.39(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0))
+      expo-font:
+        specifier: ~12.0.10
+        version: 12.0.10(expo@51.0.39(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0))
       expo-linking:
         specifier: ~6.3.1
         version: 6.3.1(expo@51.0.39(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0))
@@ -89,6 +98,9 @@ importers:
       react-native-screens:
         specifier: ^3.31.1
         version: 3.31.1(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0)
+      react-native-svg:
+        specifier: ~15.2.0
+        version: 15.2.0(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0)
       zod:
         specifier: 3.23.8
         version: 3.23.8
@@ -193,6 +205,12 @@ importers:
       '@amana/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@amana/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@expo-google-fonts/plus-jakarta-sans':
+        specifier: ^0.2.3
+        version: 0.2.3
       '@hookform/resolvers':
         specifier: ^3.10.0
         version: 3.10.0(react-hook-form@7.75.0(react@18.2.0))
@@ -220,6 +238,9 @@ importers:
       expo-device:
         specifier: ~6.0.2
         version: 6.0.2(expo@51.0.39(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0))
+      expo-font:
+        specifier: ~12.0.10
+        version: 12.0.10(expo@51.0.39(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0))
       expo-notifications:
         specifier: ~0.28.19
         version: 0.28.19(expo@51.0.39(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0))
@@ -297,6 +318,18 @@ importers:
       typescript:
         specifier: 5.5.4
         version: 5.5.4
+
+  packages/ui:
+    dependencies:
+      react:
+        specifier: '*'
+        version: 18.2.0
+      react-native:
+        specifier: '*'
+        version: 0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0)
+      react-native-svg:
+        specifier: '>=13'
+        version: 15.2.0(react-native@0.74.5(@babel/core@7.29.0)(@babel/preset-env@7.29.3(@babel/core@7.29.0))(@types/react@18.2.79)(react@18.2.0))(react@18.2.0)
 
   packages/validation:
     dependencies:
@@ -1992,6 +2025,9 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@expo-google-fonts/plus-jakarta-sans@0.2.3':
+    resolution: {integrity: sha512-7vukKMax5xrMlrf0DCzOpqqCQwxYaUXH4BmVxbal5Xrys1LIQmaqoiPftd7RtTSRbwPEhU/GYqIGrkuCAydRrQ==}
 
   '@expo/bunyan@4.0.1':
     resolution: {integrity: sha512-+Lla7nYSiHZirgK+U/uYzsLv/X+HaJienbD5AKX1UQZHYfWaP+9uuQluRB4GrEVWF0GZ7vEVp/jzaOT9k/SQlg==}
@@ -8614,6 +8650,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.0':
     optional: true
+
+  '@expo-google-fonts/plus-jakarta-sans@0.2.3': {}
 
   '@expo/bunyan@4.0.1':
     dependencies:

@@ -1,13 +1,15 @@
+import { Body, Button, Heading, Screen, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
 import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { api } from '../lib/api';
 import type { SettingsStackParamList } from '../nav/SettingsStack';
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'EnableNotifications'>;
 
 export function EnableNotificationsScreen({ navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -33,33 +35,26 @@ export function EnableNotificationsScreen({ navigation }: Props): JSX.Element {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Stay in the loop</Text>
-      <Text style={styles.sub}>
-        Get instant alerts when your payment settles, fails, or needs principal approval.
-      </Text>
-      {errorMsg && <Text style={styles.err}>{errorMsg}</Text>}
-      {busy ? (
-        <ActivityIndicator />
-      ) : (
-        <Pressable style={styles.button} onPress={() => void enable()}>
-          <Text style={styles.buttonText}>Enable notifications</Text>
-        </Pressable>
-      )}
-    </View>
+    <Screen title="Notifications">
+      <View style={{ flex: 1, justifyContent: 'center', gap: 20 }}>
+        <Heading size="lg">Stay in the loop</Heading>
+        <Body muted>
+          Get instant alerts when your payment settles, fails, or needs principal approval.
+        </Body>
+
+        {errorMsg ? <Body style={{ color: theme.colors.debit }}>{errorMsg}</Body> : null}
+
+        <Button
+          label="ENABLE NOTIFICATIONS"
+          onPress={() => void enable()}
+          loading={busy}
+        />
+        <Button
+          variant="ghost"
+          label="NOT NOW"
+          onPress={() => navigation.goBack()}
+        />
+      </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 32, gap: 20, justifyContent: 'center' },
-  title: { fontSize: 24, fontWeight: '700' },
-  sub: { fontSize: 16, color: '#666', lineHeight: 24 },
-  err: { color: '#b00020' },
-  button: {
-    backgroundColor: '#1a1a2e',
-    paddingVertical: 16,
-    borderRadius: 999,
-    alignItems: 'center',
-  },
-  buttonText: { color: 'white', fontWeight: '600', fontSize: 16 },
-});

@@ -1,15 +1,7 @@
+import { Body, Button, Card, Label, Screen, TextInput, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { View } from 'react-native';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
 import type { PayStackParamList } from '../nav/PayStack';
@@ -17,6 +9,7 @@ import type { PayStackParamList } from '../nav/PayStack';
 type Props = NativeStackScreenProps<PayStackParamList, 'PhoneLookup'>;
 
 export function PhoneLookupScreen({ navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const [phone, setPhone] = useState('');
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -42,42 +35,29 @@ export function PhoneLookupScreen({ navigation }: Props): JSX.Element {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <Text style={styles.label}>Phone number</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="+2348012345678"
-        keyboardType="phone-pad"
-        value={phone}
-        onChangeText={setPhone}
-        autoFocus
-      />
-      {errorMsg && <Text style={styles.err}>{errorMsg}</Text>}
-      {busy ? (
-        <ActivityIndicator />
-      ) : (
-        <Pressable style={styles.button} onPress={() => void lookup()}>
-          <Text style={styles.buttonText}>Look up</Text>
-        </Pressable>
-      )}
-    </KeyboardAvoidingView>
+    <Screen title="Find Recipient" keyboardAvoiding>
+      <View style={{ gap: 12, marginTop: 8 }}>
+        <TextInput
+          label="PHONE NUMBER"
+          placeholder="+2348012345678"
+          keyboardType="phone-pad"
+          value={phone}
+          onChangeText={setPhone}
+          autoFocus
+        />
+
+        {errorMsg ? (
+          <Card style={{ backgroundColor: 'transparent' }}>
+            <Body style={{ color: theme.colors.debit }}>{errorMsg}</Body>
+          </Card>
+        ) : null}
+
+        <Button
+          label="LOOK UP"
+          onPress={() => void lookup()}
+          loading={busy}
+        />
+      </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 12 },
-  label: { fontSize: 14, fontWeight: '600', color: '#444' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 16 },
-  err: { color: '#b00020' },
-  button: {
-    backgroundColor: '#1a1a2e',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-  },
-  buttonText: { color: 'white', fontWeight: '600' },
-});

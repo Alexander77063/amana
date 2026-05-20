@@ -1,7 +1,8 @@
 import type { NotificationChannel, NotificationKind } from '@amana/types';
+import { Body, Button, Caption, Card, Screen, Skeleton, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 import { quietWindowSummary } from '../lib/quiet-window-summary';
 import type { MainStackParamList } from '../nav/MainStack';
 import { usePreferencesStore } from '../state/preferences.store';
@@ -47,6 +48,7 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
   const bootstrap = usePreferencesStore((s) => s.bootstrap);
   const getEffective = usePreferencesStore((s) => s.getEffective);
   const quietHours = usePreferencesStore((s) => s.quietHours);
+  const theme = useTheme();
 
   useEffect(() => {
     void bootstrap();
@@ -62,75 +64,53 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
 
   if (status === 'idle' || (status === 'loading' && rowCount === 0)) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
+      <Screen title="Notification preferences">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <Skeleton />
+        </View>
+      </Screen>
     );
   }
 
   if (status === 'error') {
     return (
-      <View style={styles.center}>
-        <Text style={styles.err}>Couldn&apos;t load: {errorCode}</Text>
-        <Pressable style={styles.button} onPress={() => void bootstrap()}>
-          <Text style={styles.buttonText}>Retry</Text>
-        </Pressable>
-      </View>
+      <Screen title="Notification preferences">
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+          <Body style={{ color: theme.colors.debit }}>{`Couldn't load: ${errorCode ?? ''}`}</Body>
+          <Button label="RETRY" onPress={() => void bootstrap()} />
+        </View>
+      </Screen>
     );
   }
 
   return (
-    <View style={{ flex: 1 }}>
-      <Pressable style={styles.qhRow} onPress={() => navigation.navigate('QuietHours')}>
-        <Text style={styles.qhTitle}>Quiet hours</Text>
-        <Text style={styles.qhSummary}>{quietWindowSummary(quietHours)}</Text>
+    <Screen title="Notification preferences" noPadding>
+      <Pressable onPress={() => navigation.navigate('QuietHours')}>
+        <Card style={{ flexDirection: 'row', justifyContent: 'space-between', margin: 16, marginBottom: 0 }}>
+          <Body strong>Quiet hours</Body>
+          <Caption>{quietWindowSummary(quietHours)}</Caption>
+        </Card>
       </Pressable>
       <FlatList
-        contentContainerStyle={styles.container}
+        contentContainerStyle={{ paddingVertical: 8 }}
         data={KINDS}
         keyExtractor={(k) => k}
         renderItem={({ item }) => (
           <Pressable
-            style={styles.row}
+            style={{
+              paddingHorizontal: 24,
+              paddingVertical: 16,
+              borderBottomWidth: 0.5,
+              borderBottomColor: theme.colors.border,
+              gap: 4,
+            }}
             onPress={() => navigation.navigate('NotificationKindDetail', { kind: item })}
           >
-            <Text style={styles.rowTitle}>{kindTitle(item)}</Text>
-            <Text style={styles.muted}>{summarize(item)}</Text>
+            <Body strong>{kindTitle(item)}</Body>
+            <Body muted>{summarize(item)}</Body>
           </Pressable>
         )}
       />
-    </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { paddingVertical: 8 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 },
-  row: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd',
-    gap: 4,
-  },
-  rowTitle: { fontSize: 16, fontWeight: '600' },
-  muted: { color: '#666' },
-  err: { color: '#b00020' },
-  button: {
-    backgroundColor: '#222',
-    paddingHorizontal: 24,
-    paddingVertical: 10,
-    borderRadius: 999,
-  },
-  buttonText: { color: 'white', fontWeight: '600' },
-  qhRow: {
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ddd',
-    gap: 4,
-    backgroundColor: '#fafafa',
-  },
-  qhTitle: { fontSize: 16, fontWeight: '600' },
-  qhSummary: { color: '#666' },
-});

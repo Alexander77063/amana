@@ -1,7 +1,8 @@
+import { Body, Screen, Skeleton, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 import { api } from '../lib/api';
 import type { PayStackParamList } from '../nav/PayStack';
 
@@ -11,6 +12,7 @@ const POLL_INTERVAL_MS = 3_000;
 const MAX_POLLS = 10;
 
 export function SendingScreen({ route, navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const { transactionId } = route.params;
   const done = useRef(false);
 
@@ -65,16 +67,16 @@ export function SendingScreen({ route, navigation }: Props): JSX.Element {
   }, [transactionId]);
 
   return (
-    <View style={styles.container}>
-      <ActivityIndicator size="large" />
-      <Text style={styles.title}>Sending payment…</Text>
-      <Text style={styles.sub}>This usually takes under 10 seconds.</Text>
-    </View>
+    <Screen>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24 }}>
+        <View style={{ width: '70%', gap: 12 }}>
+          <Skeleton height={24} borderRadius={6} />
+          <Skeleton height={16} width="80%" borderRadius={6} />
+          <Skeleton height={16} width="60%" borderRadius={6} />
+        </View>
+        <Body strong>Sending payment…</Body>
+        <Body muted>This usually takes under 10 seconds.</Body>
+      </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
-  title: { fontSize: 20, fontWeight: '600' },
-  sub: { color: '#666', textAlign: 'center' },
-});

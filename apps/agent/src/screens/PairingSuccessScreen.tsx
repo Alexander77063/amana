@@ -1,5 +1,6 @@
+import { Body, Button, CoinSealMark, Heading, Label, Screen, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 import type { PairingStackParamList } from '../nav/PairingStack';
 
 type Props = NativeStackScreenProps<PairingStackParamList, 'PairingSuccess'> & {
@@ -7,31 +8,19 @@ type Props = NativeStackScreenProps<PairingStackParamList, 'PairingSuccess'> & {
 };
 
 export function PairingSuccessScreen({ route, onPaired }: Props): JSX.Element {
+  const theme = useTheme();
   const { subWalletName, principalPhone } = route.params;
   return (
-    <View style={styles.container}>
-      <Text style={styles.check}>✓</Text>
-      <Text style={styles.title}>Paired!</Text>
-      <Text style={styles.detail}>Wallet: {subWalletName}</Text>
-      <Text style={styles.detail}>Principal: {principalPhone}</Text>
-      <Pressable style={styles.button} onPress={onPaired}>
-        <Text style={styles.buttonText}>Let&apos;s go</Text>
-      </Pressable>
-    </View>
+    <Screen title="Paired!">
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+        <CoinSealMark size={80} variant="agent" />
+        <Heading size="lg">{subWalletName}</Heading>
+        <View style={{ gap: 4, alignItems: 'center' }}>
+          <Label>PRINCIPAL</Label>
+          <Body>{principalPhone}</Body>
+        </View>
+        <Button label="LET'S GO" onPress={onPaired} style={{ marginTop: 16, width: '100%' }} />
+      </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 16 },
-  check: { fontSize: 64, color: '#2e7d32' },
-  title: { fontSize: 28, fontWeight: '700' },
-  detail: { fontSize: 16, color: '#444' },
-  button: {
-    marginTop: 16,
-    backgroundColor: '#1a1a2e',
-    paddingHorizontal: 40,
-    paddingVertical: 14,
-    borderRadius: 999,
-  },
-  buttonText: { color: 'white', fontWeight: '600', fontSize: 16 },
-});

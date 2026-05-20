@@ -1,15 +1,26 @@
 import type { TransactionSummary } from '@amana/types';
+import { AmountText, BalanceCard, Badge, Body, Screen, TransactionRow, useTheme } from '@amana/ui';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { api } from '../lib/api';
 import { subWalletMemory } from '../lib/sub-wallet-memory';
 import type { MainTabParamList } from '../nav/MainTabs';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Home'>;
 
+function formatNaira(koboStr: string): string {
+  const naira = Number(BigInt(koboStr)) / 100;
+  return `₦${naira.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' });
+}
+
 export function HomeScreen({ navigation }: Props): JSX.Element {
+  const theme = useTheme();
   const sw = subWalletMemory.get();
   const [txns, setTxns] = useState<TransactionSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,42 +37,37 @@ export function HomeScreen({ navigation }: Props): JSX.Element {
     }, [sw]),
   );
 
-  const pendingBump = txns.find((t) => t.status === 'bump_pending');
+  const pendingBumps = txns.filter((t) => t.status === 'bump_pending');
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.walletName}>{sw?.name ?? '—'}</Text>
-        <Text style={styles.label}>Your sub-wallet</Text>
+    <Screen title="Amana" noPadding>
+      <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 12 }}>
+        <BalanceCard label="SUB-WALLET" amount={sw?.name ?? '—'} />
+
+        {pendingBumps.length > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Badge count={pendingBumps.length} variant="warning" />
+            <Body muted>Payment(s) pending principal approval</Body>
+          </View>
+        )}
       </View>
 
       {loading && <ActivityIndicator style={{ marginTop: 24 }} />}
 
-      {pendingBump && (
-        <Pressable style={styles.badge} onPress={() => navigation.navigate('History')}>
-          <Text style={styles.badgeText}>⚠ Payment pending principal approval — tap to view</Text>
-        </Pressable>
+      {!loading && txns.length > 0 && (
+        <View style={{ marginTop: 8 }}>
+          {txns.map((t) => (
+            <TransactionRow
+              key={t.id}
+              merchant={t.vendorResolvedName ?? '—'}
+              timestamp={formatDate(t.initiatedAt)}
+              amount={formatNaira(t.amountKobo)}
+              sentiment="debit"
+              onPress={() => navigation.navigate('History')}
+            />
+          ))}
+        </View>
       )}
-    </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16 },
-  card: {
-    padding: 20,
-    borderRadius: 16,
-    backgroundColor: '#1a1a2e',
-    gap: 4,
-  },
-  walletName: { fontSize: 22, fontWeight: '700', color: 'white' },
-  label: { fontSize: 13, color: 'rgba(255,255,255,0.6)' },
-  badge: {
-    backgroundColor: '#fff3e0',
-    borderLeftWidth: 4,
-    borderLeftColor: '#e65100',
-    padding: 14,
-    borderRadius: 8,
-  },
-  badgeText: { color: '#e65100', fontWeight: '600', fontSize: 14 },
-});

@@ -1,15 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Body, Button, Screen, TextInput as UITextInput, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { View } from 'react-native';
 import { z } from 'zod';
 import type { AuthStackParamList } from '../nav/AuthStack';
 import { useAuthStore } from '../state/auth.store';
@@ -25,6 +18,7 @@ export function PhoneScreen({ navigation }: Props): JSX.Element {
   const requestOtp = useAuthStore((s) => s.requestOtp);
   const busy = useAuthStore((s) => s.busy);
   const errorCode = useAuthStore((s) => s.errorCode);
+  const theme = useTheme();
 
   const { control, handleSubmit, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -41,64 +35,39 @@ export function PhoneScreen({ navigation }: Props): JSX.Element {
   });
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <Text style={styles.title}>Enter your phone</Text>
-      <Text style={styles.muted}>We&apos;ll send a 6-digit code to verify it&apos;s you.</Text>
+    <Screen title="Welcome" keyboardAvoiding scrollable>
+      <Body muted>We&apos;ll send a 6-digit code to verify it&apos;s you.</Body>
 
       <Controller
         control={control}
         name="phone"
         render={({ field, fieldState }) => (
           <View>
-            <TextInput
+            <UITextInput
+              label="MOBILE NUMBER"
               autoFocus
               keyboardType="phone-pad"
-              style={styles.input}
               value={field.value}
               onChangeText={field.onChange}
               onBlur={field.onBlur}
               placeholder="+2348012345678"
+              error={fieldState.error?.message}
             />
-            {fieldState.error && <Text style={styles.err}>{fieldState.error.message}</Text>}
           </View>
         )}
       />
 
-      {errorCode && <Text style={styles.err}>Server: {errorCode}</Text>}
+      {errorCode ? (
+        <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body>
+      ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        disabled={busy || formState.isSubmitting}
+      <Button
+        label={busy ? 'SENDING…' : 'SEND CODE'}
         onPress={onSubmit}
-        style={({ pressed }) => [
-          styles.button,
-          pressed && styles.pressed,
-          (busy || formState.isSubmitting) && styles.disabled,
-        ]}
-      >
-        <Text style={styles.buttonText}>{busy ? 'Sending…' : 'Send code'}</Text>
-      </Pressable>
-    </KeyboardAvoidingView>
+        loading={busy}
+        disabled={busy || formState.isSubmitting}
+        fullWidth
+      />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 12, justifyContent: 'center' },
-  title: { fontSize: 24, fontWeight: '600' },
-  muted: { color: '#666' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 18 },
-  err: { color: '#b00020', marginTop: 4 },
-  button: {
-    backgroundColor: '#222',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-  },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.4 },
-  buttonText: { color: 'white', fontWeight: '600' },
-});

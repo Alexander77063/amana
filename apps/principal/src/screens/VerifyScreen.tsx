@@ -1,15 +1,8 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Body, Button, Screen, SectionHeader, TextInput as UITextInput, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { View } from 'react-native';
 import { z } from 'zod';
 import type { AuthStackParamList } from '../nav/AuthStack';
 import { useAuthStore } from '../state/auth.store';
@@ -45,6 +38,7 @@ export function VerifyScreen({ navigation }: Props): JSX.Element {
   const pendingPhone = useAuthStore((s) => s.pendingPhone);
   const busy = useAuthStore((s) => s.busy);
   const errorCode = useAuthStore((s) => s.errorCode);
+  const theme = useTheme();
 
   const { control, handleSubmit, formState } = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -66,60 +60,49 @@ export function VerifyScreen({ navigation }: Props): JSX.Element {
 
   if (!pendingPhone) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>No phone selected</Text>
-        <Pressable style={styles.button} onPress={() => navigation.navigate('Phone')}>
-          <Text style={styles.buttonText}>Back</Text>
-        </Pressable>
-      </View>
+      <Screen title="Verify">
+        <Body>No phone selected</Body>
+        <Button label="BACK" onPress={() => navigation.navigate('Phone')} />
+      </Screen>
     );
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.container}
-    >
-      <Text style={styles.title}>Enter the 6-digit code</Text>
-      <Text style={styles.muted}>Sent to {pendingPhone}</Text>
+    <Screen title="Verify" keyboardAvoiding scrollable>
+      <Body muted>Sent to {pendingPhone}</Body>
 
       <Controller
         control={control}
         name="code"
         render={({ field, fieldState }) => (
-          <View>
-            <TextInput
-              autoFocus
-              keyboardType="number-pad"
-              maxLength={6}
-              style={styles.input}
-              value={field.value}
-              onChangeText={field.onChange}
-              placeholder="123456"
-            />
-            {fieldState.error && <Text style={styles.err}>{fieldState.error.message}</Text>}
-          </View>
+          <UITextInput
+            label="6-DIGIT CODE"
+            autoFocus
+            keyboardType="number-pad"
+            maxLength={6}
+            value={field.value}
+            onChangeText={field.onChange}
+            placeholder="123456"
+            error={fieldState.error?.message}
+          />
         )}
       />
 
-      <Text style={styles.section}>If this is your first time, also enter:</Text>
+      <SectionHeader title="IF THIS IS YOUR FIRST TIME, ALSO ENTER:" />
 
       <Controller
         control={control}
         name="nin"
         render={({ field, fieldState }) => (
-          <View>
-            <Text style={styles.label}>NIN</Text>
-            <TextInput
-              keyboardType="number-pad"
-              maxLength={11}
-              style={styles.input}
-              value={field.value}
-              onChangeText={field.onChange}
-              placeholder="11 digits"
-            />
-            {fieldState.error && <Text style={styles.err}>{fieldState.error.message}</Text>}
-          </View>
+          <UITextInput
+            label="NIN"
+            keyboardType="number-pad"
+            maxLength={11}
+            value={field.value}
+            onChangeText={field.onChange}
+            placeholder="11 digits"
+            error={fieldState.error?.message}
+          />
         )}
       />
 
@@ -127,55 +110,29 @@ export function VerifyScreen({ navigation }: Props): JSX.Element {
         control={control}
         name="bvn"
         render={({ field, fieldState }) => (
-          <View>
-            <Text style={styles.label}>BVN</Text>
-            <TextInput
-              keyboardType="number-pad"
-              maxLength={11}
-              style={styles.input}
-              value={field.value}
-              onChangeText={field.onChange}
-              placeholder="11 digits"
-            />
-            {fieldState.error && <Text style={styles.err}>{fieldState.error.message}</Text>}
-          </View>
+          <UITextInput
+            label="BVN"
+            keyboardType="number-pad"
+            maxLength={11}
+            value={field.value}
+            onChangeText={field.onChange}
+            placeholder="11 digits"
+            error={fieldState.error?.message}
+          />
         )}
       />
 
-      {errorCode && <Text style={styles.err}>Server: {errorCode}</Text>}
+      {errorCode ? (
+        <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body>
+      ) : null}
 
-      <Pressable
-        accessibilityRole="button"
-        disabled={busy || formState.isSubmitting}
+      <Button
+        label={busy ? 'VERIFYING…' : 'VERIFY'}
         onPress={onSubmit}
-        style={({ pressed }) => [
-          styles.button,
-          pressed && styles.pressed,
-          (busy || formState.isSubmitting) && styles.disabled,
-        ]}
-      >
-        <Text style={styles.buttonText}>{busy ? 'Verifying…' : 'Verify'}</Text>
-      </Pressable>
-    </KeyboardAvoidingView>
+        loading={busy}
+        disabled={busy || formState.isSubmitting}
+        fullWidth
+      />
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 12 },
-  title: { fontSize: 22, fontWeight: '600' },
-  section: { fontSize: 14, fontWeight: '600', marginTop: 16 },
-  muted: { color: '#666' },
-  label: { fontSize: 12, color: '#666' },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 12, fontSize: 18 },
-  err: { color: '#b00020', marginTop: 4 },
-  button: {
-    backgroundColor: '#222',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-  },
-  pressed: { opacity: 0.7 },
-  disabled: { opacity: 0.4 },
-  buttonText: { color: 'white', fontWeight: '600' },
-});

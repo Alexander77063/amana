@@ -1,15 +1,13 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { CoinSealWordmark, Screen, Skeleton } from '@amana/ui';
+import { View } from 'react-native';
 
 export function SplashScreen(): JSX.Element {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Amana</Text>
-      <ActivityIndicator />
-    </View>
+    <Screen>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24 }}>
+        <CoinSealWordmark size={40} />
+        <Skeleton lines={1} width={120} />
+      </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16 },
-  title: { fontSize: 32, fontWeight: '600' },
-});

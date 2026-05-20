@@ -9,6 +9,7 @@ type Props = {
 };
 
 export function ThemeProvider({ children, fontsLoaded = true }: Props) {
+  // Appearance.getColorScheme() may return null on Android before bridge resolution; default to light.
   const [isDark, setIsDark] = useState(
     (Appearance.getColorScheme() ?? 'light') === 'dark',
   );

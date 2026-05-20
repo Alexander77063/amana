@@ -1,15 +1,4 @@
-export type Colors = {
-  bg: { base: string; surface: string; raised: string };
-  text: { primary: string; secondary: string; muted: string };
-  accent: string;
-  accentDim: string;
-  debit: string;
-  credit: string;
-  border: string;
-  borderAccent: string;
-};
-
-export const darkColors: Colors = {
+export const darkColors = {
   bg: { base: '#0D1B2A', surface: '#152535', raised: '#1C3147' },
   text: { primary: '#F5F0E8', secondary: '#8BA3B8', muted: '#5A8CA8' },
   accent: '#C9A227',
@@ -18,9 +7,9 @@ export const darkColors: Colors = {
   credit: '#52C49A',
   border: 'rgba(255,255,255,0.06)',
   borderAccent: 'rgba(201,162,39,0.18)',
-};
+} as const;
 
-export const lightColors: Colors = {
+export const lightColors = {
   bg: { base: '#F5F0E8', surface: '#FFFFFF', raised: '#EDE8DF' },
   text: { primary: '#0D1B2A', secondary: '#8B9AAA', muted: '#A0ADB8' },
   accent: '#C9A227',
@@ -29,6 +18,17 @@ export const lightColors: Colors = {
   credit: '#2E8B57',
   border: 'rgba(0,0,0,0.06)',
   borderAccent: 'rgba(201,162,39,0.25)',
+} as const;
+
+export type Colors = {
+  readonly bg: { readonly base: string; readonly surface: string; readonly raised: string };
+  readonly text: { readonly primary: string; readonly secondary: string; readonly muted: string };
+  readonly accent: string;
+  readonly accentDim: string;
+  readonly debit: string;
+  readonly credit: string;
+  readonly border: string;
+  readonly borderAccent: string;
 };
 
 export const typeScale = {

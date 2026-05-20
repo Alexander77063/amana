@@ -19,7 +19,7 @@ export type VerifyCodeResult =
 
 async function sendSms(phone: string, code: string): Promise<void> {
   if (!env.TERMII_API_KEY) {
-    logger.warn({ phone, code }, 'otp: TERMII_API_KEY not set — code logged for manual retrieval');
+    logger.warn({ phone }, 'otp: TERMII_API_KEY not set, skipping send');
     return;
   }
   const res = await fetch(`${env.TERMII_BASE_URL}/api/sms/send`, {
@@ -36,16 +36,16 @@ async function sendSms(phone: string, code: string): Promise<void> {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    logger.warn({ phone, code, status: res.status, body }, 'otp: termii send failed — code logged for manual retrieval');
-    // Don't throw: challenge is already committed, code is readable from logs
-    return;
+    logger.error({ phone, status: res.status, body }, 'otp: termii send failed');
+    throw new Error(`termii: ${res.status}`);
   }
 }
 
 export const otpService = {
   async requestCode(db: DbOrTx, input: RequestCodeInput): Promise<RequestCodeResult> {
     const now = new Date();
-    const code = codes.generateOtpCode();
+    const bypass = env.DEV_OTP_BYPASS_CODE;
+    const code = bypass ?? codes.generateOtpCode();
     const codeHash = await codes.hashCode(code);
     const expiresAt = new Date(now.getTime() + env.OTP_TTL_SECONDS * 1000);
 
@@ -58,7 +58,11 @@ export const otpService = {
         purpose: input.purpose,
         expiresAt,
       });
-      await sendSms(input.phone, code);
+      if (bypass) {
+        logger.warn({ phone: input.phone }, 'otp: DEV_OTP_BYPASS_CODE active — SMS skipped');
+      } else {
+        await sendSms(input.phone, code);
+      }
       return { challengeId: ch.id, expiresAt };
     });
   },

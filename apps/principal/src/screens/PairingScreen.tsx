@@ -1,13 +1,10 @@
 import { ApiError } from '@amana/api-client';
+import { Body, Button, Card, Screen, Skeleton, useTheme } from '@amana/ui';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
   Platform,
-  Pressable,
   Share,
-  StyleSheet,
-  Text,
   View,
 } from 'react-native';
 // @ts-ignore — react-native-nfc-manager types may not resolve in all envs
@@ -37,6 +34,7 @@ export function PairingScreen(): JSX.Element {
   const [state, setState] = useState<State>({ kind: 'idle' });
   const [copied, setCopied] = useState(false);
   const [nfcReady, setNfcReady] = useState(false);
+  const theme = useTheme();
 
   // Initialise NFC on Android only
   useEffect(() => {
@@ -86,80 +84,59 @@ export function PairingScreen(): JSX.Element {
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Pair an agent</Text>
-      <Text style={styles.muted}>
+    <Screen title="Pair an agent" scrollable>
+      <Body muted>
         Issue a one-time code, then have your agent scan the QR or tap phones (Android).
-      </Text>
+      </Body>
 
       {state.kind === 'idle' && (
-        <Pressable style={styles.button} onPress={() => void issue()}>
-          <Text style={styles.buttonText}>Generate code</Text>
-        </Pressable>
+        <Button label="GENERATE CODE" onPress={() => void issue()} />
       )}
 
-      {state.kind === 'loading' && <ActivityIndicator />}
+      {state.kind === 'loading' && (
+        <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 24 }}>
+          <Skeleton lines={1} width={120} />
+        </View>
+      )}
 
       {state.kind === 'issued' && (
-        <View style={styles.card}>
-          <Text style={styles.muted}>Have your agent scan this QR:</Text>
-          <View style={styles.qrWrap}>
+        <Card style={{ gap: 12 }}>
+          <Body muted>Have your agent scan this QR:</Body>
+          <View style={{ alignItems: 'center', paddingVertical: 8 }}>
             <QRCode value={state.code} size={220} />
           </View>
           {Platform.OS === 'android' && nfcReady && (
-            <Text style={styles.nfcHint}>📶 NFC active — touch phones to pair</Text>
+            <Body style={{ color: theme.colors.accent }}>📶 NFC active — touch phones to pair</Body>
           )}
-          <Text style={styles.muted}>Or share the deep-link:</Text>
-          <Text style={styles.code} selectable>
+          <Body muted>Or share the deep-link:</Body>
+          <Body strong selectable style={{ fontSize: 22, letterSpacing: 2 }}>
             {state.code}
-          </Text>
-          <Text style={styles.muted}>Expires {new Date(state.expiresAt).toLocaleString()}</Text>
-          <View style={styles.row}>
-            <Pressable style={styles.button} onPress={() => void share()}>
-              <Text style={styles.buttonText}>Share</Text>
-            </Pressable>
-            <Pressable style={[styles.button, styles.secondary]} onPress={() => void copy()}>
-              <Text style={[styles.buttonText, styles.secondaryText]}>
-                {copied ? 'Copied ✓' : 'Copy'}
-              </Text>
-            </Pressable>
+          </Body>
+          <Body muted>Expires {new Date(state.expiresAt).toLocaleString()}</Body>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Button label="SHARE" onPress={() => void share()} />
+            <Button
+              variant="secondary"
+              label={copied ? 'COPIED ✓' : 'COPY'}
+              onPress={() => void copy()}
+            />
           </View>
-          <Pressable style={[styles.button, styles.secondary]} onPress={() => void issue()}>
-            <Text style={[styles.buttonText, styles.secondaryText]}>Generate another</Text>
-          </Pressable>
-        </View>
+          <Button
+            variant="ghost"
+            label="GENERATE ANOTHER"
+            onPress={() => void issue()}
+          />
+        </Card>
       )}
 
       {state.kind === 'error' && (
-        <View>
-          <Text style={styles.err}>Couldn&apos;t issue code: {state.code}</Text>
-          <Pressable style={styles.button} onPress={() => void issue()}>
-            <Text style={styles.buttonText}>Try again</Text>
-          </Pressable>
+        <View style={{ gap: 12 }}>
+          <Body style={{ color: theme.colors.debit }}>
+            Couldn&apos;t issue code: {state.code}
+          </Body>
+          <Button label="TRY AGAIN" onPress={() => void issue()} />
         </View>
       )}
-    </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 16 },
-  title: { fontSize: 22, fontWeight: '600' },
-  muted: { color: '#666' },
-  err: { color: '#b00020' },
-  nfcHint: { color: '#1565c0', fontSize: 13, fontWeight: '600' },
-  card: { padding: 16, gap: 12, borderRadius: 12, backgroundColor: '#f3f3f3' },
-  code: { fontSize: 28, fontFamily: 'Courier', letterSpacing: 2, fontWeight: '700' },
-  button: {
-    backgroundColor: '#222',
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 999,
-    alignSelf: 'flex-start',
-  },
-  qrWrap: { alignItems: 'center', paddingVertical: 8 },
-  row: { flexDirection: 'row', gap: 8 },
-  secondary: { backgroundColor: '#eee' },
-  buttonText: { color: 'white', fontWeight: '600' },
-  secondaryText: { color: '#222' },
-});

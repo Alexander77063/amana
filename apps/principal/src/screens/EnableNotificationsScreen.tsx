@@ -1,5 +1,6 @@
+import { Body, Button, CoinSealMark, Heading, Screen, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { View } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
 import { usePushStore } from '../state/push.store';
 
@@ -14,50 +15,31 @@ export function EnableNotificationsScreen({ navigation }: Props): JSX.Element {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.iconCircle}>
-        <Text style={styles.icon}>🔔</Text>
+    <Screen>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24 }}>
+        <CoinSealMark size={80} variant="principal" />
+        <Heading size="md" style={{ textAlign: 'center' }}>
+          Get notified when an agent needs approval
+        </Heading>
+        <View style={{ gap: 8 }}>
+          <Body>• Approve spend in one tap</Body>
+          <Body>• Hear about settled transactions</Body>
+          <Body>• Get anomaly alerts</Body>
+        </View>
+        <View style={{ gap: 8, alignSelf: 'stretch' }}>
+          <Button
+            label="ENABLE NOTIFICATIONS"
+            onPress={() => void onEnable()}
+            fullWidth
+          />
+          <Button
+            variant="ghost"
+            label="NOT NOW"
+            onPress={() => navigation.goBack()}
+            fullWidth
+          />
+        </View>
       </View>
-      <Text style={styles.title}>Get notified when an agent needs approval</Text>
-      <View style={styles.bullets}>
-        <Text style={styles.bullet}>• Approve spend in one tap</Text>
-        <Text style={styles.bullet}>• Hear about settled transactions</Text>
-        <Text style={styles.bullet}>• Get anomaly alerts</Text>
-      </View>
-      <View style={styles.actions}>
-        <Pressable style={styles.primary} onPress={() => void onEnable()}>
-          <Text style={styles.primaryText}>Enable notifications</Text>
-        </Pressable>
-        <Pressable style={styles.secondary} onPress={() => navigation.goBack()}>
-          <Text style={styles.secondaryText}>Not now</Text>
-        </Pressable>
-      </View>
-    </View>
+    </Screen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24, gap: 24, justifyContent: 'center', alignItems: 'center' },
-  iconCircle: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#f3f3f3',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  icon: { fontSize: 48 },
-  title: { fontSize: 22, fontWeight: '700', textAlign: 'center' },
-  bullets: { gap: 8 },
-  bullet: { fontSize: 16, color: '#444' },
-  actions: { gap: 8, alignSelf: 'stretch' },
-  primary: {
-    backgroundColor: '#222',
-    paddingVertical: 14,
-    borderRadius: 999,
-    alignItems: 'center',
-  },
-  primaryText: { color: 'white', fontWeight: '600', fontSize: 16 },
-  secondary: { paddingVertical: 14, alignItems: 'center' },
-  secondaryText: { color: '#666', fontSize: 14 },
-});

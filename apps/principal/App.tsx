@@ -1,8 +1,21 @@
+import {
+  PlusJakartaSans_400Regular,
+  PlusJakartaSans_600SemiBold,
+  PlusJakartaSans_700Bold,
+  useFonts,
+} from '@expo-google-fonts/plus-jakarta-sans';
 import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
 import { Component, type ReactNode, useEffect, useRef } from 'react';
 import { ScrollView, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ThemeProvider } from '@amana/ui';
+import { deepLinkFor, isBumpKind, setupForegroundListener, setupResponseListener } from './src/lib/push';
+import { RootNavigator, navigationRef } from './src/nav/RootNavigator';
+import { useAuthStore } from './src/state/auth.store';
+import { useBumpsStore } from './src/state/bumps.store';
+import { useNotificationsStore } from './src/state/notifications.store';
+import { usePushStore } from './src/state/push.store';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   constructor(props: { children: ReactNode }) {
@@ -28,17 +41,6 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: string |
     return this.props.children;
   }
 }
-import {
-  deepLinkFor,
-  isBumpKind,
-  setupForegroundListener,
-  setupResponseListener,
-} from './src/lib/push';
-import { RootNavigator, navigationRef } from './src/nav/RootNavigator';
-import { useAuthStore } from './src/state/auth.store';
-import { useBumpsStore } from './src/state/bumps.store';
-import { useNotificationsStore } from './src/state/notifications.store';
-import { usePushStore } from './src/state/push.store';
 
 function navigateForResponse(response: Notifications.NotificationResponse) {
   const data = response.notification.request.content.data as Record<string, unknown> | undefined;
@@ -55,6 +57,12 @@ function navigateForResponse(response: Notifications.NotificationResponse) {
 }
 
 export default function App(): JSX.Element {
+  const [fontsLoaded] = useFonts({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+  });
+
   const authStatus = useAuthStore((s) => s.status);
   const bootstrapPush = usePushStore((s) => s.bootstrap);
   const refreshBumps = useBumpsStore((s) => s.refresh);
@@ -104,7 +112,9 @@ export default function App(): JSX.Element {
     <ErrorBoundary>
       <SafeAreaProvider>
         <StatusBar style="auto" />
-        <RootNavigator />
+        <ThemeProvider fontsLoaded={fontsLoaded}>
+          <RootNavigator />
+        </ThemeProvider>
       </SafeAreaProvider>
     </ErrorBoundary>
   );

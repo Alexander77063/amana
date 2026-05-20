@@ -40,75 +40,27 @@ const Stack = createNativeStackNavigator<MainStackParamList>();
 
 export function MainStack(): JSX.Element {
   return (
-    <Stack.Navigator>
-      <Stack.Screen
-        name="HomeDashboard"
-        component={HomeDashboardScreen}
-        options={{ title: 'Amana' }}
-      />
-      <Stack.Screen
-        name="HouseholdSetup"
-        component={HouseholdSetupScreen}
-        options={{ title: 'Set up household' }}
-      />
-      <Stack.Screen name="Pairing" component={PairingScreen} options={{ title: 'Pair an agent' }} />
-      <Stack.Screen name="Members" component={MembersScreen} options={{ title: 'Agents' }} />
-      <Stack.Screen
-        name="SubWalletsList"
-        component={SubWalletsListScreen}
-        options={{ title: 'Sub-wallets' }}
-      />
-      <Stack.Screen
-        name="CreateSubWallet"
-        component={CreateSubWalletScreen}
-        options={{ title: 'New sub-wallet' }}
-      />
-      <Stack.Screen
-        name="SubWalletDetail"
-        component={SubWalletDetailScreen}
-        options={{ title: 'Sub-wallet' }}
-      />
-      <Stack.Screen
-        name="EditRules"
-        component={EditRulesScreen}
-        options={{ title: 'Edit rules' }}
-      />
-      <Stack.Screen
-        name="BumpsInbox"
-        component={BumpsInboxScreen}
-        options={{ title: 'Pending requests' }}
-      />
-      <Stack.Screen
-        name="NotificationsInbox"
-        component={NotificationsInboxScreen}
-        options={{ title: 'Notifications' }}
-      />
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="HomeDashboard" component={HomeDashboardScreen} />
+      <Stack.Screen name="HouseholdSetup" component={HouseholdSetupScreen} />
+      <Stack.Screen name="Pairing" component={PairingScreen} />
+      <Stack.Screen name="Members" component={MembersScreen} />
+      <Stack.Screen name="SubWalletsList" component={SubWalletsListScreen} />
+      <Stack.Screen name="CreateSubWallet" component={CreateSubWalletScreen} />
+      <Stack.Screen name="SubWalletDetail" component={SubWalletDetailScreen} />
+      <Stack.Screen name="EditRules" component={EditRulesScreen} />
+      <Stack.Screen name="BumpsInbox" component={BumpsInboxScreen} />
+      <Stack.Screen name="NotificationsInbox" component={NotificationsInboxScreen} />
       <Stack.Screen
         name="EnableNotifications"
         component={EnableNotificationsScreen}
-        options={{ title: 'Notifications', presentation: 'modal' }}
+        options={{ presentation: 'modal' }}
       />
-      <Stack.Screen name="Settings" component={SettingsScreen} options={{ title: 'Settings' }} />
-      <Stack.Screen
-        name="NotificationPreferences"
-        component={NotificationPreferencesScreen}
-        options={{ title: 'Notification preferences' }}
-      />
-      <Stack.Screen
-        name="NotificationKindDetail"
-        component={NotificationKindDetailScreen}
-        options={{ title: 'Notification kind' }}
-      />
-      <Stack.Screen
-        name="QuietHours"
-        component={QuietHoursScreen}
-        options={{ title: 'Quiet hours' }}
-      />
-      <Stack.Screen
-        name="TransactionDetail"
-        component={TransactionDetailScreen}
-        options={{ title: 'Transaction' }}
-      />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="NotificationPreferences" component={NotificationPreferencesScreen} />
+      <Stack.Screen name="NotificationKindDetail" component={NotificationKindDetailScreen} />
+      <Stack.Screen name="QuietHours" component={QuietHoursScreen} />
+      <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen} />
     </Stack.Navigator>
   );
 }

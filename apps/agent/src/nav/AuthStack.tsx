@@ -13,9 +13,9 @@ const Stack = createNativeStackNavigator<AuthStackParamList>();
 
 export function AuthStack({ onLoggedIn }: Props): JSX.Element {
   return (
-    <Stack.Navigator>
-      <Stack.Screen name="Phone" component={PhoneScreen} options={{ title: 'Sign in' }} />
-      <Stack.Screen name="Verify" options={{ title: 'Verify' }}>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Phone" component={PhoneScreen} />
+      <Stack.Screen name="Verify">
         {(props) => <VerifyScreen {...props} onLoggedIn={onLoggedIn} />}
       </Stack.Screen>
     </Stack.Navigator>

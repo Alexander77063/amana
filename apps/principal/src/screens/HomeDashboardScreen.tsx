@@ -1,7 +1,7 @@
 import { Badge, Body, Button, Card, Screen, Skeleton, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
-import { ActivityIndicator, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useBumpsStore } from '../state/bumps.store';
 import { useHouseholdStore } from '../state/household.store';

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { subWallets } from '../../db/schema';
 import { ledgerAccountsRepo } from './ledger-accounts.repo';
@@ -49,5 +49,27 @@ export const subWalletsRepo = {
     status: 'active' | 'suspended' | 'closed',
   ): Promise<void> {
     await db.update(subWallets).set({ status }).where(eq(subWallets.id, id));
+  },
+
+  async findPrincipalAndAgent(
+    db: DbOrTx,
+    subWalletId: string,
+  ): Promise<{ principalUserId: string; agentDisplayName: string } | null> {
+    const rows = await db.execute<{
+      principal_user_id: string;
+      agent_display_name: string;
+    }>(sql`
+      SELECT h.principal_user_id, sw.name AS agent_display_name
+      FROM sub_wallets sw
+      INNER JOIN master_wallets mw ON mw.id = sw.master_wallet_id
+      INNER JOIN households h ON h.id = mw.household_id
+      WHERE sw.id = ${subWalletId}
+      LIMIT 1
+    `);
+    if (!rows[0]) return null;
+    return {
+      principalUserId: rows[0].principal_user_id,
+      agentDisplayName: rows[0].agent_display_name,
+    };
   },
 };

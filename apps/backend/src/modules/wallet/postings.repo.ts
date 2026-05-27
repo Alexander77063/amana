@@ -32,7 +32,7 @@ export const postingsRepo = {
       FROM postings
       WHERE ledger_account_id = ${ledgerAccountId}
     `);
-    return BigInt(result[0]?.balance ?? '0') as Kobo;
+    return kobo(BigInt(result[0]?.balance ?? '0'));
   },
 
   /** Sum of debit_kobo on settled spend transactions for a sub-wallet within a rolling window. */

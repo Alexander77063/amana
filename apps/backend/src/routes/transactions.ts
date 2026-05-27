@@ -23,8 +23,8 @@ const IntentBodySchema = z.object({
   vendorBankCode: z.string().min(1),
   vendorAccountNumber: z.string().min(1),
   vendorResolvedName: z.string().min(1),
-  category: z.union([z.string(), z.null()]).optional().default(null),
-  agentNote: z.union([z.string(), z.null()]).optional().default(null),
+  category: z.string().nullable().default(null),
+  agentNote: z.string().nullable().default(null),
 });
 
 const ResumeBodySchema = z.object({ token: z.string().min(1) });
@@ -44,8 +44,8 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
       vendorBankCode: body.vendorBankCode,
       vendorAccountNumber: body.vendorAccountNumber,
       vendorResolvedName: body.vendorResolvedName,
-      category: body.category,
-      agentNote: body.agentNote,
+      category: body.category ?? null,
+      agentNote: body.agentNote ?? null,
     });
     return c.json({ transactionId: txn.id, status: txn.status }, 201);
   })

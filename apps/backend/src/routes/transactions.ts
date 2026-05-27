@@ -25,17 +25,7 @@ const IntentBodySchema = z.object({
   vendorResolvedName: z.string().min(1),
   category: z.union([z.string(), z.null()]).optional().default(null),
   agentNote: z.union([z.string(), z.null()]).optional().default(null),
-}) as z.ZodType<{
-  masterWalletId: string;
-  subWalletId: string | null;
-  amountKobo: string;
-  idempotencyKey: string;
-  vendorBankCode: string;
-  vendorAccountNumber: string;
-  vendorResolvedName: string;
-  category: string | null;
-  agentNote: string | null;
-}>;
+});
 
 const ResumeBodySchema = z.object({ token: z.string().min(1) });
 

@@ -92,3 +92,35 @@ describe('sub-wallets.repo', () => {
     expect(found?.status).toBe('suspended');
   });
 });
+
+describe('subWalletsRepo.findPrincipalAndAgent', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  it('returns principalUserId and agentDisplayName for a valid sub-wallet', async () => {
+    const { principal, master: mw } = await seedHouseholdWithMaster();
+    const agent = await usersRepo.insert(testDb, {
+      role: 'agent',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
+    });
+    const { sub } = await subWalletsRepo.provision(testDb, {
+      masterWalletId: mw.id,
+      agentUserId: agent.id,
+      name: 'My Sub Wallet',
+    });
+
+    const result = await subWalletsRepo.findPrincipalAndAgent(testDb, sub.id);
+
+    expect(result).not.toBeNull();
+    expect(result?.principalUserId).toBe(principal.id);
+    expect(result?.agentDisplayName).toBe('My Sub Wallet');
+  });
+
+  it('returns null for unknown sub-wallet id', async () => {
+    const result = await subWalletsRepo.findPrincipalAndAgent(testDb, 'non-existent-id');
+    expect(result).toBeNull();
+  });
+});

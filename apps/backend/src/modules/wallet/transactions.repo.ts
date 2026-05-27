@@ -78,4 +78,18 @@ export const transactionsRepo = {
   async setErrorMessage(db: DbOrTx, id: string, errorMessage: string): Promise<void> {
     await db.update(transactions).set({ errorMessage }).where(eq(transactions.id, id));
   },
+
+  async attachMedia(db: DbOrTx, id: string, mediaKey: string): Promise<void> {
+    await db
+      .update(transactions)
+      .set({ attachedMedia: { key: mediaKey, uploadedAt: new Date().toISOString() } })
+      .where(eq(transactions.id, id));
+  },
+
+  async setAnomalyScore(db: DbOrTx, id: string, score: number): Promise<void> {
+    await db
+      .update(transactions)
+      .set({ anomalyScore: String(score) })
+      .where(eq(transactions.id, id));
+  },
 };

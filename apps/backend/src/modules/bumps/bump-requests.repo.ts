@@ -111,4 +111,11 @@ export const bumpRequestsRepo = {
       })
       .where(and(inArray(bumpRequests.id, ids), eq(bumpRequests.status, 'pending')));
   },
+
+  async cancelByTransactionId(db: DbOrTx, transactionId: string): Promise<void> {
+    await db
+      .update(bumpRequests)
+      .set({ status: 'cancelled' as BumpStatus })
+      .where(eq(bumpRequests.transactionId, transactionId));
+  },
 };

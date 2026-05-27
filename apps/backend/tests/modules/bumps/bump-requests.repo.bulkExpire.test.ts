@@ -44,4 +44,17 @@ describe('bumpRequestsRepo.bulkExpire', () => {
     // Should not throw
     await bumpRequestsRepo.bulkExpire(testDb, [], new Date());
   });
+
+  it('does not expire a bump that is already decided', async () => {
+    const { agentId, subWalletId, masterWalletId } = await seed();
+    const past = new Date(Date.now() - 60_000);
+    const b = await insertBump(subWalletId, masterWalletId, agentId, past);
+    // Mark it as denied before calling bulkExpire
+    await bumpRequestsRepo.setDecision(testDb, b.id, 'denied', agentId, new Date());
+
+    await bumpRequestsRepo.bulkExpire(testDb, [b.id], new Date());
+
+    const row = await bumpRequestsRepo.findById(testDb, b.id);
+    expect(row?.status).toBe('denied'); // must NOT have been overwritten
+  });
 });

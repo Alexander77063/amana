@@ -1,11 +1,11 @@
-import { and, desc, eq, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { bumpRequests, households, masterWallets, subWallets } from '../../db/schema';
 import type { Kobo } from '../../lib/kobo';
 
 type DbOrTx = PostgresJsDatabase;
 
-export type BumpStatus = 'pending' | 'approved_once' | 'raise_limit' | 'denied' | 'expired';
+export type BumpStatus = 'pending' | 'approved_once' | 'raise_limit' | 'denied' | 'expired' | 'cancelled';
 
 export type BumpRequestRow = typeof bumpRequests.$inferSelect;
 
@@ -102,13 +102,13 @@ export const bumpRequestsRepo = {
 
   async bulkExpire(db: DbOrTx, ids: string[], now: Date): Promise<void> {
     if (ids.length === 0) return;
-    await db.execute(sql`
-      UPDATE bump_requests
-      SET status = 'expired',
-          decided_at = ${now.toISOString()}::timestamptz,
-          decided_by_user_id = requested_by_user_id
-      WHERE id = ANY(${ids}::uuid[])
-        AND status = 'pending'
-    `);
+    await db
+      .update(bumpRequests)
+      .set({
+        status: 'expired',
+        decidedAt: now,
+        decidedByUserId: sql`${bumpRequests.requestedByUserId}`,
+      })
+      .where(and(inArray(bumpRequests.id, ids), eq(bumpRequests.status, 'pending')));
   },
 };

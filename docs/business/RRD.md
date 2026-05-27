@@ -17,7 +17,7 @@
 | AUTH-3 | Successful OTP verification must return an access token (JWT) and a refresh token           | ✓ 
 | AUTH-4 | Access tokens must have a short TTL (15 min); refresh tokens must have a long TTL (30 days) | ✓ 
 | AUTH-5 | Any authenticated endpoint must reject requests with expired or invalid JWTs with HTTP 401  | ✓ 
-| AUTH-6 | Logout must invalidate the refresh token server-side                                        | ✓ 
+| AUTH-6 | Logout must invalidate the refresh token server-side                                        | ✓ 1
 | AUTH-7 | Each user must have a role (`principal` or `agent`) that is immutable after creation        | ✓ 
 | AUTH-8 | Principal registration requires Phone + BVN + NIN (KYC Tier 2)                              | ✓ 
 | AUTH-9 | Agent registration requires Phone + NIN only                                                | ✓ 

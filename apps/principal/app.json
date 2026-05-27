@@ -16,10 +16,14 @@
       "supportsTablet": false,
       "buildNumber": "1",
       "infoPlist": {
-        "NFCReaderUsageDescription": "Used to pair with an agent device via NFC tap."
+        "NFCReaderUsageDescription": "Used to pair with an agent device via NFC tap.",
+        "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
-        "com.apple.developer.nfc.readersession.formats": ["TAG"]
+        "com.apple.developer.nfc.readersession.formats": [
+          "TAG",
+          "TAG"
+        ]
       }
     },
     "android": {
@@ -30,7 +34,10 @@
         "backgroundColor": "#1C1C1E"
       }
     },
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "plugins": [
       "expo-secure-store",
       [

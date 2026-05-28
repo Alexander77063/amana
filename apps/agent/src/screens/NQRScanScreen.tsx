@@ -4,8 +4,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
 import { api } from '../lib/api';
-import { useAgentStore } from '../state/agent.store';
 import type { PayStackParamList } from '../nav/PayStack';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'NQRScan'>;
 

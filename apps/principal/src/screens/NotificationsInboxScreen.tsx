@@ -3,12 +3,7 @@ import { Body, Button, Caption, Screen, Skeleton, useTheme } from '@amana/ui';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback } from 'react';
-import {
-  FlatList,
-  Pressable,
-  RefreshControl,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, RefreshControl, View } from 'react-native';
 import { deepLinkFor } from '../lib/push';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useNotificationsStore } from '../state/notifications.store';
@@ -94,7 +89,9 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
   if (status === 'error') {
     return (
       <Screen title="Notifications" headerRight={headerRight}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}
+        >
           <Body style={{ color: theme.colors.debit }}>{`Couldn't load: ${errorCode ?? ''}`}</Body>
           <Button label="RETRY" onPress={() => void refresh()} />
         </View>
@@ -156,7 +153,9 @@ export function NotificationsInboxScreen({ navigation }: Props): JSX.Element {
             </Pressable>
           );
         }}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />
+        }
       />
     </Screen>
   );

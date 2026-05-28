@@ -2,8 +2,8 @@ import { Body, Button, Card, Label, Screen, SectionHeader, useTheme } from '@ama
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Pressable, View } from 'react-native';
 import { secureTokenStore } from '../lib/secure-token-store';
-import { useAgentStore } from '../state/agent.store';
 import type { SettingsStackParamList } from '../nav/SettingsStack';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'Settings'>;
 
@@ -21,7 +21,9 @@ export function SettingsScreen({ navigation }: Props): JSX.Element {
       <View style={{ gap: 20, marginTop: 8 }}>
         <View style={{ gap: 8 }}>
           <SectionHeader title="WALLET" />
-          <Card style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Card
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+          >
             <Label>NAME</Label>
             <Body muted>{sw?.name ?? '—'}</Body>
           </Card>
@@ -30,9 +32,17 @@ export function SettingsScreen({ navigation }: Props): JSX.Element {
         <View style={{ gap: 8 }}>
           <SectionHeader title="NOTIFICATIONS" />
           <Pressable onPress={() => navigation.navigate('EnableNotifications')}>
-            <Card style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Card
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
               <Body>Push notifications</Body>
-              <Body muted style={{ fontSize: 20 }}>›</Body>
+              <Body muted style={{ fontSize: 20 }}>
+                ›
+              </Body>
             </Card>
           </Pressable>
         </View>

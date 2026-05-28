@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/client';
-import { parseBody } from '../lib/validate';
 import { placeholderAnchorAccountForHousehold } from '../lib/placeholder-anchor';
+import { parseBody } from '../lib/validate';
 import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
 import { subwalletSnoozeRepo } from '../modules/notifications/subwallet-snooze.repo';

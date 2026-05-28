@@ -1,3 +1,4 @@
+import { ThemeProvider } from '@amana/ui';
 import {
   PlusJakartaSans_400Regular,
   PlusJakartaSans_600SemiBold,
@@ -9,8 +10,12 @@ import { StatusBar } from 'expo-status-bar';
 import { Component, type ReactNode, useEffect, useRef } from 'react';
 import { ScrollView, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ThemeProvider } from '@amana/ui';
-import { deepLinkFor, isBumpKind, setupForegroundListener, setupResponseListener } from './src/lib/push';
+import {
+  deepLinkFor,
+  isBumpKind,
+  setupForegroundListener,
+  setupResponseListener,
+} from './src/lib/push';
 import { RootNavigator, navigationRef } from './src/nav/RootNavigator';
 import { useAuthStore } from './src/state/auth.store';
 import { useBumpsStore } from './src/state/bumps.store';

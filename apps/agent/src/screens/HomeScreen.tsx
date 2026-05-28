@@ -1,12 +1,12 @@
 import type { TransactionSummary } from '@amana/types';
-import { AmountText, BalanceCard, Badge, Body, Screen, TransactionRow, useTheme } from '@amana/ui';
+import { AmountText, Badge, BalanceCard, Body, Screen, TransactionRow, useTheme } from '@amana/ui';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { api } from '../lib/api';
-import { useAgentStore } from '../state/agent.store';
 import type { MainTabParamList } from '../nav/MainTabs';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Home'>;
 

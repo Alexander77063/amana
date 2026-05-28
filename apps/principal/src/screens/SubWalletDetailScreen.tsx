@@ -1,11 +1,17 @@
-import { AmountText, Body, Button, Card, Caption, Label, Screen, Skeleton, useTheme } from '@amana/ui';
+import {
+  AmountText,
+  Body,
+  Button,
+  Caption,
+  Card,
+  Label,
+  Screen,
+  Skeleton,
+  useTheme,
+} from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  View,
-} from 'react-native';
+import { Modal, Pressable, View } from 'react-native';
 import { type SnoozePreset, presetToExpiresAt } from '../lib/snooze-presets';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useSubWalletsStore } from '../state/subwallets.store';
@@ -71,7 +77,14 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
 
       <Card>
         <Label>NOTIFICATIONS</Label>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginTop: 4,
+          }}
+        >
           <Body>{renderSnoozeStatus()}</Body>
           {isSnoozeActive ? (
             <Pressable onPress={() => void unsnoozeAction(subWalletId)}>

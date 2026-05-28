@@ -6,8 +6,16 @@ describe('runLogout', () => {
     return {
       read: vi.fn().mockResolvedValue(
         hasAuth
-          ? { tokens: { accessToken: 'A1', refreshToken: 'R1', accessExpiresAt: '', refreshExpiresAt: '' }, user: { id: 'u1', role: 'principal', phone: '', kycTier: '1' } }
-          : null
+          ? {
+              tokens: {
+                accessToken: 'A1',
+                refreshToken: 'R1',
+                accessExpiresAt: '',
+                refreshExpiresAt: '',
+              },
+              user: { id: 'u1', role: 'principal', phone: '', kycTier: '1' },
+            }
+          : null,
       ),
       write: vi.fn(),
       clear: vi.fn().mockResolvedValue(undefined),

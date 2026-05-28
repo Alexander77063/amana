@@ -1,5 +1,5 @@
+import { Body, Button, Caption, Card, Screen, TextInput as UITextInput, useTheme } from '@amana/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Body, Button, Card, Caption, Screen, TextInput as UITextInput, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -53,11 +53,11 @@ export function CreateSubWalletScreen({ navigation }: Props): JSX.Element {
   if (agents.length === 0) {
     return (
       <Screen title="New sub-wallet">
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}
+        >
           <Body strong>No paired agents</Body>
-          <Body muted>
-            Pair an agent first, then come back to create a sub-wallet for them.
-          </Body>
+          <Body muted>Pair an agent first, then come back to create a sub-wallet for them.</Body>
           <Button label="GO TO PAIRING" onPress={() => navigation.navigate('Pairing')} />
         </View>
       </Screen>
@@ -107,9 +107,7 @@ export function CreateSubWalletScreen({ navigation }: Props): JSX.Element {
         )}
       />
 
-      {errorCode ? (
-        <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body>
-      ) : null}
+      {errorCode ? <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body> : null}
 
       <Button
         label={busy ? 'CREATING…' : 'CREATE SUB-WALLET'}

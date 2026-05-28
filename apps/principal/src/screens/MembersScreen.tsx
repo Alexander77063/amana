@@ -24,9 +24,7 @@ export function MembersScreen(): JSX.Element {
     return (
       <Screen title="Agents">
         <Body muted>No agents paired yet.</Body>
-        <Body muted>
-          Use &quot;Pair an agent&quot; from the home screen to issue a code.
-        </Body>
+        <Body muted>Use &quot;Pair an agent&quot; from the home screen to issue a code.</Body>
       </Screen>
     );
   }
@@ -38,7 +36,14 @@ export function MembersScreen(): JSX.Element {
         data={members}
         keyExtractor={(m) => m.userId}
         renderItem={({ item }) => (
-          <View style={{ paddingVertical: 12, borderBottomWidth: 0.5, borderBottomColor: '#ddd', gap: 4 }}>
+          <View
+            style={{
+              paddingVertical: 12,
+              borderBottomWidth: 0.5,
+              borderBottomColor: '#ddd',
+              gap: 4,
+            }}
+          >
             <Body strong>{item.phone}</Body>
             <Caption>{`${item.role} · KYC tier ${item.kycTier} · ${item.status}`}</Caption>
           </View>

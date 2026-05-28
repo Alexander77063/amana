@@ -2,11 +2,7 @@ import { ApiError } from '@amana/api-client';
 import { Body, Button, Card, Screen, Skeleton, useTheme } from '@amana/ui';
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useState } from 'react';
-import {
-  Platform,
-  Share,
-  View,
-} from 'react-native';
+import { Platform, Share, View } from 'react-native';
 // @ts-ignore — react-native-nfc-manager types may not resolve in all envs
 import NfcManager, { Ndef, NfcTech } from 'react-native-nfc-manager';
 import QRCode from 'react-native-qrcode-svg';
@@ -89,9 +85,7 @@ export function PairingScreen(): JSX.Element {
         Issue a one-time code, then have your agent scan the QR or tap phones (Android).
       </Body>
 
-      {state.kind === 'idle' && (
-        <Button label="GENERATE CODE" onPress={() => void issue()} />
-      )}
+      {state.kind === 'idle' && <Button label="GENERATE CODE" onPress={() => void issue()} />}
 
       {state.kind === 'loading' && (
         <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 24 }}>
@@ -121,19 +115,13 @@ export function PairingScreen(): JSX.Element {
               onPress={() => void copy()}
             />
           </View>
-          <Button
-            variant="ghost"
-            label="GENERATE ANOTHER"
-            onPress={() => void issue()}
-          />
+          <Button variant="ghost" label="GENERATE ANOTHER" onPress={() => void issue()} />
         </Card>
       )}
 
       {state.kind === 'error' && (
         <View style={{ gap: 12 }}>
-          <Body style={{ color: theme.colors.debit }}>
-            Couldn&apos;t issue code: {state.code}
-          </Body>
+          <Body style={{ color: theme.colors.debit }}>Couldn&apos;t issue code: {state.code}</Body>
           <Button label="TRY AGAIN" onPress={() => void issue()} />
         </View>
       )}

@@ -1,14 +1,21 @@
 import type { BumpRequest, BumpStatus } from '@amana/types';
-import { AmountText, Badge, Body, Button, Caption, Card, Screen, SectionHeader, Skeleton, useTheme } from '@amana/ui';
+import {
+  AmountText,
+  Badge,
+  Body,
+  Button,
+  Caption,
+  Card,
+  Screen,
+  SectionHeader,
+  Skeleton,
+  useTheme,
+} from '@amana/ui';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo } from 'react';
-import {
-  FlatList,
-  RefreshControl,
-  View,
-} from 'react-native';
+import { FlatList, RefreshControl, View } from 'react-native';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useBumpsStore } from '../state/bumps.store';
 import { usePushStore } from '../state/push.store';
@@ -127,7 +134,9 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
   if (status === 'error') {
     return (
       <Screen title="Requests">
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}
+        >
           <Body style={{ color: theme.colors.debit }}>{`Couldn't load: ${errorCode ?? ''}`}</Body>
           <Button label="RETRY" onPress={() => void refresh()} />
         </View>
@@ -167,7 +176,9 @@ export function BumpsInboxScreen({ navigation }: Props): JSX.Element {
             </>
           );
         }}
-        refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={() => void refresh()} />
+        }
       />
     </Screen>
   );

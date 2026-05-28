@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import NfcManager, { Ndef, NfcEvents } from 'react-native-nfc-manager';
 import { api } from '../lib/api';
-import { useAgentStore } from '../state/agent.store';
 import type { PairingStackParamList } from '../nav/PairingStack';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<PairingStackParamList, 'NFCPair'> & { onPaired: () => void };
 

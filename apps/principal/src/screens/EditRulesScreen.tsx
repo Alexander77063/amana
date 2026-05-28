@@ -1,5 +1,5 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Body, Button, Screen, TextInput as UITextInput, useTheme } from '@amana/ui';
+import { zodResolver } from '@hookform/resolvers/zod';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -97,9 +97,7 @@ export function EditRulesScreen({ navigation, route }: Props): JSX.Element {
         )}
       />
 
-      {errorCode ? (
-        <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body>
-      ) : null}
+      {errorCode ? <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body> : null}
 
       <Button
         label="PUBLISH RULES"

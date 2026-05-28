@@ -46,6 +46,9 @@ export const lifecycleService = {
       return { kind: 'allow', transaction: updated };
     }
 
+    // subWalletId is non-null: the null branch returned early above
+    const subWalletId = txn.subWalletId;
+
     const result = await db.transaction(async (tx) => {
       const txDb = tx as DbOrTx;
 
@@ -60,32 +63,56 @@ export const lifecycleService = {
         confirmedAt: input.now,
       };
 
-      const subLA = await ledgerAccountsRepo.findBySubWallet(txDb, txn.subWalletId!);
+      const subLA = await ledgerAccountsRepo.findBySubWallet(txDb, subWalletId);
       if (!subLA) throw new Error('sub_wallet has no ledger account — should not happen');
       const subBalance = await postingsRepo.accountBalance(txDb, subLA.id);
-      const spent24 = await postingsRepo.sumDebitsInWindow(txDb, txn.subWalletId!, SPENT_LAST_24H_SECONDS, input.now);
-      const spent30d = await postingsRepo.sumDebitsInWindow(txDb, txn.subWalletId!, SPENT_LAST_30D_SECONDS, input.now);
-      const history = await loadHistoryForSubWallet(txDb, txn.subWalletId!, input.now);
+      const spent24 = await postingsRepo.sumDebitsInWindow(
+        txDb,
+        subWalletId,
+        SPENT_LAST_24H_SECONDS,
+        input.now,
+      );
+      const spent30d = await postingsRepo.sumDebitsInWindow(
+        txDb,
+        subWalletId,
+        SPENT_LAST_30D_SECONDS,
+        input.now,
+      );
+      const history = await loadHistoryForSubWallet(txDb, subWalletId, input.now);
       const anomaly = anomalyService.score(intent, history);
 
       await transactionsRepo.setAnomalyScore(txDb, txn.id, anomaly.score);
-      await auditRepo.append(txDb, auditEvents.anomalyScored({ transactionId: txn.id, score: anomaly.score, features: anomaly.features }));
+      await auditRepo.append(
+        txDb,
+        auditEvents.anomalyScored({
+          transactionId: txn.id,
+          score: anomaly.score,
+          features: anomaly.features,
+        }),
+      );
 
-      const ruleSet = await fetchActiveRuleSet(txDb, txn.subWalletId!);
+      const ruleSet = await fetchActiveRuleSet(txDb, subWalletId);
       const decision: Decision = ruleSet
         ? evaluate(intent, ruleSet, {
-            ledger: { subWalletAvailableKobo: subBalance, spentLast24hKobo: spent24, spentLast30dKobo: spent30d },
+            ledger: {
+              subWalletAvailableKobo: subBalance,
+              spentLast24hKobo: spent24,
+              spentLast30dKobo: spent30d,
+            },
             anomalyScore: anomaly.score,
           })
         : { kind: 'allow' };
 
-      await auditRepo.append(txDb, auditEvents.txnRuleEval({
-        transactionId: txn.id,
-        actorUserId: input.initiatingUserId,
-        ruleSetId: ruleSet?.id ?? '00000000-0000-0000-0000-000000000000',
-        ruleSetVersion: ruleSet?.version ?? 0,
-        decision,
-      }));
+      await auditRepo.append(
+        txDb,
+        auditEvents.txnRuleEval({
+          transactionId: txn.id,
+          actorUserId: input.initiatingUserId,
+          ruleSetId: ruleSet?.id ?? '00000000-0000-0000-0000-000000000000',
+          ruleSetVersion: ruleSet?.version ?? 0,
+          decision,
+        }),
+      );
 
       if (decision.kind === 'allow') {
         await transactionsRepo.setStatus(txDb, txn.id, 'in_flight');
@@ -96,30 +123,37 @@ export const lifecycleService = {
 
       const bump = await bumpWorkflowService.create(txDb, {
         transactionId: txn.id,
-        subWalletId: txn.subWalletId!,
+        subWalletId,
         requestedByUserId: input.initiatingUserId,
         amountKobo: intent.amountKobo,
         vendorResolvedName: intent.vendorResolvedName ?? 'Unknown vendor',
         now: input.now,
       });
-      await auditRepo.append(txDb, auditEvents.bumpRequested({
-        bumpRequestId: bump.bumpRequest.id,
-        transactionId: txn.id,
-        actorUserId: input.initiatingUserId,
-        amountKobo: intent.amountKobo,
-        vendorResolvedName: intent.vendorResolvedName ?? 'Unknown vendor',
-      }));
+      await auditRepo.append(
+        txDb,
+        auditEvents.bumpRequested({
+          bumpRequestId: bump.bumpRequest.id,
+          transactionId: txn.id,
+          actorUserId: input.initiatingUserId,
+          amountKobo: intent.amountKobo,
+          vendorResolvedName: intent.vendorResolvedName ?? 'Unknown vendor',
+        }),
+      );
       const updated = await transactionsRepo.findById(txDb, txn.id);
       if (!updated) throw new Error('transaction disappeared after status update');
-      return { kind: 'bump_pending' as const, transaction: updated, bumpRequestId: bump.bumpRequest.id };
+      return {
+        kind: 'bump_pending' as const,
+        transaction: updated,
+        bumpRequestId: bump.bumpRequest.id,
+      };
     });
 
     // Soft anomaly alert — dispatched best-effort outside the transaction so it never blocks.
     if (result.kind === 'allow' || result.kind === 'bump_pending') {
-      const subWalletId = txn.subWalletId!;
       const score = result.transaction.anomalyScore as number | null;
       if (score !== null && score >= 0.85) {
-        subWalletsRepo.findPrincipalAndAgent(db, subWalletId)
+        subWalletsRepo
+          .findPrincipalAndAgent(db, subWalletId)
           .then(async (resolved) => {
             if (!resolved) return;
             await notificationService.dispatch(db, {
@@ -137,7 +171,9 @@ export const lifecycleService = {
               },
             });
           })
-          .catch((e: unknown) => logger.error({ err: (e as Error).message }, 'anomaly_alert notification failed'));
+          .catch((e: unknown) =>
+            logger.error({ err: (e as Error).message }, 'anomaly_alert notification failed'),
+          );
       }
     }
 

@@ -5,7 +5,13 @@ import type { Kobo } from '../../lib/kobo';
 
 type DbOrTx = PostgresJsDatabase;
 
-export type BumpStatus = 'pending' | 'approved_once' | 'raise_limit' | 'denied' | 'expired' | 'cancelled';
+export type BumpStatus =
+  | 'pending'
+  | 'approved_once'
+  | 'raise_limit'
+  | 'denied'
+  | 'expired'
+  | 'cancelled';
 
 export type BumpRequestRow = typeof bumpRequests.$inferSelect;
 

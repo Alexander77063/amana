@@ -3,8 +3,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
 import { Platform, View } from 'react-native';
 import { api } from '../lib/api';
-import { useAgentStore } from '../state/agent.store';
 import type { PairingStackParamList } from '../nav/PairingStack';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<PairingStackParamList, 'PairingMethod'> & {
   onPaired: () => void;

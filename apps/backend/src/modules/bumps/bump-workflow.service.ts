@@ -72,7 +72,8 @@ export const bumpWorkflowService = {
     });
 
     // Dispatch notification best-effort — never blocks bump creation.
-    subWalletsRepo.findPrincipalAndAgent(db, input.subWalletId)
+    subWalletsRepo
+      .findPrincipalAndAgent(db, input.subWalletId)
       .then(async (resolved) => {
         if (!resolved) return;
         await notificationService.dispatch(db, {
@@ -90,7 +91,9 @@ export const bumpWorkflowService = {
           },
         });
       })
-      .catch((e: unknown) => logger.error({ err: (e as Error).message }, 'bump_requested notification failed'));
+      .catch((e: unknown) =>
+        logger.error({ err: (e as Error).message }, 'bump_requested notification failed'),
+      );
 
     return result;
   },
@@ -104,7 +107,13 @@ export const bumpWorkflowService = {
       const event: BumpEvent = { kind: input.decision };
       const next = transition(current.status as 'pending', event);
       if (next.kind === 'err') return err({ code: 'INVALID_TRANSITION' as const });
-      await bumpRequestsRepo.setDecision(txDb, input.bumpRequestId, next.value, input.decidedByUserId, input.now);
+      await bumpRequestsRepo.setDecision(
+        txDb,
+        input.bumpRequestId,
+        next.value,
+        input.decidedByUserId,
+        input.now,
+      );
       const updated = await bumpRequestsRepo.findById(txDb, input.bumpRequestId);
       if (!updated) throw new Error('bump disappeared after decision');
 
@@ -136,7 +145,9 @@ export const bumpWorkflowService = {
             decision: input.decision,
           },
         })
-        .catch((e: unknown) => logger.error({ err: (e as Error).message }, 'bump_decided notification failed'));
+        .catch((e: unknown) =>
+          logger.error({ err: (e as Error).message }, 'bump_decided notification failed'),
+        );
     }
 
     return result;
@@ -145,7 +156,11 @@ export const bumpWorkflowService = {
   async sweepExpired(db: DbOrTx, now: Date): Promise<{ expiredCount: number }> {
     const expired = await bumpRequestsRepo.listExpired(db, now);
     if (expired.length === 0) return { expiredCount: 0 };
-    await bumpRequestsRepo.bulkExpire(db, expired.map((r) => r.id), now);
+    await bumpRequestsRepo.bulkExpire(
+      db,
+      expired.map((r) => r.id),
+      now,
+    );
     return { expiredCount: expired.length };
   },
 

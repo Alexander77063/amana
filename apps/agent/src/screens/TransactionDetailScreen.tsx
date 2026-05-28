@@ -90,10 +90,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
     <Screen title="Transaction" scrollable>
       <View style={{ alignItems: 'center', gap: 8, paddingVertical: 24 }}>
         <AmountText size="xl" value={formatNaira(txn.amountKobo)} sentiment="debit" />
-        <Badge
-          label={STATUS_LABEL[txn.status] ?? txn.status}
-          variant={statusVariant(txn.status)}
-        />
+        <Badge label={STATUS_LABEL[txn.status] ?? txn.status} variant={statusVariant(txn.status)} />
       </View>
 
       <Card style={{ gap: 12 }}>
@@ -140,9 +137,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
         {txn.anomalyScore !== null && txn.anomalyScore >= 0.85 && (
           <View style={{ gap: 2 }}>
             <Label>ANOMALY SCORE</Label>
-            <Body style={{ color: theme.colors.accent }}>
-              {txn.anomalyScore.toFixed(2)}
-            </Body>
+            <Body style={{ color: theme.colors.accent }}>{txn.anomalyScore.toFixed(2)}</Body>
           </View>
         )}
       </Card>
@@ -152,9 +147,7 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
           <Button
             variant="secondary"
             label="ADD PHOTO"
-            onPress={() =>
-              navigation.getParent()?.navigate('PhotoAttach', { transactionId })
-            }
+            onPress={() => navigation.getParent()?.navigate('PhotoAttach', { transactionId })}
           />
         </View>
       )}

@@ -10,7 +10,14 @@ import { quietHoursRepo } from '../modules/notifications/quiet-hours.repo';
 const QUIET_HOURS_DEFAULT = { enabled: false, startMinute: 1320, endMinute: 420 } as const;
 
 const NotificationPreferenceSchema = z.object({
-  kind: z.enum(['bump_requested', 'bump_decided', 'txn_settled', 'txn_failed', 'anomaly_alert', 'refund_received']),
+  kind: z.enum([
+    'bump_requested',
+    'bump_decided',
+    'txn_settled',
+    'txn_failed',
+    'anomaly_alert',
+    'refund_received',
+  ]),
   channel: z.enum(['push', 'sms', 'in_app']),
   preference: z.enum(['real_time', 'threshold', 'digest', 'silent']),
   thresholdKobo: z.string().nullable().optional(),

@@ -5,8 +5,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { api } from '../lib/api';
-import { useAgentStore } from '../state/agent.store';
 import type { PayStackParamList } from '../nav/PayStack';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'CaptureMethod'>;
 

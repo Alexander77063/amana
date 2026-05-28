@@ -109,7 +109,10 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
     const before = get().byId[subWalletId];
     if (!before) return;
     const optimistic = { ...before, snoozedUntil: until };
-    set({ byId: { ...get().byId, [subWalletId]: optimistic }, _snoozeSeq: { ...get()._snoozeSeq, [subWalletId]: seq } });
+    set({
+      byId: { ...get().byId, [subWalletId]: optimistic },
+      _snoozeSeq: { ...get()._snoozeSeq, [subWalletId]: seq },
+    });
     try {
       const r = await api.subWallet.snooze(subWalletId, until);
       if (get()._snoozeSeq[subWalletId] !== seq) return;
@@ -127,7 +130,10 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
     const before = get().byId[subWalletId];
     if (!before) return;
     const optimistic = { ...before, snoozedUntil: null };
-    set({ byId: { ...get().byId, [subWalletId]: optimistic }, _snoozeSeq: { ...get()._snoozeSeq, [subWalletId]: seq } });
+    set({
+      byId: { ...get().byId, [subWalletId]: optimistic },
+      _snoozeSeq: { ...get()._snoozeSeq, [subWalletId]: seq },
+    });
     try {
       await api.subWallet.unsnooze(subWalletId);
     } catch (e) {

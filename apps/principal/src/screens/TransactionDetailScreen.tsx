@@ -1,14 +1,21 @@
 import { ApiError } from '@amana/api-client';
 import type { TransactionDetail } from '@amana/types';
-import { AmountText, Badge, Body, Button, Card, Caption, Label, Screen, Skeleton, useTheme } from '@amana/ui';
+import {
+  AmountText,
+  Badge,
+  Body,
+  Button,
+  Caption,
+  Card,
+  Label,
+  Screen,
+  Skeleton,
+  useTheme,
+} from '@amana/ui';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
-import {
-  Linking,
-  Pressable,
-  View,
-} from 'react-native';
+import { Linking, Pressable, View } from 'react-native';
 import { api } from '../lib/api';
 import type { MainStackParamList } from '../nav/MainStack';
 
@@ -103,7 +110,9 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
     const showRetry = state.code !== 'principal_only' && state.code !== 'not_found';
     return (
       <Screen title="Transaction">
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}
+        >
           <Body style={{ color: theme.colors.debit }}>{message}</Body>
           {showRetry ? (
             <Button
@@ -139,7 +148,9 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
       </View>
 
       {txn.vendorResolvedName ? (
-        <Body strong style={{ textAlign: 'center' }}>{txn.vendorResolvedName}</Body>
+        <Body strong style={{ textAlign: 'center' }}>
+          {txn.vendorResolvedName}
+        </Body>
       ) : null}
       {txn.vendorBankCode || txn.vendorAccountMasked ? (
         <Caption style={{ textAlign: 'center' }}>
@@ -197,7 +208,9 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
             );
           }}
         >
-          <Card style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Card
+            style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+          >
             <Body style={{ color: theme.colors.accent }}>📍 View location</Body>
             <Body muted>›</Body>
           </Card>

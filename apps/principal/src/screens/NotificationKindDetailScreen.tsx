@@ -1,5 +1,13 @@
 import type { ChannelPreference, NotificationChannel, NotificationKind } from '@amana/types';
-import { Badge, Body, Card, Screen, SectionHeader, TextInput as UITextInput, useTheme } from '@amana/ui';
+import {
+  Badge,
+  Body,
+  Card,
+  Screen,
+  SectionHeader,
+  TextInput as UITextInput,
+  useTheme,
+} from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { Pressable, Switch, TextInput, View } from 'react-native';
@@ -170,7 +178,14 @@ function ThresholdControl({
 
   return (
     <View>
-      <View style={{ flexDirection: 'row', borderRadius: 999, backgroundColor: theme.colors.bg.raised, padding: 4 }}>
+      <View
+        style={{
+          flexDirection: 'row',
+          borderRadius: 999,
+          backgroundColor: theme.colors.bg.raised,
+          padding: 4,
+        }}
+      >
         <SegBtn
           label="Real-time"
           active={effective.preference === 'real_time'}
@@ -189,9 +204,7 @@ function ThresholdControl({
       </View>
       {effective.preference === 'threshold' && (
         <View style={{ marginTop: 12, gap: 6 }}>
-          <Body muted>
-            {isAnomaly ? 'Score above (%, 0–100):' : 'Notify me above (₦):'}
-          </Body>
+          <Body muted>{isAnomaly ? 'Score above (%, 0–100):' : 'Notify me above (₦):'}</Body>
           <TextInput
             style={{
               borderWidth: 0.5,
@@ -232,7 +245,9 @@ function SegBtn({
       ]}
       onPress={onPress}
     >
-      <Body style={{ fontSize: 13, ...(active ? { color: theme.colors.bg.base } : {}) }}>{label}</Body>
+      <Body style={{ fontSize: 13, ...(active ? { color: theme.colors.bg.base } : {}) }}>
+        {label}
+      </Body>
     </Pressable>
   );
 }

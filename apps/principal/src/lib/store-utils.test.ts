@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { ApiError } from '@amana/api-client';
+import { describe, expect, it } from 'vitest';
 import { toErrorCode } from './store-utils';
 
 describe('toErrorCode', () => {

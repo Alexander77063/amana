@@ -5,8 +5,8 @@ import { anchorAdapterSingleton } from '../integrations/anchor';
 import { kobo } from '../lib/kobo';
 import { parseBody } from '../lib/validate';
 import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
-import { householdsRepo } from '../modules/identity/households.repo';
 import { bumpWorkflowService } from '../modules/bumps/bump-workflow.service';
+import { householdsRepo } from '../modules/identity/households.repo';
 import { transactionDetailService } from '../modules/transactions/detail.service';
 import { lifecycleService } from '../modules/transactions/lifecycle.service';
 import { nipOutService } from '../modules/transactions/nip-out.service';
@@ -52,11 +52,22 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
   .post('/:id/evaluate', async (c) => {
     const id = c.req.param('id');
     const a = c.get('actor') as Actor;
-    const result = await lifecycleService.evaluate(db, { transactionId: id, initiatingUserId: a.userId, now: new Date() });
+    const result = await lifecycleService.evaluate(db, {
+      transactionId: id,
+      initiatingUserId: a.userId,
+      now: new Date(),
+    });
     if (result.kind === 'allow') {
       return c.json({ kind: 'allow', status: result.transaction.status }, 200);
     }
-    return c.json({ kind: 'bump_pending', bumpRequestId: result.bumpRequestId, status: result.transaction.status }, 202);
+    return c.json(
+      {
+        kind: 'bump_pending',
+        bumpRequestId: result.bumpRequestId,
+        status: result.transaction.status,
+      },
+      202,
+    );
   })
   .post('/:id/send', async (c) => {
     const id = c.req.param('id');
@@ -66,13 +77,20 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     if (!mw) return c.json({ error: 'master_wallet_not_found' }, 404);
     const hh = await householdsRepo.findById(db, mw.householdId);
     const householdRef = hh ? hh.id : txn.masterWalletId;
-    const result = await nipOutService.send(db, anchorAdapterSingleton, { transactionId: id, householdRef, now: new Date() });
+    const result = await nipOutService.send(db, anchorAdapterSingleton, {
+      transactionId: id,
+      householdRef,
+      now: new Date(),
+    });
     return c.json(result, 202);
   })
   .post('/:id/resume-after-bump', async (c) => {
     const body = await parseBody(c, ResumeBodySchema);
     if (body instanceof Response) return body;
-    const result = await lifecycleService.resumeAfterBump(db, { token: body.token, now: new Date() });
+    const result = await lifecycleService.resumeAfterBump(db, {
+      token: body.token,
+      now: new Date(),
+    });
     return c.json({ status: result.transaction.status }, 200);
   })
   .get('/:id', async (c) => {

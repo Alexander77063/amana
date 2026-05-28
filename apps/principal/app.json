@@ -20,10 +20,7 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "entitlements": {
-        "com.apple.developer.nfc.readersession.formats": [
-          "TAG",
-          "TAG"
-        ]
+        "com.apple.developer.nfc.readersession.formats": ["TAG", "TAG"]
       }
     },
     "android": {
@@ -34,10 +31,7 @@
         "backgroundColor": "#1C1C1E"
       }
     },
-    "platforms": [
-      "ios",
-      "android"
-    ],
+    "platforms": ["ios", "android"],
     "plugins": [
       "expo-secure-store",
       [

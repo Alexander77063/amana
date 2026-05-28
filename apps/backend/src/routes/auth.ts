@@ -46,36 +46,58 @@ export const authRoute = new Hono()
 
     if (!user && body.pairingCode) {
       if (!body.nin) return c.json({ error: 'nin_required_for_signup' }, 400);
-      user = await usersRepo.insert(db, { role: 'agent', phone: body.phone, nin: body.nin, kycTier: '1' });
-      const consumed = await pairingService.consume(db, { code: body.pairingCode, agentUserId: user.id });
-      if (consumed.kind !== 'consumed') return c.json({ error: 'pairing_failed', reason: consumed.kind }, 400);
+      user = await usersRepo.insert(db, {
+        role: 'agent',
+        phone: body.phone,
+        nin: body.nin,
+        kycTier: '1',
+      });
+      const consumed = await pairingService.consume(db, {
+        code: body.pairingCode,
+        agentUserId: user.id,
+      });
+      if (consumed.kind !== 'consumed')
+        return c.json({ error: 'pairing_failed', reason: consumed.kind }, 400);
     }
 
     if (!user) {
-      if (!body.nin || !body.bvn) return c.json({ error: 'nin_and_bvn_required_for_principal_signup' }, 400);
-      user = await usersRepo.insert(db, { role: 'principal', phone: body.phone, nin: body.nin, bvn: body.bvn, kycTier: '1' });
+      if (!body.nin || !body.bvn)
+        return c.json({ error: 'nin_and_bvn_required_for_principal_signup' }, 400);
+      user = await usersRepo.insert(db, {
+        role: 'principal',
+        phone: body.phone,
+        nin: body.nin,
+        bvn: body.bvn,
+        kycTier: '1',
+      });
     }
 
     const tokens = await sessionService.issue(db, { userId: user.id, role: user.role });
-    return c.json({
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-      accessExpiresAt: tokens.accessExpiresAt.toISOString(),
-      refreshExpiresAt: tokens.refreshExpiresAt.toISOString(),
-      user: { id: user.id, role: user.role, phone: user.phone, kycTier: user.kycTier },
-    }, 200);
+    return c.json(
+      {
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        accessExpiresAt: tokens.accessExpiresAt.toISOString(),
+        refreshExpiresAt: tokens.refreshExpiresAt.toISOString(),
+        user: { id: user.id, role: user.role, phone: user.phone, kycTier: user.kycTier },
+      },
+      200,
+    );
   })
   .post('/refresh', async (c) => {
     const body = await parseBody(c, RefreshSchema);
     if (body instanceof Response) return body;
     const r = await sessionService.refresh(db, body.refreshToken, body.role, body.userId);
     if (r.kind !== 'rotated') return c.json({ error: r.kind }, 401);
-    return c.json({
-      accessToken: r.tokens.accessToken,
-      refreshToken: r.tokens.refreshToken,
-      accessExpiresAt: r.tokens.accessExpiresAt.toISOString(),
-      refreshExpiresAt: r.tokens.refreshExpiresAt.toISOString(),
-    }, 200);
+    return c.json(
+      {
+        accessToken: r.tokens.accessToken,
+        refreshToken: r.tokens.refreshToken,
+        accessExpiresAt: r.tokens.accessExpiresAt.toISOString(),
+        refreshExpiresAt: r.tokens.refreshExpiresAt.toISOString(),
+      },
+      200,
+    );
   });
 
 export const meRoute = new Hono<{ Variables: ActorVariables }>()
@@ -84,7 +106,10 @@ export const meRoute = new Hono<{ Variables: ActorVariables }>()
     const a = c.get('actor');
     const u = await usersRepo.findById(db, a.userId);
     if (!u) return c.json({ error: 'user_not_found' }, 404);
-    return c.json({ id: u.id, role: u.role, phone: u.phone, kycTier: u.kycTier, status: u.status }, 200);
+    return c.json(
+      { id: u.id, role: u.role, phone: u.phone, kycTier: u.kycTier, status: u.status },
+      200,
+    );
   });
 
 export const logoutRoute = new Hono<{ Variables: ActorVariables }>()

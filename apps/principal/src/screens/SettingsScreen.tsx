@@ -22,11 +22,7 @@ export function SettingsScreen({ navigation }: Props): JSX.Element {
       </Pressable>
 
       <SectionHeader title="ACCOUNT" />
-      <Button
-        variant="ghost"
-        label="SIGN OUT"
-        onPress={() => void logout()}
-      />
+      <Button variant="ghost" label="SIGN OUT" onPress={() => void logout()} />
 
       <SectionHeader title="ABOUT" />
       <Card>

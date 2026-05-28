@@ -1,3 +1,4 @@
+import { ThemeProvider } from '@amana/ui';
 import {
   PlusJakartaSans_400Regular,
   PlusJakartaSans_600SemiBold,
@@ -8,7 +9,6 @@ import { StatusBar } from 'expo-status-bar';
 import { Component, type ReactNode } from 'react';
 import { ScrollView, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ThemeProvider } from '@amana/ui';
 import { RootNavigator } from './src/nav/RootNavigator';
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {

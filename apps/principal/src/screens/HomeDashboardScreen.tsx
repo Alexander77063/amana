@@ -23,8 +23,14 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
   const theme = useTheme();
 
   useEffect(() => {
-    if (status === 'idle') { void bootstrap(); return; }
-    if (status === 'no_household') { navigation.replace('HouseholdSetup'); return; }
+    if (status === 'idle') {
+      void bootstrap();
+      return;
+    }
+    if (status === 'no_household') {
+      navigation.replace('HouseholdSetup');
+      return;
+    }
     if (status === 'has_household') {
       void refreshBumps();
       void refreshNotifications();
@@ -44,7 +50,9 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
   if (status === 'error') {
     return (
       <Screen>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}
+        >
           <Body style={{ color: theme.colors.debit }}>{`Couldn't load: ${errorCode ?? ''}`}</Body>
           <Button label="RETRY" onPress={() => void bootstrap()} />
         </View>

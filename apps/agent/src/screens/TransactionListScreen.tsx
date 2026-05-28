@@ -13,8 +13,8 @@ import {
   View,
 } from 'react-native';
 import { api } from '../lib/api';
-import { useAgentStore } from '../state/agent.store';
 import type { HistoryStackParamList } from '../nav/HistoryStack';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<HistoryStackParamList, 'TransactionList'>;
 
@@ -97,9 +97,7 @@ export function TransactionListScreen({ navigation }: Props): JSX.Element {
               timestamp={formatDate(item.initiatedAt)}
               amount={formatNaira(item.amountKobo)}
               sentiment="debit"
-              onPress={() =>
-                navigation.navigate('TransactionDetail', { transactionId: item.id })
-              }
+              onPress={() => navigation.navigate('TransactionDetail', { transactionId: item.id })}
             />
             {item.status !== 'settled' && (
               <View style={{ paddingHorizontal: 20, paddingBottom: 4 }}>
@@ -113,13 +111,8 @@ export function TransactionListScreen({ navigation }: Props): JSX.Element {
             loadingMore ? (
               <ActivityIndicator style={{ padding: 16 }} />
             ) : (
-              <Pressable
-                style={styles.loadMore}
-                onPress={() => void loadPage(nextCursor, true)}
-              >
-                <Text style={[styles.loadMoreText, { color: theme.colors.accent }]}>
-                  Load more
-                </Text>
+              <Pressable style={styles.loadMore} onPress={() => void loadPage(nextCursor, true)}>
+                <Text style={[styles.loadMoreText, { color: theme.colors.accent }]}>Load more</Text>
               </Pressable>
             )
           ) : null

@@ -120,9 +120,7 @@ export function ReceiptScreen({ route, navigation }: Props): JSX.Element {
         )}
 
         {Boolean(txn.attachedMedia) && (
-          <Body style={{ textAlign: 'center', color: theme.colors.credit }}>
-            Photo attached
-          </Body>
+          <Body style={{ textAlign: 'center', color: theme.colors.credit }}>Photo attached</Body>
         )}
 
         <Button variant="ghost" label="DONE" onPress={() => navigation.popToTop()} />

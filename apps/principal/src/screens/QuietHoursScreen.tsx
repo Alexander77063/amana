@@ -1,5 +1,5 @@
 import type { QuietHours } from '@amana/types';
-import { Body, Button, Card, Caption, Screen, useTheme } from '@amana/ui';
+import { Body, Button, Caption, Card, Screen, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { Switch, TextInput, View } from 'react-native';
@@ -81,7 +81,9 @@ export function QuietHoursScreen({ navigation }: Props): JSX.Element {
   return (
     <Screen title="Quiet hours" scrollable keyboardAvoiding>
       <Card>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+        <View
+          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}
+        >
           <Body strong>Quiet hours</Body>
           <Switch value={enabled} onValueChange={setEnabled} />
         </View>

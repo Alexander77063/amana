@@ -1,16 +1,10 @@
+import { Body, Button, Label, Screen, TextInput, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
-import {
-  FlatList,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { Body, Button, Label, Screen, TextInput, useTheme } from '@amana/ui';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { api } from '../lib/api';
-import { useAgentStore } from '../state/agent.store';
 import type { PayStackParamList } from '../nav/PayStack';
+import { useAgentStore } from '../state/agent.store';
 
 const BANKS = [
   { code: '044', name: 'Access Bank' },
@@ -92,10 +86,7 @@ export function AccountEntryScreen({ navigation }: Props): JSX.Element {
           keyExtractor={(b) => b.code}
           renderItem={({ item }) => (
             <Pressable
-              style={[
-                styles.bankRow,
-                { borderBottomColor: theme.colors.border },
-              ]}
+              style={[styles.bankRow, { borderBottomColor: theme.colors.border }]}
               onPress={() => {
                 setBankCode(item.code);
                 setShowPicker(false);
@@ -161,7 +152,11 @@ export function AccountEntryScreen({ navigation }: Props): JSX.Element {
 
 const styles = StyleSheet.create({
   searchWrapper: { paddingHorizontal: 20, paddingTop: 12 },
-  bankRow: { paddingVertical: 14, paddingHorizontal: 20, borderBottomWidth: StyleSheet.hairlineWidth },
+  bankRow: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   formContent: { flex: 1, gap: 4, paddingTop: 20 },
   bankSelector: {
     borderWidth: 1,

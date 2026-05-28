@@ -3,8 +3,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { api } from '../lib/api';
-import { useAgentStore } from '../state/agent.store';
 import type { PayStackParamList } from '../nav/PayStack';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'PhoneLookup'>;
 
@@ -52,11 +52,7 @@ export function PhoneLookupScreen({ navigation }: Props): JSX.Element {
           </Card>
         ) : null}
 
-        <Button
-          label="LOOK UP"
-          onPress={() => void lookup()}
-          loading={busy}
-        />
+        <Button label="LOOK UP" onPress={() => void lookup()} loading={busy} />
       </View>
     </Screen>
   );

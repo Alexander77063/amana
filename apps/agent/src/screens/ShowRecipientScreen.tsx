@@ -25,7 +25,9 @@ export function ShowRecipientScreen({ route, navigation }: Props): JSX.Element {
           {sessionId ? (
             <View style={{ gap: 4, alignItems: 'center' }}>
               <Label>NIBSS SESSION</Label>
-              <Body muted style={{ textAlign: 'center' }}>{sessionId}</Body>
+              <Body muted style={{ textAlign: 'center' }}>
+                {sessionId}
+              </Body>
               <Body muted style={{ textAlign: 'center' }}>
                 Should appear in your bank within 30 seconds.
               </Body>

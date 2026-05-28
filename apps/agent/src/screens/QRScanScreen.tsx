@@ -4,8 +4,8 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
 import { api } from '../lib/api';
-import { useAgentStore } from '../state/agent.store';
 import type { PairingStackParamList } from '../nav/PairingStack';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<PairingStackParamList, 'QRScan'> & { onPaired: () => void };
 

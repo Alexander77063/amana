@@ -75,7 +75,9 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
   if (status === 'error') {
     return (
       <Screen title="Notification preferences">
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}>
+        <View
+          style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24 }}
+        >
           <Body style={{ color: theme.colors.debit }}>{`Couldn't load: ${errorCode ?? ''}`}</Body>
           <Button label="RETRY" onPress={() => void bootstrap()} />
         </View>
@@ -86,7 +88,14 @@ export function NotificationPreferencesScreen({ navigation }: Props): JSX.Elemen
   return (
     <Screen title="Notification preferences" noPadding>
       <Pressable onPress={() => navigation.navigate('QuietHours')}>
-        <Card style={{ flexDirection: 'row', justifyContent: 'space-between', margin: 16, marginBottom: 0 }}>
+        <Card
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            margin: 16,
+            marginBottom: 0,
+          }}
+        >
           <Body strong>Quiet hours</Body>
           <Caption>{quietWindowSummary(quietHours)}</Caption>
         </Card>

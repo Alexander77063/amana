@@ -78,7 +78,12 @@ export class AmanaApiClient {
     return this.requestOnce<T>(path, init, false, schema);
   }
 
-  private async requestOnce<T>(path: string, init: RequestInit2, retried: boolean, schema?: ZodType<T>): Promise<T> {
+  private async requestOnce<T>(
+    path: string,
+    init: RequestInit2,
+    retried: boolean,
+    schema?: ZodType<T>,
+  ): Promise<T> {
     const stored = await this.tokenStore?.read();
     if (!stored) throw new ApiError('not_authed', 401, 'not_authed', null);
 

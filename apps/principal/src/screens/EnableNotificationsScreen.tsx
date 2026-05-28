@@ -27,17 +27,8 @@ export function EnableNotificationsScreen({ navigation }: Props): JSX.Element {
           <Body>• Get anomaly alerts</Body>
         </View>
         <View style={{ gap: 8, alignSelf: 'stretch' }}>
-          <Button
-            label="ENABLE NOTIFICATIONS"
-            onPress={() => void onEnable()}
-            fullWidth
-          />
-          <Button
-            variant="ghost"
-            label="NOT NOW"
-            onPress={() => navigation.goBack()}
-            fullWidth
-          />
+          <Button label="ENABLE NOTIFICATIONS" onPress={() => void onEnable()} fullWidth />
+          <Button variant="ghost" label="NOT NOW" onPress={() => navigation.goBack()} fullWidth />
         </View>
       </View>
     </Screen>

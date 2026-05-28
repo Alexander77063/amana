@@ -4,8 +4,8 @@ import * as Location from 'expo-location';
 import { useState } from 'react';
 import { StyleSheet, Switch, View } from 'react-native';
 import { api } from '../lib/api';
-import { useAgentStore } from '../state/agent.store';
 import type { PayStackParamList } from '../nav/PayStack';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'Confirm'>;
 
@@ -127,5 +127,10 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
 });

@@ -39,14 +39,12 @@ export function FailedScreen({ route, navigation }: Props): JSX.Element {
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <Badge variant="error" label="FAILED" />
         <Heading size="lg">Payment failed</Heading>
-        <Body muted style={{ textAlign: 'center' }}>{errorLabel}</Body>
+        <Body muted style={{ textAlign: 'center' }}>
+          {errorLabel}
+        </Body>
         <View style={{ width: '100%', gap: 12, marginTop: 16 }}>
           <Button label="TRY AGAIN" onPress={() => navigation.popToTop()} />
-          <Button
-            variant="ghost"
-            label="DISMISS"
-            onPress={() => navigation.popToTop()}
-          />
+          <Button variant="ghost" label="DISMISS" onPress={() => navigation.popToTop()} />
         </View>
       </View>
     </Screen>

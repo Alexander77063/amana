@@ -44,16 +44,8 @@ export function EnableNotificationsScreen({ navigation }: Props): JSX.Element {
 
         {errorMsg ? <Body style={{ color: theme.colors.debit }}>{errorMsg}</Body> : null}
 
-        <Button
-          label="ENABLE NOTIFICATIONS"
-          onPress={() => void enable()}
-          loading={busy}
-        />
-        <Button
-          variant="ghost"
-          label="NOT NOW"
-          onPress={() => navigation.goBack()}
-        />
+        <Button label="ENABLE NOTIFICATIONS" onPress={() => void enable()} loading={busy} />
+        <Button variant="ghost" label="NOT NOW" onPress={() => navigation.goBack()} />
       </View>
     </Screen>
   );

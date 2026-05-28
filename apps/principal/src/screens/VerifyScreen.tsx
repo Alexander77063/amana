@@ -1,5 +1,5 @@
-import { zodResolver } from '@hookform/resolvers/zod';
 import { Body, Button, Screen, SectionHeader, TextInput as UITextInput, useTheme } from '@amana/ui';
+import { zodResolver } from '@hookform/resolvers/zod';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Controller, useForm } from 'react-hook-form';
 import { View } from 'react-native';
@@ -122,9 +122,7 @@ export function VerifyScreen({ navigation }: Props): JSX.Element {
         )}
       />
 
-      {errorCode ? (
-        <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body>
-      ) : null}
+      {errorCode ? <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body> : null}
 
       <Button
         label={busy ? 'VERIFYING…' : 'VERIFY'}

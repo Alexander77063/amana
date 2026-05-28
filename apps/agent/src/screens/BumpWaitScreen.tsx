@@ -78,13 +78,16 @@ export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
 
         <Card style={{ alignItems: 'center', gap: 4, width: '100%' }}>
           <Label>EXPIRES IN</Label>
-          <Heading size="lg" style={{ fontVariant: ['tabular-nums'], color: msLeft < 60_000 ? theme.colors.debit : theme.colors.text.primary }}>
+          <Heading
+            size="lg"
+            style={{
+              fontVariant: ['tabular-nums'],
+              color: msLeft < 60_000 ? theme.colors.debit : theme.colors.text.primary,
+            }}
+          >
             {formatCountdown(msLeft)}
           </Heading>
-          <Badge
-            label="Awaiting principal approval"
-            variant="warning"
-          />
+          <Badge label="Awaiting principal approval" variant="warning" />
         </Card>
 
         {errorMsg ? <Body style={{ color: theme.colors.debit }}>{errorMsg}</Body> : null}

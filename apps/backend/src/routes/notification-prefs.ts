@@ -1,27 +1,20 @@
 import { QuietHoursSchema } from '@amana/validation';
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { db } from '../db/client';
+import { parseBody } from '../lib/validate';
 import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { prefsRepo } from '../modules/notifications/prefs.repo';
 import { quietHoursRepo } from '../modules/notifications/quiet-hours.repo';
-import type {
-  ChannelPreference,
-  NotificationChannel,
-  NotificationKind,
-} from '../modules/notifications/types';
 
 const QUIET_HOURS_DEFAULT = { enabled: false, startMinute: 1320, endMinute: 420 } as const;
 
-const KINDS: NotificationKind[] = [
-  'bump_requested',
-  'bump_decided',
-  'txn_settled',
-  'txn_failed',
-  'anomaly_alert',
-  'refund_received',
-];
-const CHANNELS: NotificationChannel[] = ['push', 'sms', 'in_app'];
-const PREFS: ChannelPreference[] = ['real_time', 'threshold', 'digest', 'silent'];
+const NotificationPreferenceSchema = z.object({
+  kind: z.enum(['bump_requested', 'bump_decided', 'txn_settled', 'txn_failed', 'anomaly_alert', 'refund_received']),
+  channel: z.enum(['push', 'sms', 'in_app']),
+  preference: z.enum(['real_time', 'threshold', 'digest', 'silent']),
+  thresholdKobo: z.string().nullable().optional(),
+});
 
 export const notificationPrefsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(jwtAuth())
@@ -32,19 +25,8 @@ export const notificationPrefsRoute = new Hono<{ Variables: ActorVariables }>()
   })
   .put('/me/notification-preferences', async (c) => {
     const a = c.get('actor');
-    const body = await c.req.json<{
-      kind: NotificationKind;
-      channel: NotificationChannel;
-      preference: ChannelPreference;
-      thresholdKobo?: string | null;
-    }>();
-    if (
-      !KINDS.includes(body.kind) ||
-      !CHANNELS.includes(body.channel) ||
-      !PREFS.includes(body.preference)
-    ) {
-      return c.json({ error: 'invalid_param' }, 400);
-    }
+    const body = await parseBody(c, NotificationPreferenceSchema);
+    if (body instanceof Response) return body;
     const row = await prefsRepo.upsert(db, {
       userId: a.userId,
       kind: body.kind,

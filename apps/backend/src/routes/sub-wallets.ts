@@ -1,6 +1,8 @@
 import { SubWalletSnoozeInputSchema } from '@amana/validation';
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { db } from '../db/client';
+import { parseBody } from '../lib/validate';
 import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
 import { subwalletSnoozeRepo } from '../modules/notifications/subwallet-snooze.repo';
@@ -43,10 +45,9 @@ export const subWalletsRoute = new Hono<{ Variables: ActorVariables }>()
     if (a.role !== 'principal') return c.json({ error: 'principal_only' }, 403);
     const check = await ownerCheck(db, c.req.param('id'), a.userId);
     if (!check.ok) return c.json({ error: check.code }, check.status);
-    const body = await c.req.json<{ status: 'active' | 'suspended' | 'closed' }>();
-    if (!['active', 'suspended', 'closed'].includes(body.status)) {
-      return c.json({ error: 'invalid_status' }, 400);
-    }
+    const PatchSchema = z.object({ status: z.enum(['active', 'suspended', 'closed']) });
+    const body = await parseBody(c, PatchSchema);
+    if (body instanceof Response) return body;
     await subWalletsRepo.setStatus(db, c.req.param('id'), body.status);
     const sw = await subWalletsRepo.findById(db, c.req.param('id'));
     return c.json({ subWallet: sw }, 200);
@@ -72,14 +73,14 @@ export const subWalletsRoute = new Hono<{ Variables: ActorVariables }>()
     if (a.role !== 'principal') return c.json({ error: 'principal_only' }, 403);
     const check = await ownerCheck(db, c.req.param('id'), a.userId);
     if (!check.ok) return c.json({ error: check.code }, check.status);
-    const body = await c.req.json<{
-      rules: Array<{
-        kind: string;
-        priority: number;
-        config: unknown;
-      }>;
-    }>();
-    if (!Array.isArray(body.rules)) return c.json({ error: 'rules_required' }, 400);
+    const RuleSchema = z.object({
+      kind: z.string().min(1),
+      priority: z.number().int(),
+      config: z.unknown(),
+    });
+    const RulesBodySchema = z.object({ rules: z.array(RuleSchema).min(1) });
+    const body = await parseBody(c, RulesBodySchema);
+    if (body instanceof Response) return body;
     const result = await ruleSetService.publishNewVersion(db, {
       subWalletId: c.req.param('id'),
       createdByUserId: a.userId,

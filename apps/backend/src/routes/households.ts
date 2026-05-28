@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { db } from '../db/client';
+import { parseBody } from '../lib/validate';
 import { placeholderAnchorAccountForHousehold } from '../lib/placeholder-anchor';
 import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
@@ -12,10 +14,9 @@ export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
   .post('/', async (c) => {
     const a = c.get('actor');
     if (a.role !== 'principal') return c.json({ error: 'principal_only' }, 403);
-    const body = await c.req.json<{ name: string }>();
-    if (!body.name || body.name.trim().length === 0) {
-      return c.json({ error: 'name_required' }, 400);
-    }
+    const CreateHouseholdSchema = z.object({ name: z.string().min(1) });
+    const body = await parseBody(c, CreateHouseholdSchema);
+    if (body instanceof Response) return body;
     const existing = await householdsRepo.findByPrincipal(db, a.userId);
     if (existing) return c.json({ error: 'household_exists', householdId: existing.id }, 409);
 
@@ -75,10 +76,12 @@ export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
     const hh = await householdsRepo.findById(db, c.req.param('id'));
     if (!hh) return c.json({ error: 'household_not_found' }, 404);
     if (hh.principalUserId !== a.userId) return c.json({ error: 'not_your_household' }, 403);
-    const body = await c.req.json<{ agentUserId: string; name: string }>();
-    if (!body.agentUserId || !body.name?.trim()) {
-      return c.json({ error: 'missing_params' }, 400);
-    }
+    const CreateSubWalletSchema = z.object({
+      agentUserId: z.string().uuid(),
+      name: z.string().min(1),
+    });
+    const body = await parseBody(c, CreateSubWalletSchema);
+    if (body instanceof Response) return body;
     const mw = await masterWalletsRepo.findByHousehold(db, hh.id);
     if (!mw) return c.json({ error: 'no_master_wallet' }, 500);
     const members = await householdsRepo.findMembers(db, hh.id);

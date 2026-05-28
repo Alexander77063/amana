@@ -23,19 +23,13 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
   const theme = useTheme();
 
   useEffect(() => {
-    if (status === 'idle') void bootstrap();
-  }, [status, bootstrap]);
-
-  useEffect(() => {
+    if (status === 'idle') { void bootstrap(); return; }
+    if (status === 'no_household') { navigation.replace('HouseholdSetup'); return; }
     if (status === 'has_household') {
       void refreshBumps();
       void refreshNotifications();
     }
-  }, [status, refreshBumps, refreshNotifications]);
-
-  useEffect(() => {
-    if (status === 'no_household') navigation.replace('HouseholdSetup');
-  }, [status, navigation]);
+  }, [status, bootstrap, navigation, refreshBumps, refreshNotifications]);
 
   if (status === 'idle' || status === 'loading') {
     return (

@@ -104,6 +104,9 @@ importers:
       zod:
         specifier: 3.23.8
         version: 3.23.8
+      zustand:
+        specifier: ^5.0.0
+        version: 5.0.13(@types/react@18.2.79)(react@18.2.0)(use-sync-external-store@1.6.0(react@18.2.0))
     devDependencies:
       '@babel/core':
         specifier: ^7.25.0
@@ -305,6 +308,9 @@ importers:
       '@amana/validation':
         specifier: workspace:*
         version: link:../validation
+      zod:
+        specifier: 3.23.8
+        version: 3.23.8
     devDependencies:
       typescript:
         specifier: 5.5.4

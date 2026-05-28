@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { AmanaApiClient } from '../src/client';
 import { type TokenStore, createInMemoryTokenStore } from '../src/token-store';
 import type { StoredAuth } from '../src/token-store';
@@ -141,5 +142,22 @@ describe('AmanaApiClient.request', () => {
       status: 401,
       code: 'session_revoked',
     });
+  });
+
+  it('validates response with provided Zod schema', async () => {
+    await seedAuth(tokenStore, 'A1');
+    const schema = z.object({ name: z.string() });
+    fetchImpl.mockResolvedValueOnce(ok({ name: 'Alex' }));
+    const client = new AmanaApiClient({ baseUrl: 'https://api.x', fetchImpl, tokenStore });
+    const result = await client.request('/profile', {}, schema);
+    expect(result.name).toBe('Alex');
+  });
+
+  it('throws ZodError when response does not match schema', async () => {
+    await seedAuth(tokenStore, 'A1');
+    const schema = z.object({ name: z.string() });
+    fetchImpl.mockResolvedValueOnce(ok({ wrong: true }));
+    const client = new AmanaApiClient({ baseUrl: 'https://api.x', fetchImpl, tokenStore });
+    await expect(client.request('/profile', {}, schema)).rejects.toThrow();
   });
 });

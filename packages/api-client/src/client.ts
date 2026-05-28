@@ -1,3 +1,4 @@
+import type { ZodType } from 'zod';
 import { AuthApi } from './auth-api';
 import { BumpApi } from './bump-api';
 import { DeviceApi } from './device-api';
@@ -72,12 +73,12 @@ export class AmanaApiClient {
    * adds a bearer header, retries once on 401 after rotating tokens via
    * `/auth/refresh` (single-flight). Throws ApiError on any other failure.
    */
-  async request<T>(path: string, init: RequestInit2 = {}): Promise<T> {
+  async request<T>(path: string, init: RequestInit2 = {}, schema?: ZodType<T>): Promise<T> {
     if (!this.tokenStore) throw new Error('AmanaApiClient.request requires a tokenStore');
-    return this.requestOnce<T>(path, init, /* retried */ false);
+    return this.requestOnce<T>(path, init, false, schema);
   }
 
-  private async requestOnce<T>(path: string, init: RequestInit2, retried: boolean): Promise<T> {
+  private async requestOnce<T>(path: string, init: RequestInit2, retried: boolean, schema?: ZodType<T>): Promise<T> {
     const stored = await this.tokenStore?.read();
     if (!stored) throw new ApiError('not_authed', 401, 'not_authed', null);
 
@@ -100,10 +101,12 @@ export class AmanaApiClient {
 
     if (res.status === 401 && !retried) {
       await this.refreshNow();
-      return this.requestOnce<T>(path, init, true);
+      return this.requestOnce<T>(path, init, true, schema);
     }
     if (!res.ok) throw ApiError.fromResponse(res.status, await safeBody(res));
-    return (await res.json()) as T;
+    const parsed = await res.json();
+    if (schema) return schema.parse(parsed) as T;
+    return parsed as T;
   }
 
   /** Single-flight refresh: concurrent 401s fan in to one /auth/refresh call. */

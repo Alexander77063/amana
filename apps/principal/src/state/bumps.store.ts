@@ -1,7 +1,7 @@
-import { ApiError } from '@amana/api-client';
 import type { BumpDecision, BumpRequest } from '@amana/types';
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { toErrorCode } from '../lib/store-utils';
 
 export type BumpsStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -16,9 +16,6 @@ export type BumpsState = {
   decide(bumpId: string, decision: BumpDecision): Promise<void>;
 };
 
-const ERR = (e: unknown): string =>
-  e instanceof ApiError ? e.code : e instanceof Error ? e.message : 'unknown_error';
-
 export const useBumpsStore = create<BumpsState>((set, get) => ({
   status: 'idle',
   pending: [],
@@ -32,7 +29,7 @@ export const useBumpsStore = create<BumpsState>((set, get) => ({
       const r = await api.bump.listForMe();
       set({ status: 'ready', pending: r.pending, history: r.history });
     } catch (e) {
-      set({ status: 'error', errorCode: ERR(e) });
+      set({ status: 'error', errorCode: toErrorCode(e) });
     }
   },
 
@@ -75,7 +72,7 @@ export const useBumpsStore = create<BumpsState>((set, get) => ({
         decidingId: null,
         pending: before.pending,
         history: before.history,
-        errorCode: ERR(e),
+        errorCode: toErrorCode(e),
       });
     }
   },

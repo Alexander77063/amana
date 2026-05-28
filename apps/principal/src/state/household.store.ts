@@ -2,6 +2,7 @@ import { ApiError } from '@amana/api-client';
 import type { HouseholdMember, HouseholdSummary, MasterWalletSummary } from '@amana/types';
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { toErrorCode } from '../lib/store-utils';
 
 export type HouseholdStatus = 'idle' | 'loading' | 'has_household' | 'no_household' | 'error';
 
@@ -16,9 +17,6 @@ export type HouseholdState = {
   createHousehold(name: string): Promise<void>;
   refreshMembers(): Promise<void>;
 };
-
-const ERR = (e: unknown): string =>
-  e instanceof ApiError ? e.code : e instanceof Error ? e.message : 'unknown_error';
 
 export const useHouseholdStore = create<HouseholdState>((set, get) => ({
   status: 'idle',
@@ -42,7 +40,7 @@ export const useHouseholdStore = create<HouseholdState>((set, get) => ({
         set({ status: 'no_household', household: null, masterWallet: null, members: [] });
         return;
       }
-      set({ status: 'error', errorCode: ERR(e) });
+      set({ status: 'error', errorCode: toErrorCode(e) });
     }
   },
 
@@ -57,7 +55,7 @@ export const useHouseholdStore = create<HouseholdState>((set, get) => ({
         members: [],
       });
     } catch (e) {
-      set({ status: 'error', errorCode: ERR(e) });
+      set({ status: 'error', errorCode: toErrorCode(e) });
       throw e;
     }
   },
@@ -67,7 +65,7 @@ export const useHouseholdStore = create<HouseholdState>((set, get) => ({
       const r = await api.household.listMembers();
       set({ members: r.members });
     } catch (e) {
-      set({ errorCode: ERR(e) });
+      set({ errorCode: toErrorCode(e) });
     }
   },
 }));

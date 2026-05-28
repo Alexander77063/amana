@@ -21,7 +21,7 @@ describe('runLogout', () => {
           ? vi.fn().mockRejectedValue(new Error('network'))
           : vi.fn().mockResolvedValue(undefined),
       },
-    } as never;
+    } as unknown as import('@amana/api-client').AmanaApiClient;
   }
 
   it('calls unregisterPush, revokes token, clears storage', async () => {

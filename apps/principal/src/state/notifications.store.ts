@@ -1,7 +1,7 @@
-import { ApiError } from '@amana/api-client';
 import type { Notification } from '@amana/types';
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { toErrorCode } from '../lib/store-utils';
 
 export type NotificationsStatus = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -15,9 +15,6 @@ export type NotificationsState = {
   markRead(id: string): Promise<void>;
   markAllRead(): Promise<void>;
 };
-
-const ERR = (e: unknown): string =>
-  e instanceof ApiError ? e.code : e instanceof Error ? e.message : 'unknown_error';
 
 const computeUnread = (items: Notification[]): number =>
   items.filter((n) => n.status !== 'read' && n.status !== 'skipped').length;
@@ -43,7 +40,7 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
       });
       set({ status: 'ready', items, unreadCount: computeUnread(items) });
     } catch (e) {
-      set({ status: 'error', errorCode: ERR(e) });
+      set({ status: 'error', errorCode: toErrorCode(e) });
     }
   },
 
@@ -55,7 +52,7 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
       await api.notification.markRead(id);
     } catch (e) {
       // Revert on error.
-      set({ items: before, unreadCount: computeUnread(before), errorCode: ERR(e) });
+      set({ items: before, unreadCount: computeUnread(before), errorCode: toErrorCode(e) });
     }
   },
 

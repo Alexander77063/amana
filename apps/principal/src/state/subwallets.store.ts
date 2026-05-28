@@ -1,7 +1,7 @@
-import { ApiError } from '@amana/api-client';
 import type { ActiveRuleSet, RuleInput, SubWallet, SubWalletStatus } from '@amana/types';
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { toErrorCode } from '../lib/store-utils';
 
 export type SubWalletsState = {
   list: SubWallet[];
@@ -24,9 +24,6 @@ export type SubWalletsState = {
   unsnooze(subWalletId: string): Promise<void>;
 };
 
-const ERR = (e: unknown): string =>
-  e instanceof ApiError ? e.code : e instanceof Error ? e.message : 'unknown_error';
-
 export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
   list: [],
   byId: {},
@@ -44,7 +41,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
       for (const s of r.subWallets) byId[s.id] = s;
       set({ list: r.subWallets, byId, busy: false });
     } catch (e) {
-      set({ busy: false, errorCode: ERR(e) });
+      set({ busy: false, errorCode: toErrorCode(e) });
     }
   },
 
@@ -59,7 +56,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
       });
       return r.subWallet;
     } catch (e) {
-      set({ busy: false, errorCode: ERR(e) });
+      set({ busy: false, errorCode: toErrorCode(e) });
       throw e;
     }
   },
@@ -69,7 +66,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
       const r = await api.subWallet.get(subWalletId);
       set({ byId: { ...get().byId, [subWalletId]: r.subWallet } });
     } catch (e) {
-      set({ errorCode: ERR(e) });
+      set({ errorCode: toErrorCode(e) });
     }
   },
 
@@ -78,7 +75,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
       const r = await api.subWallet.getBalance(subWalletId);
       set({ balanceById: { ...get().balanceById, [subWalletId]: r.balanceKobo } });
     } catch (e) {
-      set({ errorCode: ERR(e) });
+      set({ errorCode: toErrorCode(e) });
     }
   },
 
@@ -87,7 +84,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
       const r = await api.subWallet.getRules(subWalletId);
       set({ rulesById: { ...get().rulesById, [subWalletId]: r.activeRuleSet } });
     } catch (e) {
-      set({ errorCode: ERR(e) });
+      set({ errorCode: toErrorCode(e) });
     }
   },
 
@@ -98,7 +95,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
       await get().refreshRules(subWalletId);
       set({ busy: false });
     } catch (e) {
-      set({ busy: false, errorCode: ERR(e) });
+      set({ busy: false, errorCode: toErrorCode(e) });
       throw e;
     }
   },
@@ -113,7 +110,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
         busy: false,
       });
     } catch (e) {
-      set({ busy: false, errorCode: ERR(e) });
+      set({ busy: false, errorCode: toErrorCode(e) });
       throw e;
     }
   },
@@ -145,7 +142,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
       set({
         byId: { ...get().byId, [subWalletId]: before },
         list: get().list.map((s) => (s.id === subWalletId ? before : s)),
-        errorCode: ERR(e),
+        errorCode: toErrorCode(e),
       });
     }
   },
@@ -169,7 +166,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
       set({
         byId: { ...get().byId, [subWalletId]: before },
         list: get().list.map((s) => (s.id === subWalletId ? before : s)),
-        errorCode: ERR(e),
+        errorCode: toErrorCode(e),
       });
     }
   },

@@ -1,4 +1,3 @@
-import { ApiError } from '@amana/api-client';
 import type { DevicePlatform } from '@amana/types';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -6,6 +5,7 @@ import { Platform } from 'react-native';
 import { create } from 'zustand';
 import { api } from '../lib/api';
 import { getExpoPushTokenOrNull } from '../lib/push';
+import { toErrorCode } from '../lib/store-utils';
 
 const DEVICE_ID_KEY = '@amana/principal/deviceId';
 
@@ -24,9 +24,6 @@ export type PushState = {
   /** Best-effort delete on backend + clear local. Called on logout. */
   unregister(): Promise<void>;
 };
-
-const ERR = (e: unknown): string =>
-  e instanceof ApiError ? e.code : e instanceof Error ? e.message : 'unknown_error';
 
 function osStatusToOurs(s: Notifications.PermissionStatus): PushPermissionStatus {
   if (s === 'granted') return 'granted';
@@ -52,7 +49,7 @@ export const usePushStore = create<PushState>((set, get) => ({
       const stored = await AsyncStorage.getItem(DEVICE_ID_KEY);
       set({ permissionStatus: osStatusToOurs(perm.status), deviceId: stored });
     } catch (e) {
-      set({ errorCode: ERR(e) });
+      set({ errorCode: toErrorCode(e) });
     }
   },
 
@@ -79,7 +76,7 @@ export const usePushStore = create<PushState>((set, get) => ({
       set({ expoPushToken: token, deviceId: r.id });
       return status;
     } catch (e) {
-      set({ errorCode: ERR(e) });
+      set({ errorCode: toErrorCode(e) });
       return get().permissionStatus;
     }
   },

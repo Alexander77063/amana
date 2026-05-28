@@ -1,4 +1,3 @@
-import { ApiError } from '@amana/api-client';
 import type {
   ChannelPreference,
   NotificationChannel,
@@ -9,6 +8,7 @@ import type {
 } from '@amana/types';
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { toErrorCode } from '../lib/store-utils';
 
 /**
  * Mirrors the server's DEFAULT_MATRIX in
@@ -49,9 +49,6 @@ export type PreferencesState = {
   saveQuietHours(input: QuietHours): Promise<void>;
 };
 
-const ERR = (e: unknown): string =>
-  e instanceof ApiError ? e.code : e instanceof Error ? e.message : 'unknown_error';
-
 /**
  * Replace or append a row keyed by (kind, channel).
  * Returns a fresh array — does not mutate the input.
@@ -88,7 +85,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
         errorCode: null,
       });
     } catch (e) {
-      set({ status: 'error', errorCode: ERR(e) });
+      set({ status: 'error', errorCode: toErrorCode(e) });
     }
   },
 
@@ -135,7 +132,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
         return { rows: upsertRow(s.rows, r.preference) };
       });
     } catch (e) {
-      set({ rows: before, errorCode: ERR(e) });
+      set({ rows: before, errorCode: toErrorCode(e) });
     }
   },
 
@@ -144,7 +141,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       const r = await api.preference.getQuietHours();
       set({ quietHours: r });
     } catch (e) {
-      set({ errorCode: ERR(e) });
+      set({ errorCode: toErrorCode(e) });
     }
   },
 
@@ -155,7 +152,7 @@ export const usePreferencesStore = create<PreferencesState>((set, get) => ({
       const r = await api.preference.upsertQuietHours(input);
       set({ quietHours: r });
     } catch (e) {
-      set({ quietHours: before, errorCode: ERR(e) });
+      set({ quietHours: before, errorCode: toErrorCode(e) });
     }
   },
 }));

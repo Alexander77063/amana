@@ -1,8 +1,10 @@
-import { ApiError, type StoredAuth } from '@amana/api-client';
+import type { StoredAuth } from '@amana/api-client';
 import type { LoginResponse, User } from '@amana/types';
 import { create } from 'zustand';
 import { api } from '../lib/api';
+import { runLogout } from '../lib/logout';
 import { secureTokenStore } from '../lib/secure-token-store';
+import { toErrorCode } from '../lib/store-utils';
 import { usePushStore } from './push.store';
 
 export type AuthStatus = 'booting' | 'logged_out' | 'logged_in';
@@ -23,9 +25,6 @@ export type AuthState = {
   logout(): Promise<void>;
 };
 
-const ERR = (e: unknown): string =>
-  e instanceof ApiError ? e.code : e instanceof Error ? e.message : 'unknown_error';
-
 export const useAuthStore = create<AuthState>((set, get) => ({
   status: 'booting',
   user: null,
@@ -41,7 +40,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     // Validate the persisted session. If `/me` 401s and refresh fails, we clear locally.
     try {
-      const me = await api.request<User>('/me');
+      const me = await api.me.get();
       set({ status: 'logged_in', user: me });
     } catch {
       await secureTokenStore.clear();
@@ -55,7 +54,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await api.auth.requestOtp({ phone, purpose: 'login' });
       set({ pendingPhone: phone, busy: false });
     } catch (e) {
-      set({ busy: false, errorCode: ERR(e) });
+      set({ busy: false, errorCode: toErrorCode(e) });
       throw e;
     }
   },
@@ -78,7 +77,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await secureTokenStore.write(stored);
       set({ status: 'logged_in', user: r.user, pendingPhone: null, busy: false });
     } catch (e) {
-      set({ busy: false, errorCode: ERR(e) });
+      set({ busy: false, errorCode: toErrorCode(e) });
       throw e;
     }
   },
@@ -86,21 +85,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   async logout() {
     set({ busy: true });
     try {
-      try {
-        await usePushStore.getState().unregister();
-      } catch {
-        // Best-effort — even if device unregister fails, continue with logout.
-      }
-      try {
-        const stored = await secureTokenStore.read();
-        if (stored) await api.auth.logout(stored.tokens.accessToken);
-      } catch {
-        // Best-effort — even if revoke fails, we clear locally.
-      }
-      await secureTokenStore.clear();
+      await runLogout(api, secureTokenStore, () => usePushStore.getState().unregister());
       set({ status: 'logged_out', user: null, pendingPhone: null, busy: false, errorCode: null });
     } catch (e) {
-      set({ busy: false, errorCode: ERR(e) });
+      set({ busy: false, errorCode: toErrorCode(e) });
       throw e;
     }
   },

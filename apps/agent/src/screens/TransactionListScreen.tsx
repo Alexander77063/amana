@@ -13,7 +13,7 @@ import {
   View,
 } from 'react-native';
 import { api } from '../lib/api';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import type { HistoryStackParamList } from '../nav/HistoryStack';
 
 type Props = NativeStackScreenProps<HistoryStackParamList, 'TransactionList'>;
@@ -36,7 +36,7 @@ function statusVariant(status: string): 'success' | 'error' | 'warning' | 'neutr
 
 export function TransactionListScreen({ navigation }: Props): JSX.Element {
   const theme = useTheme();
-  const sw = subWalletMemory.get();
+  const sw = useAgentStore((s) => s.selectedSubWallet);
   const [txns, setTxns] = useState<TransactionSummary[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

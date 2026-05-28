@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { api } from '../lib/api';
 import { secureTokenStore } from '../lib/secure-token-store';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import { AuthStack } from './AuthStack';
 import { MainTabs } from './MainTabs';
 import { PairingStack } from './PairingStack';
@@ -26,7 +26,7 @@ export function RootNavigator(): JSX.Element {
   const checkPairing = useCallback(async () => {
     try {
       const me = await api.me.getSubWallet();
-      subWalletMemory.set(me.subWallet);
+      useAgentStore.getState().setSubWallet(me.subWallet);
       setAppState('paired');
     } catch {
       setAppState('unpaired');

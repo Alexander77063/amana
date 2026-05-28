@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import NfcManager, { Ndef, NfcEvents } from 'react-native-nfc-manager';
 import { api } from '../lib/api';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import type { PairingStackParamList } from '../nav/PairingStack';
 
 type Props = NativeStackScreenProps<PairingStackParamList, 'NFCPair'> & { onPaired: () => void };
@@ -30,7 +30,7 @@ export function NFCPairScreen({ navigation }: Props): JSX.Element {
             const token = Ndef.text.decodePayload(new Uint8Array(payload));
             await api.pairing.complete(token);
             const me = await api.me.getSubWallet();
-            subWalletMemory.set(me.subWallet);
+            useAgentStore.getState().setSubWallet(me.subWallet);
             if (alive) {
               navigation.replace('PairingSuccess', {
                 subWalletName: me.subWallet.name,

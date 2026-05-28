@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { Body, Button, Label, Screen, TextInput, useTheme } from '@amana/ui';
 import { api } from '../lib/api';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import type { PayStackParamList } from '../nav/PayStack';
 
 const BANKS = [
@@ -55,7 +55,7 @@ export function AccountEntryScreen({ navigation }: Props): JSX.Element {
   );
 
   const enquire = async () => {
-    const sw = subWalletMemory.get();
+    const sw = useAgentStore.getState().selectedSubWallet;
     if (!sw || !bankCode || accountNumber.length < 10) return;
     setBusy(true);
     setErrorMsg(null);

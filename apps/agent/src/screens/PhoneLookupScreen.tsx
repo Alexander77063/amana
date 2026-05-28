@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { View } from 'react-native';
 import { api } from '../lib/api';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import type { PayStackParamList } from '../nav/PayStack';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'PhoneLookup'>;
@@ -15,7 +15,7 @@ export function PhoneLookupScreen({ navigation }: Props): JSX.Element {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const lookup = async () => {
-    const sw = subWalletMemory.get();
+    const sw = useAgentStore.getState().selectedSubWallet;
     if (!sw || !phone.trim()) return;
     setBusy(true);
     setErrorMsg(null);

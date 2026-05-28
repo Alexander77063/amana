@@ -5,14 +5,14 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
 import { api } from '../lib/api';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import type { PayStackParamList } from '../nav/PayStack';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'CaptureMethod'>;
 
 export function CaptureMethodScreen({ navigation }: Props): JSX.Element {
   const theme = useTheme();
-  const sw = subWalletMemory.get();
+  const sw = useAgentStore((s) => s.selectedSubWallet);
   const [recents, setRecents] = useState<RecentVendorResponse[]>([]);
   const [loading, setLoading] = useState(false);
 

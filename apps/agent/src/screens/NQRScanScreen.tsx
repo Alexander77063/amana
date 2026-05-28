@@ -4,7 +4,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, View } from 'react-native';
 import { api } from '../lib/api';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import type { PayStackParamList } from '../nav/PayStack';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'NQRScan'>;
@@ -17,7 +17,7 @@ export function NQRScanScreen({ navigation }: Props): JSX.Element {
   const handleScan = async (payload: string) => {
     if (busy) return;
     setBusy(true);
-    const sw = subWalletMemory.get();
+    const sw = useAgentStore.getState().selectedSubWallet;
     if (!sw) {
       setBusy(false);
       return;

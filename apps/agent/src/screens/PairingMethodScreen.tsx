@@ -3,7 +3,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
 import { Platform, View } from 'react-native';
 import { api } from '../lib/api';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import type { PairingStackParamList } from '../nav/PairingStack';
 
 type Props = NativeStackScreenProps<PairingStackParamList, 'PairingMethod'> & {
@@ -20,7 +20,7 @@ export function PairingMethodScreen({ navigation, route }: Props): JSX.Element {
       try {
         await api.pairing.complete(pendingToken);
         const me = await api.me.getSubWallet();
-        subWalletMemory.set(me.subWallet);
+        useAgentStore.getState().setSubWallet(me.subWallet);
         navigation.replace('PairingSuccess', {
           subWalletName: me.subWallet.name,
           principalPhone: me.principal.phone,

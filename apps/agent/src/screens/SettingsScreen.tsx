@@ -2,18 +2,18 @@ import { Body, Button, Card, Label, Screen, SectionHeader, useTheme } from '@ama
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Pressable, View } from 'react-native';
 import { secureTokenStore } from '../lib/secure-token-store';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import type { SettingsStackParamList } from '../nav/SettingsStack';
 
 type Props = NativeStackScreenProps<SettingsStackParamList, 'Settings'>;
 
 export function SettingsScreen({ navigation }: Props): JSX.Element {
   const theme = useTheme();
-  const sw = subWalletMemory.get();
+  const sw = useAgentStore((s) => s.selectedSubWallet);
 
   const signOut = async () => {
     await secureTokenStore.clear();
-    subWalletMemory.clear();
+    useAgentStore.getState().clearSubWallet();
   };
 
   return (

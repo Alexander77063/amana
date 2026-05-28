@@ -5,7 +5,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { api } from '../lib/api';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import type { MainTabParamList } from '../nav/MainTabs';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Home'>;
@@ -21,7 +21,7 @@ function formatDate(iso: string): string {
 
 export function HomeScreen({ navigation }: Props): JSX.Element {
   const theme = useTheme();
-  const sw = subWalletMemory.get();
+  const sw = useAgentStore((s) => s.selectedSubWallet);
   const [txns, setTxns] = useState<TransactionSummary[]>([]);
   const [loading, setLoading] = useState(true);
 

@@ -4,7 +4,7 @@ import * as Location from 'expo-location';
 import { useState } from 'react';
 import { StyleSheet, Switch, View } from 'react-native';
 import { api } from '../lib/api';
-import { subWalletMemory } from '../lib/sub-wallet-memory';
+import { useAgentStore } from '../state/agent.store';
 import type { PayStackParamList } from '../nav/PayStack';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'Confirm'>;
@@ -19,7 +19,7 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const send = async () => {
-    const sw = subWalletMemory.get();
+    const sw = useAgentStore.getState().selectedSubWallet;
     if (!sw) return;
     const naira = Number.parseFloat(amountNaira);
     if (!Number.isFinite(naira) || naira <= 0) {

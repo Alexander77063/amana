@@ -1,6 +1,7 @@
 // apps/backend/src/middleware/jwt-auth.ts
 import type { MiddlewareHandler } from 'hono';
 import { db } from '../db/client';
+import { logger } from '../lib/logger';
 import { authSessionsRepo } from '../modules/auth/auth-sessions.repo';
 import { verifyAccessToken } from '../modules/auth/tokens';
 
@@ -25,7 +26,8 @@ export const jwtAuth = (): MiddlewareHandler<{ Variables: ActorVariables }> => a
   if (session.revokedAt) return c.json({ error: 'session_revoked' }, 401);
   if (session.expiresAt < new Date()) return c.json({ error: 'session_expired' }, 401);
 
-  authSessionsRepo.touchLastUsed(db, session.id, new Date()).catch(() => {});
+  authSessionsRepo.touchLastUsed(db, session.id, new Date())
+    .catch((e: unknown) => logger.warn({ err: (e as Error).message }, 'session touch failed'));
 
   c.set('actor', {
     userId: claims.sub,

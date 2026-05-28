@@ -17,6 +17,17 @@ import { transactionsRoute } from './routes/transactions';
 import { vendorsRoute } from './routes/vendors';
 import { webhooksRoute } from './routes/webhooks';
 
+function buildMeRouter(): Hono {
+  return new Hono()
+    .route('/', meRoute)
+    .route('/', logoutRoute)
+    .route('/', meHouseholdRoute)
+    .route('/', meBumpsRoute)
+    .route('/', meSubWalletRoute)
+    .route('/', notificationPrefsRoute)
+    .route('/', notificationsListRoute);
+}
+
 export function createServer(): Hono {
   const app = new Hono();
   app.use(requestId());
@@ -31,13 +42,7 @@ export function createServer(): Hono {
   app.route('/households', householdsRoute);
   app.route('/sub-wallets', subWalletsRoute);
   app.route('/media', mediaRoute);
-  app.route('/', meHouseholdRoute);
-  app.route('/', meBumpsRoute);
-  app.route('/', meSubWalletRoute);
-  app.route('/', meRoute);
-  app.route('/', logoutRoute);
-  app.route('/', notificationPrefsRoute);
-  app.route('/', notificationsListRoute);
+  app.route('/', buildMeRouter());
   app.onError(errorHandler);
   return app;
 }

@@ -4,13 +4,11 @@ import { api } from '../lib/api';
 import { toErrorCode } from '../lib/store-utils';
 
 export type SubWalletsState = {
-  list: SubWallet[];
   byId: Record<string, SubWallet>;
   balanceById: Record<string, string>;
   rulesById: Record<string, ActiveRuleSet | null>;
   errorCode: string | null;
   busy: boolean;
-  /** Monotonic counter to guard against stale optimistic responses. */
   _snoozeSeq: Record<string, number>;
 
   refreshList(householdId: string): Promise<void>;
@@ -25,7 +23,6 @@ export type SubWalletsState = {
 };
 
 export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
-  list: [],
   byId: {},
   balanceById: {},
   rulesById: {},
@@ -39,7 +36,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
       const r = await api.household.listSubWallets(householdId);
       const byId: Record<string, SubWallet> = {};
       for (const s of r.subWallets) byId[s.id] = s;
-      set({ list: r.subWallets, byId, busy: false });
+      set({ byId, busy: false });
     } catch (e) {
       set({ busy: false, errorCode: toErrorCode(e) });
     }
@@ -49,11 +46,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
     set({ busy: true, errorCode: null });
     try {
       const r = await api.household.createSubWallet(householdId, { agentUserId, name });
-      set({
-        list: [...get().list, r.subWallet],
-        byId: { ...get().byId, [r.subWallet.id]: r.subWallet },
-        busy: false,
-      });
+      set({ byId: { ...get().byId, [r.subWallet.id]: r.subWallet }, busy: false });
       return r.subWallet;
     } catch (e) {
       set({ busy: false, errorCode: toErrorCode(e) });
@@ -104,11 +97,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
     set({ busy: true, errorCode: null });
     try {
       const r = await api.subWallet.patchStatus(subWalletId, { status });
-      set({
-        byId: { ...get().byId, [subWalletId]: r.subWallet },
-        list: get().list.map((s) => (s.id === subWalletId ? r.subWallet : s)),
-        busy: false,
-      });
+      set({ byId: { ...get().byId, [subWalletId]: r.subWallet }, busy: false });
     } catch (e) {
       set({ busy: false, errorCode: toErrorCode(e) });
       throw e;
@@ -119,31 +108,17 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
     const seq = (get()._snoozeSeq[subWalletId] ?? 0) + 1;
     const before = get().byId[subWalletId];
     if (!before) return;
-    // Optimistic write to byId AND list
     const optimistic = { ...before, snoozedUntil: until };
-    set({
-      byId: { ...get().byId, [subWalletId]: optimistic },
-      list: get().list.map((s) => (s.id === subWalletId ? optimistic : s)),
-      _snoozeSeq: { ...get()._snoozeSeq, [subWalletId]: seq },
-    });
+    set({ byId: { ...get().byId, [subWalletId]: optimistic }, _snoozeSeq: { ...get()._snoozeSeq, [subWalletId]: seq } });
     try {
       const r = await api.subWallet.snooze(subWalletId, until);
-      // Stale-response guard
       if (get()._snoozeSeq[subWalletId] !== seq) return;
       const cur = get().byId[subWalletId];
       if (!cur) return;
-      const reconciled = { ...cur, snoozedUntil: r.snoozedUntil };
-      set({
-        byId: { ...get().byId, [subWalletId]: reconciled },
-        list: get().list.map((s) => (s.id === subWalletId ? reconciled : s)),
-      });
+      set({ byId: { ...get().byId, [subWalletId]: { ...cur, snoozedUntil: r.snoozedUntil } } });
     } catch (e) {
       if (get()._snoozeSeq[subWalletId] !== seq) return;
-      set({
-        byId: { ...get().byId, [subWalletId]: before },
-        list: get().list.map((s) => (s.id === subWalletId ? before : s)),
-        errorCode: toErrorCode(e),
-      });
+      set({ byId: { ...get().byId, [subWalletId]: before }, errorCode: toErrorCode(e) });
     }
   },
 
@@ -152,22 +127,12 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
     const before = get().byId[subWalletId];
     if (!before) return;
     const optimistic = { ...before, snoozedUntil: null };
-    set({
-      byId: { ...get().byId, [subWalletId]: optimistic },
-      list: get().list.map((s) => (s.id === subWalletId ? optimistic : s)),
-      _snoozeSeq: { ...get()._snoozeSeq, [subWalletId]: seq },
-    });
+    set({ byId: { ...get().byId, [subWalletId]: optimistic }, _snoozeSeq: { ...get()._snoozeSeq, [subWalletId]: seq } });
     try {
       await api.subWallet.unsnooze(subWalletId);
-      if (get()._snoozeSeq[subWalletId] !== seq) return;
-      // Server confirmed null — already optimistically applied; nothing to reconcile.
     } catch (e) {
       if (get()._snoozeSeq[subWalletId] !== seq) return;
-      set({
-        byId: { ...get().byId, [subWalletId]: before },
-        list: get().list.map((s) => (s.id === subWalletId ? before : s)),
-        errorCode: toErrorCode(e),
-      });
+      set({ byId: { ...get().byId, [subWalletId]: before }, errorCode: toErrorCode(e) });
     }
   },
 }));

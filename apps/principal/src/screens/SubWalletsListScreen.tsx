@@ -10,7 +10,7 @@ type Props = NativeStackScreenProps<MainStackParamList, 'SubWalletsList'>;
 
 export function SubWalletsListScreen({ navigation }: Props): JSX.Element {
   const household = useHouseholdStore((s) => s.household);
-  const list = useSubWalletsStore((s) => s.list);
+  const list = useSubWalletsStore((s) => Object.values(s.byId));
   const busy = useSubWalletsStore((s) => s.busy);
   const refreshList = useSubWalletsStore((s) => s.refreshList);
 

@@ -47,4 +47,24 @@ export const usersRepo = {
   async setKycTier(db: DbOrTx, id: string, kycTier: '1' | '2' | '3'): Promise<void> {
     await db.update(users).set({ kycTier }).where(eq(users.id, id));
   },
+
+  async setAnchorCustomerId(
+    db: DbOrTx,
+    id: string,
+    anchorCustomerId: string,
+  ): Promise<void> {
+    await db.update(users).set({ anchorCustomerId }).where(eq(users.id, id));
+  },
+
+  async findByAnchorCustomerId(
+    db: DbOrTx,
+    anchorCustomerId: string,
+  ): Promise<UserRow | null> {
+    const [row] = await db
+      .select()
+      .from(users)
+      .where(eq(users.anchorCustomerId, anchorCustomerId))
+      .limit(1);
+    return row ?? null;
+  },
 };

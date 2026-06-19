@@ -22,6 +22,13 @@
             "shell": "powershell",
             "command": "$json = [Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $json.tool_input.file_path; if ($f -match '\\.(ts|tsx|js|jsx|json)$') { & pnpm exec biome check --write $f 2>$null }; exit 0",
             "statusMessage": "Biome formatting..."
+          },
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$data = [Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $data.tool_input.file_path; if ($f -notmatch '\\.(ts|tsx)$') { exit 0 }; if ($f -match 'apps.backend') { $pkg = '@amana/backend' } elseif ($f -match 'apps.principal') { $pkg = '@amana/principal' } elseif ($f -match 'apps.agent') { $pkg = '@amana/agent' } elseif ($f -match 'packages.api-client') { $pkg = '@amana/api-client' } elseif ($f -match 'packages.types') { $pkg = '@amana/types' } elseif ($f -match 'packages.ui') { $pkg = '@amana/ui' } elseif ($f -match 'packages.validation') { $pkg = '@amana/validation' } else { exit 0 }; $out = cmd /c ('pnpm --filter ' + $pkg + ' typecheck 2>&1'); if ($LASTEXITCODE -ne 0) { Write-Output $out; exit 2 }; exit 0",
+            "asyncRewake": true,
+            "statusMessage": "Type-checking..."
           }
         ]
       }

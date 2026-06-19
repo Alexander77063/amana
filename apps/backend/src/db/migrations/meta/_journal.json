@@ -141,6 +141,13 @@
       "when": 1746748800000,
       "tag": "0019_bump_request_cancelled",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1746835200000,
+      "tag": "0020_users_anchor_customer_id",
+      "breakpoints": true
     }
   ]
 }

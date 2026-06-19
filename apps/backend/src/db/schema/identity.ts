@@ -14,6 +14,7 @@ export const users = pgTable('users', {
   nin: text('nin').notNull(),
   kycTier: kycTierEnum('kyc_tier').notNull(),
   status: userStatusEnum('status').notNull().default('active'),
+  anchorCustomerId: text('anchor_customer_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

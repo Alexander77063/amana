@@ -45,6 +45,17 @@ export class AnchorAdapter {
     );
   }
 
+  async createCustomer(
+    input: import('./types').AnchorCreateCustomerRequest,
+    idempotencyKey: string,
+  ): Promise<import('./types').AnchorCreateCustomerResponse> {
+    return this.execIdempotent('anchor.customer', idempotencyKey, () =>
+      this.client.post<import('./types').AnchorCreateCustomerResponse>('/customers', input, {
+        idempotencyKey,
+      }),
+    );
+  }
+
   async requestKycUpgrade(
     input: import('./types').AnchorKycUpgradeRequest,
     idempotencyKey: string,

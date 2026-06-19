@@ -219,6 +219,100 @@ describe('POST /webhooks/anchor — dispatch', () => {
     expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(100_000n);
   });
 
+  it('kyc.approved TIER_2 → updates user kycTier to 2', async () => {
+    const user = await usersRepo.insert(testDb, {
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
+      bvn: factories.bvn(),
+    });
+    await usersRepo.setAnchorCustomerId(testDb, user.id, 'anchor-cust-kyc-1');
+    const app = createServer();
+    const body = JSON.stringify({
+      id: 'evt-kyc-1',
+      type: 'kyc.approved',
+      createdAt: new Date().toISOString(),
+      data: { customerId: 'anchor-cust-kyc-1', newKycLevel: 'TIER_2' },
+    });
+    const res = await app.request('/webhooks/anchor', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-anchor-signature': sign(body) },
+      body,
+    });
+    expect(res.status).toBe(200);
+    const updated = await usersRepo.findById(testDb, user.id);
+    expect(updated?.kycTier).toBe('2');
+  });
+
+  it('kyc.approved TIER_3 → updates user kycTier to 3', async () => {
+    const user = await usersRepo.insert(testDb, {
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
+    });
+    await usersRepo.setAnchorCustomerId(testDb, user.id, 'anchor-cust-kyc-2');
+    const app = createServer();
+    const body = JSON.stringify({
+      id: 'evt-kyc-2',
+      type: 'kyc.approved',
+      createdAt: new Date().toISOString(),
+      data: { customerId: 'anchor-cust-kyc-2', newKycLevel: 'TIER_3' },
+    });
+    const res = await app.request('/webhooks/anchor', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-anchor-signature': sign(body) },
+      body,
+    });
+    expect(res.status).toBe(200);
+    const updated = await usersRepo.findById(testDb, user.id);
+    expect(updated?.kycTier).toBe('3');
+  });
+
+  it('kyc.rejected → 200 ack, kycTier unchanged', async () => {
+    const user = await usersRepo.insert(testDb, {
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '1',
+      bvn: factories.bvn(),
+    });
+    await usersRepo.setAnchorCustomerId(testDb, user.id, 'anchor-cust-kyc-3');
+    const app = createServer();
+    const body = JSON.stringify({
+      id: 'evt-kyc-3',
+      type: 'kyc.rejected',
+      createdAt: new Date().toISOString(),
+      data: { customerId: 'anchor-cust-kyc-3', reason: 'BVN mismatch' },
+    });
+    const res = await app.request('/webhooks/anchor', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-anchor-signature': sign(body) },
+      body,
+    });
+    expect(res.status).toBe(200);
+    const updated = await usersRepo.findById(testDb, user.id);
+    expect(updated?.kycTier).toBe('1');
+  });
+
+  it('kyc.approved with unknown customerId → 200 ack, no crash', async () => {
+    const app = createServer();
+    const body = JSON.stringify({
+      id: 'evt-kyc-4',
+      type: 'kyc.approved',
+      createdAt: new Date().toISOString(),
+      data: { customerId: 'anchor-cust-unknown', newKycLevel: 'TIER_2' },
+    });
+    const res = await app.request('/webhooks/anchor', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-anchor-signature': sign(body) },
+      body,
+    });
+    expect(res.status).toBe(200);
+  });
+
   it('virtual_account.credited → topup booked', async () => {
     const { virtualAccount } = await seedInFlightTxn();
     const app = createServer();

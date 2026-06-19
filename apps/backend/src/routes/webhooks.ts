@@ -4,12 +4,15 @@ import { Hono } from 'hono';
 import { db } from '../db/client';
 import { auditLog } from '../db/schema';
 import type {
+  AnchorKycApprovedData,
+  AnchorKycRejectedData,
   AnchorTransferEventData,
   AnchorVirtualAccountCreditedData,
 } from '../integrations/anchor/types';
 import { WebhookSignatureError, parseAndVerifyWebhook } from '../integrations/anchor/webhook';
 import { kobo } from '../lib/kobo';
 import { logger } from '../lib/logger';
+import { usersRepo } from '../modules/identity/users.repo';
 import { reversalService } from '../modules/transactions/reversal.service';
 import { settlementService } from '../modules/transactions/settlement.service';
 import { topupService } from '../modules/transactions/topup.service';
@@ -101,9 +104,20 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
         senderAccountName: data.senderAccountName,
         receivedAt: new Date(event.createdAt),
       });
+    } else if (event.type === 'kyc.approved') {
+      const data = event.data as AnchorKycApprovedData;
+      const ourTier = data.newKycLevel === 'TIER_3' ? '3' : '2';
+      const user = await usersRepo.findByAnchorCustomerId(db, data.customerId);
+      if (user) {
+        await usersRepo.setKycTier(db, user.id, ourTier);
+      } else {
+        logger.warn({ customerId: data.customerId }, 'kyc.approved: no matching user');
+      }
+    } else if (event.type === 'kyc.rejected') {
+      const data = event.data as AnchorKycRejectedData;
+      logger.warn({ customerId: data.customerId, reason: data.reason }, 'kyc.rejected');
     } else {
-      // kyc.* events: ack only for now (KYC service lands in Sub-plan 6)
-      logger.info({ type: event.type }, 'anchor webhook: ack-only (handler not yet implemented)');
+      logger.info({ type: event.type }, 'anchor webhook: unhandled event type');
     }
   } catch (e) {
     logger.error({ err: (e as Error).message, type: event.type }, 'anchor webhook handler failed');

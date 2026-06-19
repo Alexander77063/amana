@@ -1,4 +1,17 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// vi.mock is hoisted — keep anchorAdapterSingleton mocked at module level.
+// AnchorHttpError is intentionally imported from /client (not the barrel) so
+// the partial mock of the barrel does not shadow the class reference.
+vi.mock('../../src/integrations/anchor', () => ({
+  anchorAdapterSingleton: {
+    createCustomer: vi.fn(),
+    provisionVirtualAccount: vi.fn(),
+  },
+}));
+
+import { anchorAdapterSingleton } from '../../src/integrations/anchor';
+import { AnchorHttpError } from '../../src/integrations/anchor/client';
 import { householdMembersRepo } from '../../src/modules/identity/household-members.repo';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
 import { usersRepo } from '../../src/modules/identity/users.repo';
@@ -12,9 +25,25 @@ import { testDb, truncateAll } from '../helpers/test-db';
 describe('POST /households', () => {
   beforeEach(async () => {
     await truncateAll();
+    vi.clearAllMocks();
   });
 
   it('creates household + master wallet for principal', async () => {
+    vi.mocked(anchorAdapterSingleton.createCustomer).mockResolvedValueOnce({
+      id: 'anchor-cust-1',
+      fullName: 'Test Principal',
+      phoneNumber: '+2348012345678',
+      kycLevel: 'TIER_1',
+    });
+    vi.mocked(anchorAdapterSingleton.provisionVirtualAccount).mockResolvedValueOnce({
+      id: 'anchor-va-1',
+      accountNumber: '0123456789',
+      bankCode: '058',
+      accountName: 'AMANA/TEST',
+      customerId: 'anchor-cust-1',
+      status: 'ACTIVE',
+    });
+
     const u = await usersRepo.insert(testDb, {
       role: 'principal',
       phone: factories.phone(),
@@ -35,8 +64,15 @@ describe('POST /households', () => {
       masterWallet: { anchorVirtualAccount: string; anchorBankCode: string };
     };
     expect(body.household.name).toBe('Adegbola family');
-    expect(body.masterWallet.anchorVirtualAccount).toMatch(/^\d{10}$/);
+    expect(body.masterWallet.anchorVirtualAccount).toBe('0123456789');
     expect(body.masterWallet.anchorBankCode).toBe('058');
+    expect(vi.mocked(anchorAdapterSingleton.createCustomer)).toHaveBeenCalledOnce();
+    expect(vi.mocked(anchorAdapterSingleton.provisionVirtualAccount)).toHaveBeenCalledOnce();
+
+    // Verify anchorCustomerId persisted on user row
+    const updatedUser = await usersRepo.findById(testDb, u.id);
+    expect(updatedUser?.anchorCustomerId).toBe('anchor-cust-1');
+
     const mw = await masterWalletsRepo.findByHousehold(testDb, body.household.id);
     expect(mw).toBeDefined();
   });
@@ -93,6 +129,82 @@ describe('POST /households', () => {
       body: JSON.stringify({ name: '   ' }),
     });
     expect(res.status).toBe(400);
+  });
+
+  it('503 when Anchor createCustomer fails', async () => {
+    vi.mocked(anchorAdapterSingleton.createCustomer).mockRejectedValueOnce(
+      new AnchorHttpError(500, { error: 'internal' }, 'Anchor POST /customers → 500'),
+    );
+    const u = await usersRepo.insert(testDb, {
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
+    });
+    const app = createServer();
+    const res = await app.request('/households', {
+      method: 'POST',
+      headers: await bearerHeaders(u),
+      body: JSON.stringify({ name: 'Broken household' }),
+    });
+    expect(res.status).toBe(503);
+    // Transaction must have rolled back — no household committed
+    expect(await householdsRepo.findByPrincipal(testDb, u.id)).toBeUndefined();
+  });
+
+  it('503 when Anchor provisionVirtualAccount fails', async () => {
+    vi.mocked(anchorAdapterSingleton.createCustomer).mockResolvedValueOnce({
+      id: 'anchor-cust-2',
+      fullName: 'Test',
+      phoneNumber: '+2348012345678',
+      kycLevel: 'TIER_1',
+    });
+    vi.mocked(anchorAdapterSingleton.provisionVirtualAccount).mockRejectedValueOnce(
+      new AnchorHttpError(503, { error: 'unavailable' }, 'Anchor POST /virtual-accounts → 503'),
+    );
+    const u = await usersRepo.insert(testDb, {
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
+    });
+    const app = createServer();
+    const res = await app.request('/households', {
+      method: 'POST',
+      headers: await bearerHeaders(u),
+      body: JSON.stringify({ name: 'Half-created' }),
+    });
+    expect(res.status).toBe(503);
+  });
+
+  it('skips createCustomer when user already has anchorCustomerId', async () => {
+    vi.mocked(anchorAdapterSingleton.provisionVirtualAccount).mockResolvedValueOnce({
+      id: 'anchor-va-2',
+      accountNumber: '9876543210',
+      bankCode: '058',
+      accountName: 'AMANA/REENTRANT',
+      customerId: 'anchor-cust-existing',
+      status: 'ACTIVE',
+    });
+    const u = await usersRepo.insert(testDb, {
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
+    });
+    await usersRepo.setAnchorCustomerId(testDb, u.id, 'anchor-cust-existing');
+
+    const app = createServer();
+    const res = await app.request('/households', {
+      method: 'POST',
+      headers: await bearerHeaders(u),
+      body: JSON.stringify({ name: 'Re-entrant household' }),
+    });
+    expect(res.status).toBe(201);
+    expect(vi.mocked(anchorAdapterSingleton.createCustomer)).not.toHaveBeenCalled();
   });
 });
 

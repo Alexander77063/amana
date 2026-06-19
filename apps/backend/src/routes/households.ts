@@ -1,10 +1,12 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/client';
-import { placeholderAnchorAccountForHousehold } from '../lib/placeholder-anchor';
+import { anchorAdapterSingleton } from '../integrations/anchor';
+import { AnchorHttpError } from '../integrations/anchor/client';
 import { parseBody } from '../lib/validate';
 import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
+import { usersRepo } from '../modules/identity/users.repo';
 import { subwalletSnoozeRepo } from '../modules/notifications/subwallet-snooze.repo';
 import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../modules/wallet/sub-wallets.repo';
@@ -14,38 +16,70 @@ export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
   .post('/', async (c) => {
     const a = c.get('actor');
     if (a.role !== 'principal') return c.json({ error: 'principal_only' }, 403);
-    const CreateHouseholdSchema = z.object({ name: z.string().min(1) });
+    const CreateHouseholdSchema = z.object({ name: z.string().trim().min(1) });
     const body = await parseBody(c, CreateHouseholdSchema);
     if (body instanceof Response) return body;
     const existing = await householdsRepo.findByPrincipal(db, a.userId);
     if (existing) return c.json({ error: 'household_exists', householdId: existing.id }, 409);
 
-    return db.transaction(async (tx) => {
-      const txDb = tx as unknown as typeof db;
-      const hh = await householdsRepo.insert(txDb, {
-        principalUserId: a.userId,
-        name: body.name.trim(),
-      });
-      const anchor = placeholderAnchorAccountForHousehold(hh.id);
-      const provisioned = await masterWalletsRepo.provision(txDb, {
-        householdId: hh.id,
-        anchorVirtualAccount: anchor.anchorVirtualAccount,
-        anchorBankCode: anchor.anchorBankCode,
-        anchorAccountId: anchor.anchorAccountId,
-      });
-      return c.json(
-        {
-          household: { id: hh.id, name: hh.name, principalUserId: hh.principalUserId },
-          masterWallet: {
-            id: provisioned.master.id,
-            anchorVirtualAccount: provisioned.master.anchorVirtualAccount,
-            anchorBankCode: provisioned.master.anchorBankCode,
-            currency: provisioned.master.currency,
+    // Fetch the user before the transaction — we need nin/bvn/anchorCustomerId.
+    const user = await usersRepo.findById(db, a.userId);
+    if (!user) return c.json({ error: 'user_not_found' }, 404);
+
+    try {
+      return await db.transaction(async (tx) => {
+        const txDb = tx as unknown as typeof db;
+
+        const hh = await householdsRepo.insert(txDb, {
+          principalUserId: a.userId,
+          name: body.name.trim(),
+        });
+
+        // Re-entrancy: skip createCustomer if user already has an Anchor customer ID.
+        let anchorCustomerId = user.anchorCustomerId;
+        if (!anchorCustomerId) {
+          const customer = await anchorAdapterSingleton.createCustomer(
+            {
+              phoneNumber: user.phone,
+              nin: user.nin,
+              bvn: user.bvn ?? '',
+              fullName: user.phone,
+            },
+            `anchor.customer.${a.userId}`,
+          );
+          anchorCustomerId = customer.id;
+          await usersRepo.setAnchorCustomerId(txDb, a.userId, anchorCustomerId);
+        }
+
+        const va = await anchorAdapterSingleton.provisionVirtualAccount(
+          { customerId: anchorCustomerId, label: hh.name },
+          `anchor.va.${hh.id}`,
+        );
+
+        const provisioned = await masterWalletsRepo.provision(txDb, {
+          householdId: hh.id,
+          anchorVirtualAccount: va.accountNumber,
+          anchorBankCode: va.bankCode,
+          anchorAccountId: va.id,
+        });
+
+        return c.json(
+          {
+            household: { id: hh.id, name: hh.name, principalUserId: hh.principalUserId },
+            masterWallet: {
+              id: provisioned.master.id,
+              anchorVirtualAccount: provisioned.master.anchorVirtualAccount,
+              anchorBankCode: provisioned.master.anchorBankCode,
+              currency: provisioned.master.currency,
+            },
           },
-        },
-        201,
-      );
-    });
+          201,
+        );
+      });
+    } catch (e) {
+      if (e instanceof AnchorHttpError) return c.json({ error: 'anchor_unavailable' }, 503);
+      throw e;
+    }
   })
   .get('/:id/sub-wallets', async (c) => {
     const a = c.get('actor');

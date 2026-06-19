@@ -233,7 +233,27 @@
       "Bash(cat docker-compose.yaml)",
       "Bash(npm test *)",
       "mcp__ide__getDiagnostics",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(Test-Path \"C:/Users/alex_/AppData/Roaming/npm/node_modules/@modelcontextprotocol/server-sequential-thinking/dist/index.js\")",
+      "Bash(Test-Path \"C:/Users/alex_/AppData/Roaming/npm/node_modules/@upstash/context7-mcp/dist/index.js\")",
+      "PowerShell(node \"C:/Users/alex_/AppData/Roaming/npm/node_modules/@modelcontextprotocol/server-sequential-thinking/dist/index.js\" --help 2>&1 | Select-Object -First 5)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:v for k,v in d.items\\(\\) if k in ['permissions','hooks']}, indent=2\\)\\)\")",
+      "Bash(claude mcp *)",
+      "Skill(update-config)",
+      "Bash(jq --version)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(python *)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\alex_\\\\amana\\\\apps\\\\backend\\\\src\\\\db\\\\migrations\" -File | Where-Object { $_.Name -match '^\\\\.' } | Select-Object Name)",
+      "PowerShell([System.IO.File]::ReadAllBytes\\(\"C:\\\\Users\\\\alex_\\\\amana\\\\apps\\\\backend\\\\src\\\\db\\\\migrations\\\\meta\\\\0019_snapshot.json\"\\) | Select-Object -First 3 | ForEach-Object { $_.ToString\\('x2'\\) })",
+      "PowerShell($content = [System.IO.File]::ReadAllText\\(\"C:\\\\Users\\\\alex_\\\\amana\\\\apps\\\\backend\\\\src\\\\db\\\\migrations\\\\meta\\\\0019_snapshot.json\", [System.Text.Encoding]::UTF8\\); [System.IO.File]::WriteAllText\\(\"C:\\\\Users\\\\alex_\\\\amana\\\\apps\\\\backend\\\\src\\\\db\\\\migrations\\\\meta\\\\0019_snapshot.json\", $content, [System.Text.Encoding]::UTF8\\))",
+      "PowerShell($bytes = [System.IO.File]::ReadAllBytes\\(\"C:\\\\Users\\\\alex_\\\\amana\\\\apps\\\\backend\\\\src\\\\db\\\\migrations\\\\meta\\\\_journal.json\"\\) | Select-Object -First 3; Write-Host \"Bytes: $\\($bytes -join ' '\\)\"; if \\(\\($bytes -join ''\\) -eq 'efbbbf'\\) { Write-Host \"Has BOM, fixing...\" } else { Write-Host \"No BOM\" })",
+      "PowerShell(docker ps | Where-Object { $_ -match 'postgres' })",
+      "PowerShell(docker exec amana-postgres *)",
+      "Bash(Start-Sleep -Seconds 5)",
+      "Bash(Get-Content \"C:\\\\Users\\\\alex_\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-alex--amana\\\\cf9f3514-f671-4e73-b386-01c850564d40\\\\tasks\\\\by1asv8ji.output\" -Tail 150)",
+      "Bash(tee /tmp/test_output.log)",
+      "Bash(dir \"C:\\\\Users\\\\alex_\\\\amana\\\\apps\\\\backend\\\\src\\\\db\\\\migrations\\\\meta\")",
+      "Bash(findstr \"0020\")"
     ]
   },
   "dangerouslySkipPermissions": true

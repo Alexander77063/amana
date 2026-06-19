@@ -103,3 +103,27 @@ export interface AnchorVirtualAccountCreditedData {
   senderAccountName: string;
   nibssSessionId: string;
 }
+
+export interface AnchorCreateCustomerRequest {
+  phoneNumber: string;
+  nin: string;
+  bvn: string;
+  fullName?: string;
+}
+
+export interface AnchorCreateCustomerResponse {
+  id: string;
+  fullName: string;
+  phoneNumber: string;
+  kycLevel: 'TIER_1' | 'TIER_2' | 'TIER_3';
+}
+
+export interface AnchorKycApprovedData {
+  customerId: string;
+  newKycLevel: 'TIER_2' | 'TIER_3';
+}
+
+export interface AnchorKycRejectedData {
+  customerId: string;
+  reason: string;
+}

@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$data = [Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $data.tool_input.file_path; if ($f -match '\\.env' -or $f -match 'fly\\.toml') { [PSCustomObject]@{hookSpecificOutput=[PSCustomObject]@{hookEventName='PreToolUse';permissionDecision='deny';permissionDecisionReason='Edit .env and fly.toml files manually - Claude must not touch secrets.'}} | ConvertTo-Json -Depth 5 -Compress }; exit 0",
+            "statusMessage": "Checking file access..."
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "powershell",
+            "command": "$json = [Console]::In.ReadToEnd() | ConvertFrom-Json; $f = $json.tool_input.file_path; if ($f -match '\\.(ts|tsx|js|jsx|json)$') { & pnpm exec biome check --write $f 2>$null }; exit 0",
+            "statusMessage": "Biome formatting..."
+          }
+        ]
+      }
+    ]
+  }
+}

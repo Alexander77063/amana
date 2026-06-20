@@ -120,7 +120,10 @@ describe('subWalletsRepo.findPrincipalAndAgent', () => {
   });
 
   it('returns null for unknown sub-wallet id', async () => {
-    const result = await subWalletsRepo.findPrincipalAndAgent(testDb, 'non-existent-id');
+    const result = await subWalletsRepo.findPrincipalAndAgent(
+      testDb,
+      '00000000-0000-0000-0000-000000000000',
+    );
     expect(result).toBeNull();
   });
 });

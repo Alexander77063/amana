@@ -286,12 +286,19 @@ describe('lifecycleService — anomaly_alert', () => {
       initiatingUserId: agentId,
       now: new Date('2026-05-03T12:00:00Z'),
     });
-    const row = await notificationsRepo.findByDedupeKey(
-      testDb,
-      principalId,
-      'in_app',
-      `anomaly:${txn.id}`,
+    const row = await vi.waitFor(
+      async () => {
+        const r = await notificationsRepo.findByDedupeKey(
+          testDb,
+          principalId,
+          'in_app',
+          `anomaly:${txn.id}`,
+        );
+        if (!r) throw new Error('in_app anomaly_alert notification not yet inserted');
+        return r;
+      },
+      { timeout: 5000 },
     );
-    expect(row?.status).toBe('sent');
+    expect(row.status).toBe('sent');
   });
 });

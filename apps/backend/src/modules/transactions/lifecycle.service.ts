@@ -121,14 +121,18 @@ export const lifecycleService = {
         return { kind: 'allow' as const, transaction: updated };
       }
 
-      const bump = await bumpWorkflowService.create(txDb, {
-        transactionId: txn.id,
-        subWalletId,
-        requestedByUserId: input.initiatingUserId,
-        amountKobo: intent.amountKobo,
-        vendorResolvedName: intent.vendorResolvedName ?? 'Unknown vendor',
-        now: input.now,
-      });
+      const bump = await bumpWorkflowService.create(
+        txDb,
+        {
+          transactionId: txn.id,
+          subWalletId,
+          requestedByUserId: input.initiatingUserId,
+          amountKobo: intent.amountKobo,
+          vendorResolvedName: intent.vendorResolvedName ?? 'Unknown vendor',
+          now: input.now,
+        },
+        db, // outer pool — txDb expires on commit, so notifications need the pool
+      );
       await auditRepo.append(
         txDb,
         auditEvents.bumpRequested({

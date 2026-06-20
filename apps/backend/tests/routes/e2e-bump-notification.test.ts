@@ -141,14 +141,21 @@ describe('e2e: bump → notification → approve → settle (notification dispat
 
     // Assert: principal received a bump_requested in-app notification.
     // Dedupe key is `bump:${bumpRequestId}` (from bump-workflow.service.ts line 104).
-    const bumpReqNotif = await notificationsRepo.findByDedupeKey(
-      testDb,
-      principal.id,
-      'in_app',
-      `bump:${bumpRequestId}`,
+    // Dispatch is fire-and-forget so poll until the row lands.
+    const bumpReqNotif = await vi.waitFor(
+      async () => {
+        const r = await notificationsRepo.findByDedupeKey(
+          testDb,
+          principal.id,
+          'in_app',
+          `bump:${bumpRequestId}`,
+        );
+        if (!r) throw new Error('bump_requested notification not yet inserted');
+        return r;
+      },
+      { timeout: 5000 },
     );
-    expect(bumpReqNotif).toBeDefined();
-    expect(bumpReqNotif?.kind).toBe('bump_requested');
+    expect(bumpReqNotif.kind).toBe('bump_requested');
 
     // ── Step 3: Principal approves bump (approve_once) ─────────────────────────
     const decideRes = await app.request(`/bumps/${bumpRequestId}/decision`, {
@@ -160,14 +167,20 @@ describe('e2e: bump → notification → approve → settle (notification dispat
     const { oneShotToken } = (await decideRes.json()) as { oneShotToken: string };
     expect(oneShotToken).toBeTruthy();
 
-    const bumpDecidedNotif = await notificationsRepo.findByDedupeKey(
-      testDb,
-      agent.id,
-      'in_app',
-      `bump-decided:${bumpRequestId}`,
+    const bumpDecidedNotif = await vi.waitFor(
+      async () => {
+        const r = await notificationsRepo.findByDedupeKey(
+          testDb,
+          agent.id,
+          'in_app',
+          `bump-decided:${bumpRequestId}`,
+        );
+        if (!r) throw new Error('bump_decided notification not yet inserted');
+        return r;
+      },
+      { timeout: 5000 },
     );
-    expect(bumpDecidedNotif).toBeDefined();
-    expect(bumpDecidedNotif?.kind).toBe('bump_decided');
+    expect(bumpDecidedNotif.kind).toBe('bump_decided');
 
     // ── Step 4: Resume after bump — txn moves to in_flight ────────────────────
     const resumeRes = await app.request(`/transactions/${transactionId}/resume-after-bump`, {
@@ -212,24 +225,36 @@ describe('e2e: bump → notification → approve → settle (notification dispat
 
     // Assert: principal received a txn_settled in-app notification.
     // Dedupe key is `txn-settled:${txn.id}` (from settlement.service.ts line 128).
-    const settledForPrincipal = await notificationsRepo.findByDedupeKey(
-      testDb,
-      principal.id,
-      'in_app',
-      `txn-settled:${transactionId}`,
+    const settledForPrincipal = await vi.waitFor(
+      async () => {
+        const r = await notificationsRepo.findByDedupeKey(
+          testDb,
+          principal.id,
+          'in_app',
+          `txn-settled:${transactionId}`,
+        );
+        if (!r) throw new Error('txn_settled notification for principal not yet inserted');
+        return r;
+      },
+      { timeout: 5000 },
     );
-    expect(settledForPrincipal).toBeDefined();
-    expect(settledForPrincipal?.kind).toBe('txn_settled');
+    expect(settledForPrincipal.kind).toBe('txn_settled');
 
     // Assert: agent also received a txn_settled in-app notification.
     // settlement.service dispatches to agentUserId when it differs from principalUserId.
-    const settledForAgent = await notificationsRepo.findByDedupeKey(
-      testDb,
-      agent.id,
-      'in_app',
-      `txn-settled:${transactionId}`,
+    const settledForAgent = await vi.waitFor(
+      async () => {
+        const r = await notificationsRepo.findByDedupeKey(
+          testDb,
+          agent.id,
+          'in_app',
+          `txn-settled:${transactionId}`,
+        );
+        if (!r) throw new Error('txn_settled notification for agent not yet inserted');
+        return r;
+      },
+      { timeout: 5000 },
     );
-    expect(settledForAgent).toBeDefined();
-    expect(settledForAgent?.kind).toBe('txn_settled');
+    expect(settledForAgent.kind).toBe('txn_settled');
   });
 });

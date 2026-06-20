@@ -1,4 +1,3 @@
-import { sql } from 'drizzle-orm';
 import { type PostgresJsDatabase, drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
 
@@ -47,8 +46,17 @@ export async function truncateAll(): Promise<void> {
     WHERE schemaname = 'public' AND tablename = ANY(${TABLES_TO_TRUNCATE as unknown as string[]})
   `;
   if (existing.length === 0) return;
-  const names = existing.map((r) => `"${r.tablename}"`).join(', ');
-  await testDb.execute(sql.raw(`TRUNCATE TABLE ${names} RESTART IDENTITY CASCADE`));
+
+  // DELETE uses RowExclusiveLock (not AccessExclusiveLock like TRUNCATE), which is
+  // compatible with the concurrent RowExclusiveLock + RowShareLock held by fire-and-forget
+  // notification Promises — no deadlock can form. SET LOCAL session_replication_role = replica
+  // disables FK constraint triggers for this transaction so tables can be cleared in any order.
+  await queryClient.begin(async (sql) => {
+    await sql`SET LOCAL session_replication_role = replica`;
+    for (const { tablename } of existing) {
+      await sql.unsafe(`DELETE FROM "${tablename}"`);
+    }
+  });
 }
 
 export async function closeTestDb(): Promise<void> {

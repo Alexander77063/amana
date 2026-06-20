@@ -23,6 +23,7 @@ describe('users (schema + repo)', () => {
       'kyc_tier',
       'status',
       'created_at',
+      'anchor_customer_id',
     ]);
   });
 

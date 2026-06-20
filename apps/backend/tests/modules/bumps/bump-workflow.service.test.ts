@@ -109,13 +109,20 @@ describe('bumpWorkflowService.create', () => {
       vendorResolvedName: 'MAMA',
       now: new Date('2026-05-03T12:00:00Z'),
     });
-    const row = await notificationsRepo.findByDedupeKey(
-      testDb,
-      principalId,
-      'in_app',
-      `bump:${result.bumpRequest.id}`,
+    const row = await vi.waitFor(
+      async () => {
+        const r = await notificationsRepo.findByDedupeKey(
+          testDb,
+          principalId,
+          'in_app',
+          `bump:${result.bumpRequest.id}`,
+        );
+        if (!r) throw new Error('in_app notification not yet inserted');
+        return r;
+      },
+      { timeout: 5000 },
     );
-    expect(row?.status).toBe('sent');
+    expect(row.status).toBe('sent');
   });
 });
 

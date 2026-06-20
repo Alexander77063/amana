@@ -23,7 +23,7 @@ describe('postingsRepo.sumDebitsInWindow', () => {
       bvn: factories.bvn(),
     });
     const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
-    const { wallet: mw } = await masterWalletsRepo.provision(testDb, {
+    const { master: mw } = await masterWalletsRepo.provision(testDb, {
       householdId: hh.id,
       anchorVirtualAccount: '1234567890',
       anchorBankCode: '058',

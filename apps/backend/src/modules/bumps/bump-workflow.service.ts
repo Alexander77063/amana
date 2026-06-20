@@ -49,7 +49,9 @@ export type DecideOutput = {
 };
 
 export const bumpWorkflowService = {
-  async create(db: DbOrTx, input: CreateInput): Promise<CreateOutput> {
+  // notifDb: pass the outer connection pool when create() is called from inside a
+  // transaction (txDb expires on commit). Falls back to db when called directly.
+  async create(db: DbOrTx, input: CreateInput, notifDb?: DbOrTx): Promise<CreateOutput> {
     const ttl = input.ttlMinutes ?? DEFAULT_TTL_MINUTES;
     const expiresAt = new Date(input.now.getTime() + ttl * 60_000);
     const result = await db.transaction(async (tx) => {
@@ -72,11 +74,12 @@ export const bumpWorkflowService = {
     });
 
     // Dispatch notification best-effort — never blocks bump creation.
+    const dispatchDb = notifDb ?? db;
     subWalletsRepo
-      .findPrincipalAndAgent(db, input.subWalletId)
+      .findPrincipalAndAgent(dispatchDb, input.subWalletId)
       .then(async (resolved) => {
         if (!resolved) return;
-        await notificationService.dispatch(db, {
+        await notificationService.dispatch(dispatchDb, {
           kind: 'bump_requested',
           recipientUserId: resolved.principalUserId,
           dedupeKey: `bump:${result.bumpRequest.id}`,

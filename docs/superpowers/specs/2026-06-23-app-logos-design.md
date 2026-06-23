@@ -22,20 +22,29 @@ A circular **seal/medallion** (safekeeping) with an **interlocking knot** at its
 - Principal → amber `#D97706` → `#F4B73F`.
 - Agent → blue `#2563EB` → `#3B82F6`.
 
-## Variants to build & compare
+## Variants built & compared
 
-| Variant | Glyph | Notes |
+| Variant | Glyph | Outcome |
 |---|---|---|
-| **A — Square knot** *(pick)* | Two interlaced rounded bands, 4-fold symmetry, diamond negative center | Ancient two-party-unity symbol; reads small |
-| **B — Bound diamonds** | Two interlocking woven diamonds | Heritage nod, sharper |
-| **C — Endless loop** | Single continuous strand looping back | Elegant; highest muddiness risk when tiny |
+| **A — Square knot** | Two interlocking rounded squares (diagonal), woven | Rich at 1024px but muddiest at launcher size |
+| **B — Bound diamonds** ✅ **SHIPPED** | Two interlocking woven diamonds, horizontal | Cleanest/most legible at every size incl. 52px micro |
+| **C — Bound hexagons** | Two interlocking woven hexagons | Strong alt, coin-seal heritage nod (replaced the original "rings" idea, which wove poorly at oblique crossings) |
 
-**Judging rule:** render each at 1024px **and** ~48–64px under the iOS/Android mask. The masked-small view picks the winner.
+**Judging rule applied:** rendered each at 1024px **and** ~52–132px under iOS squircle / Android circle masks. The masked-small view chose the winner → **B (bound diamonds)**.
 
-## Export checklist (drop-in ready)
+### Final mark spec (shipped)
+- Seal: single metallic gold ring (`#E8CB5A`→`#A8841E` vertical), `d≈648` on the full icon.
+- Field: navy depth gradient `#14273B`→`#091420` (top→bottom).
+- Knot: woven diamonds, metallic accent — Principal `#F7B73F`→`#C26605`, Agent `#5B8DEF`→`#163EB0`.
+- Interlace built with the straight-edge "gap weave": under-strand full, over-strand drawn with a single gap at one crossing (Figma `vectorPaths` supports only `M/L/C/Q/Z` — no SVG arcs).
 
-- **iOS `icon.png`** — 1024×1024, **no alpha** (iOS flattens transparency to black).
-- **Android `adaptive-icon.png`** — glyph inside center ~66% safe zone (corners masked); transparent bg; field color comes from `app.json` → `adaptiveIcon.backgroundColor`.
-- **`splash-icon.png`** — centered mark for splash.
-- Update both `app.json`s: replace `#1C1C1E` (splash bg + adaptive bg) and `#222222` (notification color) with the navy `#0D1B2A` so the whole app chrome matches the icon.
-- Files land in `apps/principal/assets/` and `apps/agent/assets/`.
+## Export checklist (shipped ✅)
+
+- **iOS `icon.png`** — 1024×1024, **alpha stripped** (RGB, flattened onto navy via sharp) so the App Store accepts it.
+- **Android `adaptive-icon.png`** — 1024×1024 navy-gradient field + seal/knot scaled to **0.92** (seal ≈58% of frame, well inside the 66% safe zone). Opaque foreground fully covers the mask; `adaptiveIcon.backgroundColor` set to navy as a fallback.
+- **`splash-icon.png`** — same navy-gradient mark, `resizeMode: contain` over the navy splash background → seamless.
+- `app.json` (both apps): `#1C1C1E` (splash bg + adaptive bg) → **`#0D1B2A`** navy; `#222222` notification tint → **per-app accent** (Principal `#D97706`, Agent `#2563EB`) — more befitting/visible than navy for an Android small-icon tint.
+- Files in `apps/principal/assets/` and `apps/agent/assets/`.
+
+## Source of truth
+Figma file **"Amana — App Icons"** (`SI9ztlFIiI20kYqWrN3n09`) holds all three explorations, the masked-size comparison board, and the final `FINAL/Principal-icon`, `FINAL/Principal-glyph`, `FINAL/Agent-icon`, `FINAL/Agent-glyph` frames for re-export.

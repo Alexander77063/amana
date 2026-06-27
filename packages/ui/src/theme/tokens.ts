@@ -50,7 +50,11 @@ export const typeScale = {
     letterSpacing: 1.5,
   },
   body: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 14, fontWeight: '400' as const },
-  bodyStrong: { fontFamily: 'PlusJakartaSans_600SemiBold', fontSize: 14, fontWeight: '600' as const },
+  bodyStrong: {
+    fontFamily: 'PlusJakartaSans_600SemiBold',
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
   caption: { fontFamily: 'PlusJakartaSans_400Regular', fontSize: 11, fontWeight: '400' as const },
   button: {
     fontFamily: 'PlusJakartaSans_700Bold',

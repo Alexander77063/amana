@@ -1,5 +1,6 @@
 import { type PostgresJsDatabase, drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { resetRateLimitStore } from '../../src/middleware/rate-limit';
 
 const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? 'postgres://amana:amana_dev_only@localhost:5432/amana_dev';
@@ -40,6 +41,10 @@ const TABLES_TO_TRUNCATE = [
 ] as const;
 
 export async function truncateAll(): Promise<void> {
+  // Counters are per-process and shared across tests (singleFork); reset them so
+  // the wired rate limiters start fresh each test and never bleed across cases.
+  resetRateLimitStore();
+
   // Some tables may not exist yet during early tasks — IF EXISTS guard.
   const existing = await queryClient<{ tablename: string }[]>`
     SELECT tablename FROM pg_tables

@@ -1,10 +1,4 @@
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  type ViewStyle,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, type ViewStyle } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
 type Props = {
@@ -42,13 +36,15 @@ export function Button({
         ? theme.colors.text.primary
         : theme.colors.accent;
 
-  const borderColor =
-    variant === 'secondary' ? theme.colors.border : 'transparent';
+  const borderColor = variant === 'secondary' ? theme.colors.border : 'transparent';
 
   return (
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       style={({ pressed }) => [
         styles.btn,
         {

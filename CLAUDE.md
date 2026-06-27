@@ -74,6 +74,10 @@ Roles are `principal` and `agent` (JWT `actor`, checked in `middleware/jwt-auth.
 
 A principal owns a household; to add an agent the principal issues a **pairing code** (`auth/pairing.service.ts` `issue`, TTL `PAIRING_TOKEN_TTL_SECONDS` = 24h) which the agent **consumes** in a transaction (mark token consumed + upsert agent as active `household_member`).
 
+**Rate limiting** (`middleware/rate-limit.ts`) guards the abuse-prone auth surface: an in-memory, per-instance fixed-window limiter wired in `server.ts` (`attachRateLimiters`) onto `/auth/otp/request` (per-phone + per-IP), `/auth/otp/verify`, `/auth/refresh`, and `/pairing*`. The factory takes explicit numeric config (env `RATE_LIMIT_*`, gate-able with `RATE_LIMIT_ENABLED=false`); it stays **enabled in tests** with `resetRateLimitStore()` called inside `truncateAll()`. On breach: 429 + `Retry-After` + `{ error: 'rate_limited' }`. The store is intentionally pluggable for a future Redis backend.
+
+**Route input validation:** validate every mutating route through `lib/validate.ts` (`parseBody`/`parseQuery`/`parseParams`, each returning a 400 `Response` on failure) — never raw `c.req.json()` (it 500s on non-JSON). Validate path/query UUIDs with `z.string().uuid()` so malformed ids return 400, not a Postgres 500.
+
 ## Cron
 
 `node-cron` worker, separate from the web process. Jobs in `apps/backend/src/cron/jobs/`: `recon-sweep` (every 5 min → `reconciliationService.sweep`) and `bump-ttl-sweep` (every minute → `bumpWorkflowService.sweepExpired`). Entrypoint `bin/cron.ts`. On Fly this is its own always-on process group (`node dist/cron.js`), distinct from the health-checked `app` web process.
@@ -85,6 +89,10 @@ A principal owns a household; to add an agent the principal issues a **pairing c
 Helpers (`apps/backend/tests/helpers/`): `truncateAll()` in `test-db.ts` clears tables via `DELETE` inside a tx with `SET LOCAL session_replication_role = replica` (deliberately not `TRUNCATE`, to avoid lock deadlocks with fire-and-forget notification writes) — call it in `beforeEach`. `factories.ts` builds typed fixtures (phones, BVN/NIN, kobo, idempotency keys); `bearer.ts` mints auth headers. Property tests use `fast-check`.
 
 The live Anchor E2E suite (`tests/sandbox/anchor-e2e.test.ts`, `pnpm test:sandbox`) is `skipIf(!ANCHOR_API_KEY)` and hits a running backend at `BACKEND_URL` (default `localhost:3000`).
+
+**Coverage gate:** `pnpm --filter @amana/backend test:coverage` (v8 provider, `include: src/**/*.ts`) enforces thresholds in `vitest.config.ts` (lines/statements 92, functions 90, branches 80 — set just below the measured ~94/92/81). CI runs it as a dedicated step; keep it backend-only (never repo-wide, or the mobile packages drag it under).
+
+**Mobile/UI component tests** run under Vitest with `react-test-renderer` in `environment: 'node'`. `packages/ui/test/` holds the shared harness: `react-native.mock.tsx` (+ `safe-area`/`svg` mocks) aliased in each package's `vitest.config.ts`, plus a `render()` helper and `byRole`/`byLabel`/`textContent` queries. **Gotcha:** alias `react` (and `react/jsx-*`) to the **hoisted root** `../../node_modules/react` so the component and `react-test-renderer` share one React instance (pnpm otherwise splits it → null hooks dispatcher); inline hook-using deps like `react-hook-form` so they resolve the same copy. Apps (`apps/{principal,agent}`) reuse the ui mocks and add a `@react-navigation/native` mock; screen tests `vi.mock` the api-client + Zustand stores and live in `src/screens/*.test.tsx`. Components and screens carry `accessibilityRole`/`accessibilityLabel`/`accessibilityState`; tests assert them.
 
 ## Environment
 

@@ -1,13 +1,15 @@
-import { View, Text } from 'react-native';
+import { Text, View } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 
 type Props = {
   count?: number;
   variant?: 'success' | 'error' | 'warning' | 'neutral';
   label?: string;
+  /** Spoken label — e.g. "3 pending approvals" instead of just "3". */
+  accessibilityLabel?: string;
 };
 
-export function Badge({ count, variant = 'neutral', label }: Props) {
+export function Badge({ count, variant = 'neutral', label, accessibilityLabel }: Props) {
   const theme = useTheme();
 
   const bg =
@@ -19,13 +21,14 @@ export function Badge({ count, variant = 'neutral', label }: Props) {
           ? theme.colors.accent
           : theme.colors.bg.raised;
 
-  const textColor =
-    variant === 'warning' ? '#0D1B2A' : theme.colors.text.primary;
+  const textColor = variant === 'warning' ? '#0D1B2A' : theme.colors.text.primary;
 
-  const text = count !== undefined ? String(count) : label ?? '';
+  const text = count !== undefined ? String(count) : (label ?? '');
 
   return (
     <View
+      accessible={accessibilityLabel ? true : undefined}
+      accessibilityLabel={accessibilityLabel}
       style={{
         backgroundColor: bg,
         borderRadius: 12,
@@ -35,10 +38,7 @@ export function Badge({ count, variant = 'neutral', label }: Props) {
       }}
     >
       <Text
-        style={[
-          theme.type.caption,
-          { color: textColor, fontFamily: 'PlusJakartaSans_700Bold' },
-        ]}
+        style={[theme.type.caption, { color: textColor, fontFamily: 'PlusJakartaSans_700Bold' }]}
       >
         {text}
       </Text>

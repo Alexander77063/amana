@@ -40,6 +40,16 @@ const EnvSchema = z.object({
   AWS_REGION: z.string().min(1).default('af-south-1'),
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  // Rate limiting (in-memory, per-instance) on the auth/pairing surface.
+  RATE_LIMIT_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v !== 'false'),
+  RATE_LIMIT_WINDOW_SECONDS: z.coerce.number().int().positive().default(900),
+  RATE_LIMIT_OTP_PER_PHONE: z.coerce.number().int().positive().default(5),
+  RATE_LIMIT_OTP_PER_IP: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_AUTH_PER_IP: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_PAIRING_PER_IP: z.coerce.number().int().positive().default(30),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

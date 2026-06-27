@@ -64,11 +64,17 @@ jobs:
           DATABASE_URL: postgres://amana:amana_dev_only@localhost:5432/amana_dev
         run: pnpm --filter @amana/backend db:migrate
 
-      - name: Test
+      - name: Test (backend, with coverage gate)
         env:
           NODE_ENV: test
           DATABASE_URL: postgres://amana:amana_dev_only@localhost:5432/amana_dev
-        run: pnpm test
+        run: pnpm --filter @amana/backend test:coverage
+
+      - name: Test (other workspaces)
+        env:
+          NODE_ENV: test
+          DATABASE_URL: postgres://amana:amana_dev_only@localhost:5432/amana_dev
+        run: pnpm --filter '!@amana/backend' test
 
   deploy:
     needs: build-and-test

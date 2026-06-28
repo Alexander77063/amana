@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { kobo } from '../../../src/lib/kobo';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
@@ -56,6 +57,10 @@ describe('postingsRepo.sumDebitsInWindow', () => {
       idempotencyKey: factories.idempotencyKey(),
     });
     await transactionsRepo.setStatus(testDb, txn.id, 'settled', settledAt);
+    // The window keys on sent_at (settled spends are always sent first).
+    await testDb.execute(
+      sql`UPDATE transactions SET sent_at = ${settledAt.toISOString()}::timestamptz WHERE id = ${txn.id}`,
+    );
     await postingsRepo.insertMany(testDb, [
       { transactionId: txn.id, ledgerAccountId, debitKobo: kobo(amountKobo), creditKobo: kobo(0n) },
     ]);

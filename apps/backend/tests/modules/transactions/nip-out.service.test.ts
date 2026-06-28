@@ -130,6 +130,54 @@ describe('nipOutService.send', () => {
     expect(updated?.nibssSessionId).toBe('12345');
   });
 
+  it('rejects a duplicate send and does not double-debit the wallet', async () => {
+    const { masterId, subWalletId, subLA, householdId, agentId } = await seedFundedSubWallet();
+    const txn = await txnIntentService.create(testDb, {
+      actorUserId: agentId,
+      masterWalletId: masterId,
+      subWalletId,
+      amountKobo: kobo(5_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: '058',
+      vendorAccountNumber: '0123456789',
+      vendorResolvedName: 'M',
+      category: null,
+      agentNote: null,
+    });
+    await transactionsRepo.setStatus(testDb, txn.id, 'in_flight');
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({ id: 'tr-1', status: 'PENDING', reference: txn.idempotencyKey }),
+        {
+          status: 202,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    );
+    const adapter = makeAdapter(fetchSpy);
+
+    const first = await nipOutService.send(testDb, adapter, {
+      transactionId: txn.id,
+      actorUserId: agentId,
+      householdRef: householdId,
+      now: new Date('2026-05-03T12:00:00Z'),
+    });
+    expect(first.status).toBe('PENDING');
+    // topup 100K debit + one reservation 5K debit = 105K
+    expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(105_000n);
+
+    // A retry while still in_flight must be rejected, not write a second reservation.
+    await expect(
+      nipOutService.send(testDb, adapter, {
+        transactionId: txn.id,
+        actorUserId: agentId,
+        householdRef: householdId,
+        now: new Date('2026-05-03T12:00:01Z'),
+      }),
+    ).rejects.toThrow(/already sent/i);
+    expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(105_000n);
+  });
+
   it('rejects when transaction is not in in_flight status', async () => {
     const { masterId, subWalletId, householdId, agentId } = await seedFundedSubWallet();
     const txn = await txnIntentService.create(testDb, {

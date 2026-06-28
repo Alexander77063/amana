@@ -35,7 +35,12 @@ export const postingsRepo = {
     return kobo(BigInt(result[0]?.balance ?? '0'));
   },
 
-  /** Sum of debit_kobo on settled spend transactions for a sub-wallet within a rolling window. */
+  /**
+   * Sum of debit_kobo on *active* (sent, not reversed/failed) spend
+   * transactions for a sub-wallet within a rolling window. Windowed by
+   * `sent_at` and including `in_flight` — so spends that have been submitted but
+   * not yet settled count immediately, closing the rapid-spend limit bypass.
+   */
   async sumDebitsInWindow(
     db: DbOrTx,
     subWalletId: string,
@@ -50,9 +55,10 @@ export const postingsRepo = {
       INNER JOIN transactions t ON t.id = p.transaction_id
       WHERE la.sub_wallet_id = ${subWalletId}
         AND la.kind = 'sub'
-        AND t.status = 'settled'
         AND t.kind = 'spend'
-        AND t.settled_at >= ${cutoff.toISOString()}::timestamptz
+        AND t.status IN ('in_flight', 'settled')
+        AND t.sent_at IS NOT NULL
+        AND t.sent_at >= ${cutoff.toISOString()}::timestamptz
     `);
     return kobo(BigInt(result[0]?.s ?? '0'));
   },

@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { transactions } from '../../db/schema';
 import type { Kobo } from '../../lib/kobo';
@@ -69,6 +69,20 @@ export const transactionsRepo = {
     const update: Partial<TransactionRow> = { status };
     if (settledAt) update.settledAt = settledAt;
     await db.update(transactions).set(update).where(eq(transactions.id, id));
+  },
+
+  /**
+   * Atomically claim a transaction for sending by setting `sent_at` only if it
+   * is still null. Returns true if this caller won the claim, false if it was
+   * already sent — preventing a duplicate NIP-out / double reservation.
+   */
+  async claimForSend(db: DbOrTx, id: string, now: Date): Promise<boolean> {
+    const rows = await db
+      .update(transactions)
+      .set({ sentAt: now })
+      .where(and(eq(transactions.id, id), isNull(transactions.sentAt)))
+      .returning({ id: transactions.id });
+    return rows.length > 0;
   },
 
   async setNibssSessionId(db: DbOrTx, id: string, sessionId: string): Promise<void> {

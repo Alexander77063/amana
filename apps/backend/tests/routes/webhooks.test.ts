@@ -47,6 +47,27 @@ describe('POST /webhooks/anchor', () => {
     expect(audit[0]?.action).toBe('anchor.webhook.transfer.completed');
   });
 
+  it('dedupes concurrent identical deliveries to exactly one audit row', async () => {
+    const app = createServer();
+    const body = JSON.stringify({
+      id: 'evt-concurrent',
+      type: 'transfer.completed',
+      createdAt: '2026-05-03T00:00:00Z',
+      data: { transferId: 't', reference: 'no-match', status: 'COMPLETED' },
+    });
+    const headers = { 'content-type': 'application/json', 'x-anchor-signature': sign(body) };
+    const [r1, r2] = await Promise.all([
+      app.request('/webhooks/anchor', { method: 'POST', headers, body }),
+      app.request('/webhooks/anchor', { method: 'POST', headers, body }),
+    ]);
+    expect(r1.status).toBe(200);
+    expect(r2.status).toBe(200);
+    const audit = await testDb.execute<{ c: string }>(sql`
+      SELECT COUNT(*)::text AS c FROM audit_log WHERE subject_kind = 'anchor_webhook'
+    `);
+    expect(audit[0]?.c).toBe('1');
+  });
+
   it('401 + no audit entry on bad signature', async () => {
     const app = createServer();
     const body = JSON.stringify({

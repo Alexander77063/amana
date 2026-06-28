@@ -45,9 +45,10 @@ export const pairingService = {
     const now = input.now ?? new Date();
     return db.transaction(async (tx) => {
       const txDb = tx as DbOrTx;
-      const token = await pairingTokensRepo.findActiveByCode(txDb, input.code, now);
+      // Atomic claim — the conditional UPDATE serialises concurrent consumers,
+      // so a forwarded/intercepted code can bind exactly one agent.
+      const token = await pairingTokensRepo.tryConsume(txDb, input.code, input.agentUserId, now);
       if (!token) return { kind: 'not_found' as const };
-      await pairingTokensRepo.markConsumed(txDb, token.id, input.agentUserId, now);
       await householdMembersRepo.upsertActive(txDb, {
         householdId: token.householdId,
         userId: input.agentUserId,

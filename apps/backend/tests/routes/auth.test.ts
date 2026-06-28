@@ -69,7 +69,7 @@ describe('POST /auth/otp/verify (principal signup)', () => {
     expect(body.user.role).toBe('principal');
   });
 
-  it('401 wrong_code on bad otp', async () => {
+  it('401 invalid_code on bad otp (no challenge/wrong-code oracle)', async () => {
     const app = createServer();
     await app.request('/auth/otp/request', {
       method: 'POST',
@@ -82,7 +82,14 @@ describe('POST /auth/otp/verify (principal signup)', () => {
       body: JSON.stringify({ phone: '+2348012345678', code: '000000' }),
     });
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'wrong_code' });
+    expect(await res.json()).toEqual({ error: 'invalid_code' });
+    // A phone with no outstanding challenge returns the SAME generic error.
+    const noChallenge = await app.request('/auth/otp/verify', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ phone: '+2349099999999', code: '000000' }),
+    });
+    expect(await noChallenge.json()).toEqual({ error: 'invalid_code' });
   });
 });
 

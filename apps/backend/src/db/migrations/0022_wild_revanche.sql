@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS "audit_log_anchor_webhook_subject_uniq" ON "audit_log" USING btree ("subject_id") WHERE subject_kind = 'anchor_webhook';

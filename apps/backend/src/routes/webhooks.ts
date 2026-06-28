@@ -50,22 +50,28 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
 
   const subjectId = eventSubjectId(event.id);
 
-  // Idempotent on event.id: skip if we've already recorded it.
-  const existing = await db.execute<{ count: string }>(sql`
-    SELECT COUNT(*)::text AS count FROM audit_log WHERE subject_id = ${subjectId}::uuid
-  `);
-  if (existing[0]?.count !== '0') {
+  // Atomic dedupe + audit in one statement: the partial unique index on
+  // (subject_id) WHERE subject_kind='anchor_webhook' means a concurrent or
+  // replayed delivery loses the insert and dispatches nothing — no TOCTOU.
+  // The audit row is written BEFORE dispatch so the partner-event is recorded
+  // even if the handler later fails.
+  const claimed = await db
+    .insert(auditLog)
+    .values({
+      actorKind: 'partner',
+      action: `anchor.webhook.${event.type}`,
+      subjectKind: 'anchor_webhook',
+      subjectId,
+      payloadJson: event as unknown as object,
+    })
+    .onConflictDoNothing({
+      target: auditLog.subjectId,
+      where: sql`subject_kind = 'anchor_webhook'`,
+    })
+    .returning({ id: auditLog.id });
+  if (claimed.length === 0) {
     return c.json({ status: 'ok', deduped: true }, 200);
   }
-
-  // Audit-log fires BEFORE dispatch so even if the handler fails we have the partner-event record.
-  await db.insert(auditLog).values({
-    actorKind: 'partner',
-    action: `anchor.webhook.${event.type}`,
-    subjectKind: 'anchor_webhook',
-    subjectId,
-    payloadJson: event as unknown as object,
-  });
 
   // Dispatch to handler. Handler errors are caught + logged + ack'd — don't 500 to Anchor (they'd retry).
   try {

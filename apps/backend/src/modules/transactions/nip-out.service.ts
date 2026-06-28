@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { masterWallets } from '../../db/schema';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
@@ -9,12 +9,14 @@ import { ConflictError } from '../../lib/errors';
 import { kobo } from '../../lib/kobo';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
+import { bumpWorkflowService } from '../bumps/bump-workflow.service';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { subWalletsRepo } from '../wallet/sub-wallets.repo';
 import { transactionsRepo } from '../wallet/transactions.repo';
 import { assertWalletAccess } from '../wallet/wallet-access.service';
 import { reversalService } from './reversal.service';
+import { wouldExceedSpendLimit } from './spend-limit';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -29,9 +31,11 @@ export type SendInput = {
 
 export type SendOutput = {
   anchorTransferId: string | null;
-  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'BUMP_PENDING';
   /** Set when Anchor synchronously rejected the call AND we already reversed locally. */
   reversed?: boolean;
+  /** Set when the send was converted to a bump because it would breach the limit. */
+  bumpRequestId?: string;
 };
 
 export const nipOutService = {
@@ -67,17 +71,50 @@ export const nipOutService = {
       : masterLA;
     if (!sourceLA) throw new Error('source ledger account missing');
 
-    // Atomically claim the send so a concurrent/retried call cannot write a
-    // second reservation (double-debit). Loser sees a 409.
-    const claimed = await transactionsRepo.claimForSend(db, txn.id, input.now);
-    if (!claimed) throw new ConflictError(`transaction already sent: ${txn.id}`);
-
-    // Phase 1: write reservation postings (atomic, balanced).
     const amount = kobo(txn.amountKobo as bigint);
-    await ledgerService.writeDoubleEntry(db, txn.id, [
-      { ledgerAccountId: sourceLA.id, debitKobo: amount, creditKobo: kobo(0n) },
-      { ledgerAccountId: suspenseLA.id, debitKobo: kobo(0n), creditKobo: amount },
-    ]);
+
+    // Reserve under a per-sub-wallet advisory lock so the limit is enforced
+    // authoritatively at send (the evaluate-time check is racy: two concurrent
+    // evaluations both pass before either reserves). Concurrent sends serialise;
+    // one that would breach the daily/30-day limit because another spend
+    // reserved first is converted to a bump rather than overspending. The
+    // sent_at claim also blocks a duplicate/retried send (double-debit).
+    let bumped: { bumpRequestId: string } | null = null;
+    await db.transaction(async (txx) => {
+      const tx = txx as DbOrTx;
+      if (txn.subWalletId && !txn.bumpRequestId) {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${txn.subWalletId}))`);
+        if (await wouldExceedSpendLimit(tx, txn.subWalletId, amount, input.now)) {
+          const bump = await bumpWorkflowService.create(
+            tx,
+            {
+              transactionId: txn.id,
+              subWalletId: txn.subWalletId,
+              requestedByUserId: input.actorUserId,
+              amountKobo: amount,
+              vendorResolvedName: txn.vendorResolvedName ?? 'Unknown vendor',
+              now: input.now,
+            },
+            db, // outer pool for the fire-and-forget notification
+          );
+          bumped = { bumpRequestId: bump.bumpRequest.id };
+          return;
+        }
+      }
+      const claimed = await transactionsRepo.claimForSend(tx, txn.id, input.now);
+      if (!claimed) throw new ConflictError(`transaction already sent: ${txn.id}`);
+      await ledgerService.writeDoubleEntry(tx, txn.id, [
+        { ledgerAccountId: sourceLA.id, debitKobo: amount, creditKobo: kobo(0n) },
+        { ledgerAccountId: suspenseLA.id, debitKobo: kobo(0n), creditKobo: amount },
+      ]);
+    });
+    if (bumped) {
+      return {
+        anchorTransferId: null,
+        status: 'BUMP_PENDING',
+        bumpRequestId: (bumped as { bumpRequestId: string }).bumpRequestId,
+      };
+    }
 
     // Look up the master wallet's Anchor account ID (opaque) for the from-side of the transfer.
     const [mw] = await db

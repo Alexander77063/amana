@@ -44,4 +44,30 @@ export const pairingTokensRepo = {
       .set({ consumedByUserId, consumedAt: now })
       .where(eq(pairingTokens.id, id));
   },
+
+  /**
+   * Atomic single-use claim: marks the token consumed only if it is still
+   * active (unconsumed + unexpired), returning the row on success or undefined
+   * if another consumer already claimed it. Prevents one code binding multiple
+   * agents under concurrency.
+   */
+  async tryConsume(
+    db: DbOrTx,
+    code: string,
+    consumedByUserId: string,
+    now: Date,
+  ): Promise<PairingTokenRow | undefined> {
+    const [row] = await db
+      .update(pairingTokens)
+      .set({ consumedByUserId, consumedAt: now })
+      .where(
+        and(
+          eq(pairingTokens.code, code),
+          isNull(pairingTokens.consumedAt),
+          gt(pairingTokens.expiresAt, now),
+        ),
+      )
+      .returning();
+    return row;
+  },
 };

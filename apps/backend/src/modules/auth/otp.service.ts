@@ -71,14 +71,12 @@ export const otpService = {
     const now = new Date();
     const ch = await otpChallengesRepo.findActiveByPhone(db, input.phone, now);
     if (!ch) return { kind: 'no_challenge' as const };
-    if (ch.attempts >= env.OTP_MAX_ATTEMPTS) {
-      return { kind: 'too_many_attempts' as const };
-    }
+    // Atomically claim an attempt slot before checking the code — this is the
+    // real brute-force cap; concurrent verifies can never exceed OTP_MAX_ATTEMPTS.
+    const claimed = await otpChallengesRepo.claimAttempt(db, ch.id, env.OTP_MAX_ATTEMPTS, now);
+    if (claimed === undefined) return { kind: 'too_many_attempts' as const };
     const ok = await codes.verifyCode(input.code, ch.codeHash);
-    if (!ok) {
-      await otpChallengesRepo.incrementAttempts(db, ch.id);
-      return { kind: 'wrong_code' as const };
-    }
+    if (!ok) return { kind: 'wrong_code' as const };
     await otpChallengesRepo.markConsumed(db, ch.id, now);
     return { kind: 'verified' as const, challengeId: ch.id, purpose: ch.purpose };
   },

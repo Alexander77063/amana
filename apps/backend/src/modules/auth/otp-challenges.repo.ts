@@ -47,6 +47,33 @@ export const otpChallengesRepo = {
     return row?.attempts ?? 0;
   },
 
+  /**
+   * Atomically claim one verification attempt: increments `attempts` only if the
+   * challenge is still active and under the cap, in a single statement. Returns
+   * the new count, or undefined if the slot couldn't be claimed (at cap /
+   * consumed / expired) — so concurrent verifies can't exceed the cap.
+   */
+  async claimAttempt(
+    db: DbOrTx,
+    id: string,
+    maxAttempts: number,
+    now: Date,
+  ): Promise<number | undefined> {
+    const [row] = await db
+      .update(phoneOtpChallenges)
+      .set({ attempts: sql`${phoneOtpChallenges.attempts} + 1` })
+      .where(
+        and(
+          eq(phoneOtpChallenges.id, id),
+          isNull(phoneOtpChallenges.consumedAt),
+          gt(phoneOtpChallenges.expiresAt, now),
+          sql`${phoneOtpChallenges.attempts} < ${maxAttempts}`,
+        ),
+      )
+      .returning({ attempts: phoneOtpChallenges.attempts });
+    return row?.attempts;
+  },
+
   async markConsumed(db: DbOrTx, id: string, now: Date): Promise<void> {
     await db
       .update(phoneOtpChallenges)

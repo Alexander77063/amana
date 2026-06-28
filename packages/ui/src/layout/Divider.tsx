@@ -3,14 +3,7 @@ import { useTheme } from '../theme/ThemeContext';
 
 export function Divider() {
   const theme = useTheme();
-  return (
-    <View
-      style={[
-        styles.divider,
-        { backgroundColor: theme.colors.border },
-      ]}
-    />
-  );
+  return <View style={[styles.divider, { backgroundColor: theme.colors.border }]} />;
 }
 
 const styles = StyleSheet.create({

@@ -73,7 +73,13 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
         <Body muted>Bank code: {masterWallet.anchorBankCode}</Body>
       </Card>
 
-      <Pressable onPress={() => navigation.navigate('BumpsInbox')}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          pendingCount > 0 ? `Pending requests, ${pendingCount} waiting` : 'Pending requests'
+        }
+        onPress={() => navigation.navigate('BumpsInbox')}
+      >
         <Card style={{ paddingVertical: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Body strong>Pending requests</Body>
@@ -83,7 +89,13 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
         </Card>
       </Pressable>
 
-      <Pressable onPress={() => navigation.navigate('NotificationsInbox')}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+        }
+        onPress={() => navigation.navigate('NotificationsInbox')}
+      >
         <Card style={{ paddingVertical: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <Body strong>Notifications</Body>
@@ -93,28 +105,47 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
         </Card>
       </Pressable>
 
-      <Pressable onPress={() => navigation.navigate('Members')}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Agents, ${members.length} paired`}
+        onPress={() => navigation.navigate('Members')}
+      >
         <Card style={{ paddingVertical: 16 }}>
           <Body strong>Agents</Body>
           <Body muted>{`${members.length} paired`}</Body>
         </Card>
       </Pressable>
 
-      <Pressable onPress={() => navigation.navigate('SubWalletsList')}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Sub-wallets"
+        accessibilityHint="Manage controlled spend"
+        onPress={() => navigation.navigate('SubWalletsList')}
+      >
         <Card style={{ paddingVertical: 16 }}>
           <Body strong>Sub-wallets</Body>
           <Body muted>Manage controlled spend</Body>
         </Card>
       </Pressable>
 
-      <Pressable onPress={() => navigation.navigate('Pairing')}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Pair an agent"
+        accessibilityHint="Issue a one-time code"
+        onPress={() => navigation.navigate('Pairing')}
+      >
         <Card style={{ paddingVertical: 16 }}>
           <Body strong>Pair an agent</Body>
           <Body muted>Issue a one-time code</Body>
         </Card>
       </Pressable>
 
-      <Pressable onPress={() => navigation.navigate('Settings')}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Settings"
+        accessibilityHint="Notifications, log out, and more"
+        onPress={() => navigation.navigate('Settings')}
+      >
         <Card style={{ paddingVertical: 16 }}>
           <Body strong>Settings</Body>
           <Body muted>Notifications, log out, and more</Body>

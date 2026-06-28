@@ -1,6 +1,6 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
@@ -22,11 +22,13 @@ async function generateIcon(outputPath, canvasSize, markSize) {
   await sharp({
     create: { width: canvasSize, height: canvasSize, channels: 4, background: navy },
   })
-    .composite([{
-      input: Buffer.from(coinSealSvg(markSize)),
-      top: offset,
-      left: offset,
-    }])
+    .composite([
+      {
+        input: Buffer.from(coinSealSvg(markSize)),
+        top: offset,
+        left: offset,
+      },
+    ])
     .png()
     .toFile(outputPath);
 
@@ -38,13 +40,20 @@ async function generateSplash(outputPath, canvasSize, markSize) {
   const offset = Math.round((canvasSize - markSize) / 2);
 
   await sharp({
-    create: { width: canvasSize, height: canvasSize, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+    create: {
+      width: canvasSize,
+      height: canvasSize,
+      channels: 4,
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    },
   })
-    .composite([{
-      input: Buffer.from(coinSealSvg(markSize, '#FFFFFF', 'transparent')),
-      top: offset,
-      left: offset,
-    }])
+    .composite([
+      {
+        input: Buffer.from(coinSealSvg(markSize, '#FFFFFF', 'transparent')),
+        top: offset,
+        left: offset,
+      },
+    ])
     .png()
     .toFile(outputPath);
 

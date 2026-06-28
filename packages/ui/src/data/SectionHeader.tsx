@@ -10,6 +10,8 @@ export function SectionHeader({ title }: Props) {
   const theme = useTheme();
   return (
     <View
+      accessibilityRole="header"
+      accessibilityLabel={title}
       style={{
         paddingHorizontal: 20,
         paddingTop: 24,

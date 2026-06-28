@@ -111,7 +111,12 @@ export function TransactionListScreen({ navigation }: Props): JSX.Element {
             loadingMore ? (
               <ActivityIndicator style={{ padding: 16 }} />
             ) : (
-              <Pressable style={styles.loadMore} onPress={() => void loadPage(nextCursor, true)}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Load more"
+                style={styles.loadMore}
+                onPress={() => void loadPage(nextCursor, true)}
+              >
                 <Text style={[styles.loadMoreText, { color: theme.colors.accent }]}>Load more</Text>
               </Pressable>
             )

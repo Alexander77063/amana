@@ -77,6 +77,9 @@ export function CreateSubWalletScreen({ navigation }: Props): JSX.Element {
               return (
                 <Pressable
                   key={m.userId}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Agent ${m.phone}, KYC tier ${m.kycTier}`}
+                  accessibilityState={{ selected: active }}
                   onPress={() => setValue('agentUserId', m.userId, { shouldValidate: true })}
                 >
                   <Card accent={active}>

@@ -15,9 +15,14 @@ type Props = {
 export function TransactionRow({ merchant, timestamp, amount, sentiment, onPress }: Props) {
   const theme = useTheme();
 
+  const a11yLabel = `${merchant}, ${sentiment === 'debit' ? 'debit' : 'credit'} ${amount}, ${timestamp}`;
+
   return (
     <Pressable
       onPress={onPress}
+      accessible
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={a11yLabel}
       style={({ pressed }) => ({
         flexDirection: 'row',
         alignItems: 'center',

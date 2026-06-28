@@ -14,7 +14,12 @@ export function SettingsScreen({ navigation }: Props): JSX.Element {
   return (
     <Screen title="Settings" scrollable>
       <SectionHeader title="PREFERENCES" />
-      <Pressable onPress={() => navigation.navigate('NotificationPreferences')}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Notification preferences"
+        accessibilityHint="Choose which alerts reach you and how"
+        onPress={() => navigation.navigate('NotificationPreferences')}
+      >
         <Card>
           <Body strong>Notification preferences</Body>
           <Body muted>Choose which alerts reach you and how</Body>

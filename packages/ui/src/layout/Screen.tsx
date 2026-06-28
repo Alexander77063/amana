@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -40,6 +40,7 @@ export function Screen({
         <View style={styles.headerSide}>{headerLeft ?? null}</View>
         {title ? (
           <Text
+            accessibilityRole="header"
             style={[theme.type.heading.lg, { color: theme.colors.text.primary }]}
             numberOfLines={1}
           >

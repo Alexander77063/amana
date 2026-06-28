@@ -31,7 +31,12 @@ export function SettingsScreen({ navigation }: Props): JSX.Element {
 
         <View style={{ gap: 8 }}>
           <SectionHeader title="NOTIFICATIONS" />
-          <Pressable onPress={() => navigation.navigate('EnableNotifications')}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Push notifications"
+            accessibilityHint="Opens notification settings"
+            onPress={() => navigation.navigate('EnableNotifications')}
+          >
             <Card
               style={{
                 flexDirection: 'row',

@@ -9,8 +9,6 @@ type Props = {
 export function Caption({ children, style }: Props) {
   const theme = useTheme();
   return (
-    <Text style={[theme.type.caption, { color: theme.colors.text.muted }, style]}>
-      {children}
-    </Text>
+    <Text style={[theme.type.caption, { color: theme.colors.text.muted }, style]}>{children}</Text>
   );
 }

@@ -1,7 +1,7 @@
 import {
+  TextInput as RNTextInput,
   StyleSheet,
   Text,
-  TextInput as RNTextInput,
   type TextInputProps,
   View,
 } from 'react-native';
@@ -23,6 +23,7 @@ export function TextInput({ label, error, style, ...rest }: Props) {
         </Text>
       ) : null}
       <RNTextInput
+        accessibilityLabel={label}
         placeholderTextColor={theme.colors.text.muted}
         style={[
           theme.type.body,

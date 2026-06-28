@@ -17,7 +17,5 @@ export function AmountText({ size, value, sentiment = 'neutral', style }: Props)
         ? theme.colors.credit
         : theme.colors.text.primary;
 
-  return (
-    <Text style={[theme.type.amount[size], { color }, style]}>{value}</Text>
-  );
+  return <Text style={[theme.type.amount[size], { color }, style]}>{value}</Text>;
 }

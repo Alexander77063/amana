@@ -86,6 +86,8 @@ export function AccountEntryScreen({ navigation }: Props): JSX.Element {
           keyExtractor={(b) => b.code}
           renderItem={({ item }) => (
             <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={item.name}
               style={[styles.bankRow, { borderBottomColor: theme.colors.border }]}
               onPress={() => {
                 setBankCode(item.code);
@@ -107,6 +109,9 @@ export function AccountEntryScreen({ navigation }: Props): JSX.Element {
         <View style={{ marginBottom: 12 }}>
           <Label style={{ marginBottom: 6 }}>Bank</Label>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={selectedBank ? `Bank: ${selectedBank.name}` : 'Select bank'}
+            accessibilityHint="Opens the bank picker"
             style={[
               styles.bankSelector,
               {

@@ -64,11 +64,17 @@ jobs:
           DATABASE_URL: postgres://amana:amana_dev_only@localhost:5432/amana_dev
         run: pnpm --filter @amana/backend db:migrate
 
-      - name: Test
+      - name: Test (backend, with coverage gate)
         env:
           NODE_ENV: test
           DATABASE_URL: postgres://amana:amana_dev_only@localhost:5432/amana_dev
-        run: pnpm test
+        run: pnpm --filter @amana/backend test:coverage
+
+      - name: Test (other workspaces)
+        # Turbo's negation filter reliably excludes the backend (pnpm's
+        # `--filter '!@amana/backend'` does not in this version, which would run
+        # the DB suite twice and exhaust Postgres connections).
+        run: pnpm exec turbo run test --filter='!@amana/backend'
 
   deploy:
     needs: build-and-test

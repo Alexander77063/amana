@@ -9,7 +9,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#1C1C1E"
+      "backgroundColor": "#0D1B2A"
     },
     "ios": {
       "bundleIdentifier": "com.amana.agent",
@@ -30,7 +30,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1C1C1E"
+        "backgroundColor": "#0D1B2A"
       }
     },
     "platforms": ["ios", "android"],
@@ -39,7 +39,7 @@
       [
         "expo-notifications",
         {
-          "color": "#222222"
+          "color": "#2563EB"
         }
       ],
       [

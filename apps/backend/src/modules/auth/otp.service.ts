@@ -35,8 +35,8 @@ async function sendSms(phone: string, code: string): Promise<void> {
     }),
   });
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    logger.error({ phone, status: res.status, body }, 'otp: termii send failed');
+    // Don't log the provider response body — it can echo the destination number.
+    logger.error({ status: res.status }, 'otp: termii send failed');
     throw new Error(`termii: ${res.status}`);
   }
 }

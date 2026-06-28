@@ -36,7 +36,9 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
   .post('/intent', async (c) => {
     const body = await parseBody(c, IntentBodySchema);
     if (body instanceof Response) return body;
+    const a = c.get('actor') as Actor;
     const txn = await txnIntentService.create(db, {
+      actorUserId: a.userId,
       masterWalletId: body.masterWalletId,
       subWalletId: body.subWalletId,
       amountKobo: kobo(BigInt(body.amountKobo)),
@@ -71,6 +73,7 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
   })
   .post('/:id/send', async (c) => {
     const id = c.req.param('id');
+    const a = c.get('actor') as Actor;
     const txn = await transactionsRepo.findById(db, id);
     if (!txn) return c.json({ error: 'not_found' }, 404);
     const mw = await masterWalletsRepo.findById(db, txn.masterWalletId);
@@ -79,6 +82,7 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     const householdRef = hh ? hh.id : txn.masterWalletId;
     const result = await nipOutService.send(db, anchorAdapterSingleton, {
       transactionId: id,
+      actorUserId: a.userId,
       householdRef,
       now: new Date(),
     });

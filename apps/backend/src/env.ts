@@ -66,6 +66,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       .join('\n');
     throw new Error(`Invalid environment variables:\n${issues}`);
   }
+  if (parsed.data.NODE_ENV === 'production' && parsed.data.DEV_OTP_BYPASS_CODE) {
+    throw new Error('DEV_OTP_BYPASS_CODE must not be set in production (universal OTP backdoor)');
+  }
   return parsed.data;
 }
 

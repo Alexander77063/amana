@@ -1,5 +1,6 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { env } from '../../env';
+import { usersRepo } from '../identity/users.repo';
 import { authSessionsRepo } from './auth-sessions.repo';
 import {
   generateRefreshToken,
@@ -48,7 +49,6 @@ export const sessionService = {
   async refresh(
     db: DbOrTx,
     refreshToken: string,
-    role: 'principal' | 'agent',
     userId: string,
     now: Date = new Date(),
   ): Promise<RefreshResult> {
@@ -56,6 +56,9 @@ export const sessionService = {
     for (const candidate of candidates) {
       const matches = await verifyRefreshToken(refreshToken, candidate.refreshTokenHash);
       if (!matches) continue;
+      // Role is the source of truth from the user record — never from the client.
+      const user = await usersRepo.findById(db, userId);
+      if (!user) return { kind: 'invalid' as const };
       const newRefresh = generateRefreshToken();
       const newHash = await hashRefreshToken(newRefresh);
       const newExpires = new Date(now.getTime() + env.JWT_REFRESH_TTL_SECONDS * 1000);
@@ -67,7 +70,7 @@ export const sessionService = {
       );
       const access = await signAccessToken({
         userId,
-        role,
+        role: user.role,
         sessionId: fresh.id,
         now,
       });

@@ -141,6 +141,7 @@ async function seedInFlightTxn() {
   ]);
   // Reservation (in-flight spend)
   const txn = await txnIntentService.create(testDb, {
+    actorUserId: agent.id,
     masterWalletId: mw.master.id,
     subWalletId: sw.sub.id,
     amountKobo: kobo(5_000n),

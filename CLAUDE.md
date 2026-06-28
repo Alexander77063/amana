@@ -78,6 +78,8 @@ A principal owns a household; to add an agent the principal issues a **pairing c
 
 **Route input validation:** validate every mutating route through `lib/validate.ts` (`parseBody`/`parseQuery`/`parseParams`, each returning a 400 `Response` on failure) — never raw `c.req.json()` (it 500s on non-JSON). Validate path/query UUIDs with `z.string().uuid()` so malformed ids return 400, not a Postgres 500.
 
+**Money-movement authorization (critical):** `jwtAuth` only authenticates — it does **not** authorize resource ownership. Every route that touches a wallet/txn/bump/sub-wallet must authorize the actor against the resource via `modules/wallet/wallet-access.service` (`assertWalletAccess` for master/sub targets, `assertSubWalletAccess` for sub-wallet-scoped reads). Authorization is by **user identity vs. ownership, never the JWT `role` claim** (so it holds even against a forged role): sub-wallet spend → owning agent only; `subWalletId: null` direct spend → household principal only (decisions #7, #17). These checks live in the **service layer** (`txnIntentService.create`, `lifecycleService.evaluate`, `nipOutService.send` all take `actorUserId`) so no caller can bypass them. They throw `ForbiddenError` (`lib/errors.ts`) → mapped to **403** by `middleware/error-handler.ts` (no Sentry noise). `/auth/refresh` derives `role` from the user record, never the request body.
+
 ## Cron
 
 `node-cron` worker, separate from the web process. Jobs in `apps/backend/src/cron/jobs/`: `recon-sweep` (every 5 min → `reconciliationService.sweep`) and `bump-ttl-sweep` (every minute → `bumpWorkflowService.sweepExpired`). Entrypoint `bin/cron.ts`. On Fly this is its own always-on process group (`node dist/cron.js`), distinct from the health-checked `app` web process.

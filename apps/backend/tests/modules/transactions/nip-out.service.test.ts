@@ -61,6 +61,8 @@ async function seedFundedSubWallet() {
     subLA: sw.ledgerAccountId,
     suspenseLA: mw.ledgerAccountIds.suspense,
     householdId: hh.id,
+    agentId: agent.id,
+    principalId: principal.id,
   };
 }
 
@@ -78,8 +80,9 @@ describe('nipOutService.send', () => {
   });
 
   it('writes reservation postings and calls Anchor with idempotency key', async () => {
-    const { masterId, subWalletId, subLA, householdId } = await seedFundedSubWallet();
+    const { masterId, subWalletId, subLA, householdId, agentId } = await seedFundedSubWallet();
     const txn = await txnIntentService.create(testDb, {
+      actorUserId: agentId,
       masterWalletId: masterId,
       subWalletId,
       amountKobo: kobo(5_000n),
@@ -106,6 +109,7 @@ describe('nipOutService.send', () => {
 
     const result = await nipOutService.send(testDb, makeAdapter(fetchSpy), {
       transactionId: txn.id,
+      actorUserId: agentId,
       householdRef: householdId,
       now: new Date('2026-05-03T12:00:00Z'),
     });
@@ -127,8 +131,9 @@ describe('nipOutService.send', () => {
   });
 
   it('rejects when transaction is not in in_flight status', async () => {
-    const { masterId, subWalletId, householdId } = await seedFundedSubWallet();
+    const { masterId, subWalletId, householdId, agentId } = await seedFundedSubWallet();
     const txn = await txnIntentService.create(testDb, {
+      actorUserId: agentId,
       masterWalletId: masterId,
       subWalletId,
       amountKobo: kobo(5_000n),
@@ -144,6 +149,7 @@ describe('nipOutService.send', () => {
     await expect(
       nipOutService.send(testDb, makeAdapter(fetchSpy), {
         transactionId: txn.id,
+        actorUserId: agentId,
         householdRef: householdId,
         now: new Date(),
       }),
@@ -151,8 +157,9 @@ describe('nipOutService.send', () => {
   });
 
   it('handles principal-direct spend (subWalletId=null) by debiting master directly', async () => {
-    const { masterId, householdId } = await seedFundedSubWallet();
+    const { masterId, householdId, principalId } = await seedFundedSubWallet();
     const txn = await txnIntentService.create(testDb, {
+      actorUserId: principalId,
       masterWalletId: masterId,
       subWalletId: null,
       amountKobo: kobo(2_000n),
@@ -176,6 +183,7 @@ describe('nipOutService.send', () => {
 
     const result = await nipOutService.send(testDb, makeAdapter(fetchSpy), {
       transactionId: txn.id,
+      actorUserId: principalId,
       householdRef: householdId,
       now: new Date(),
     });
@@ -183,8 +191,9 @@ describe('nipOutService.send', () => {
   });
 
   it('reverses immediately on Anchor 4xx (sync failure path, B5)', async () => {
-    const { masterId, subWalletId, subLA, householdId } = await seedFundedSubWallet();
+    const { masterId, subWalletId, subLA, householdId, agentId } = await seedFundedSubWallet();
     const txn = await txnIntentService.create(testDb, {
+      actorUserId: agentId,
       masterWalletId: masterId,
       subWalletId,
       amountKobo: kobo(5_000n),
@@ -206,6 +215,7 @@ describe('nipOutService.send', () => {
 
     const result = await nipOutService.send(testDb, makeAdapter(fetchSpy), {
       transactionId: txn.id,
+      actorUserId: agentId,
       householdRef: householdId,
       now: new Date('2026-05-03T12:00:00Z'),
     });
@@ -220,8 +230,9 @@ describe('nipOutService.send', () => {
   });
 
   it('reverses on a 200 response with status=FAILED (B5 second branch)', async () => {
-    const { masterId, subWalletId, subLA, householdId } = await seedFundedSubWallet();
+    const { masterId, subWalletId, subLA, householdId, agentId } = await seedFundedSubWallet();
     const txn = await txnIntentService.create(testDb, {
+      actorUserId: agentId,
       masterWalletId: masterId,
       subWalletId,
       amountKobo: kobo(5_000n),
@@ -248,6 +259,7 @@ describe('nipOutService.send', () => {
 
     const result = await nipOutService.send(testDb, makeAdapter(fetchSpy), {
       transactionId: txn.id,
+      actorUserId: agentId,
       householdRef: householdId,
       now: new Date('2026-05-03T12:00:00Z'),
     });

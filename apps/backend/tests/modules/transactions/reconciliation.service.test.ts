@@ -57,6 +57,7 @@ async function seedStuckTxn(createdAtIso: string) {
   ]);
   // Create spend, force into in_flight, write reservation postings, BACKDATE created_at to make it look stuck
   const txn = await txnIntentService.create(testDb, {
+    actorUserId: agent.id,
     masterWalletId: mw.master.id,
     subWalletId: sw.sub.id,
     amountKobo: kobo(5_000n),

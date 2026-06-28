@@ -67,6 +67,7 @@ async function seedFullySettledSpend() {
     },
   ]);
   const txn = await txnIntentService.create(testDb, {
+    actorUserId: agent.id,
     masterWalletId: mw.master.id,
     subWalletId: sw.sub.id,
     amountKobo: kobo(5_000n),
@@ -91,6 +92,7 @@ async function seedFullySettledSpend() {
   });
   await nipOutService.send(testDb, adapter, {
     transactionId: txn.id,
+    actorUserId: agent.id,
     householdRef: hh.id,
     now: new Date('2026-05-04T10:00:00Z'),
   });

@@ -34,7 +34,12 @@ async function seedSubWallet() {
     agentUserId: agent.id,
     name: 'Driver',
   });
-  return { masterId: mw.master.id, subWalletId: sw.sub.id };
+  return {
+    masterId: mw.master.id,
+    subWalletId: sw.sub.id,
+    agentId: agent.id,
+    principalId: principal.id,
+  };
 }
 
 describe('txnIntentService.create', () => {
@@ -43,8 +48,9 @@ describe('txnIntentService.create', () => {
   });
 
   it('creates a DRAFT spend with all vendor fields', async () => {
-    const { masterId, subWalletId } = await seedSubWallet();
+    const { masterId, subWalletId, agentId } = await seedSubWallet();
     const txn = await txnIntentService.create(testDb, {
+      actorUserId: agentId,
       masterWalletId: masterId,
       subWalletId,
       amountKobo: kobo(5_000n),
@@ -63,8 +69,9 @@ describe('txnIntentService.create', () => {
   });
 
   it('creates a principal-direct DRAFT (subWalletId=null)', async () => {
-    const { masterId } = await seedSubWallet();
+    const { masterId, principalId } = await seedSubWallet();
     const txn = await txnIntentService.create(testDb, {
+      actorUserId: principalId,
       masterWalletId: masterId,
       subWalletId: null,
       amountKobo: kobo(50_000n),
@@ -79,9 +86,10 @@ describe('txnIntentService.create', () => {
   });
 
   it('rejects duplicate idempotency keys (DB unique constraint)', async () => {
-    const { masterId, subWalletId } = await seedSubWallet();
+    const { masterId, subWalletId, agentId } = await seedSubWallet();
     const key = factories.idempotencyKey();
     await txnIntentService.create(testDb, {
+      actorUserId: agentId,
       masterWalletId: masterId,
       subWalletId,
       amountKobo: kobo(100n),
@@ -94,6 +102,7 @@ describe('txnIntentService.create', () => {
     });
     await expect(
       txnIntentService.create(testDb, {
+        actorUserId: agentId,
         masterWalletId: masterId,
         subWalletId,
         amountKobo: kobo(100n),

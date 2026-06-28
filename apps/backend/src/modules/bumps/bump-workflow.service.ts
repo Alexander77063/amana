@@ -8,6 +8,7 @@ import { type Result, err, ok } from '../../lib/result';
 import { notificationService } from '../notifications/notification.service';
 import { subWalletsRepo } from '../wallet/sub-wallets.repo';
 import { transactionsRepo } from '../wallet/transactions.repo';
+import { householdPrincipalForSubWallet } from '../wallet/wallet-access.service';
 import { type BumpRequestRow, bumpRequestsRepo } from './bump-requests.repo';
 import { type OneShotTokenRow, oneShotTokensRepo } from './one-shot-tokens.repo';
 import { type BumpEvent, transition } from './state-machine';
@@ -106,6 +107,12 @@ export const bumpWorkflowService = {
       const txDb = tx as DbOrTx;
       const current = await bumpRequestsRepo.findById(txDb, input.bumpRequestId);
       if (!current) return err({ code: 'BUMP_NOT_FOUND' as const });
+      // Only the principal of the bump's own household may decide it. Treat a
+      // foreign bump as not-found to avoid leaking its existence.
+      const principalUserId = await householdPrincipalForSubWallet(txDb, current.subWalletId);
+      if (principalUserId !== input.decidedByUserId) {
+        return err({ code: 'BUMP_NOT_FOUND' as const });
+      }
       if (current.expiresAt < input.now) return err({ code: 'BUMP_EXPIRED' as const });
       const event: BumpEvent = { kind: input.decision };
       const next = transition(current.status as 'pending', event);

@@ -14,6 +14,7 @@ import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { postingsRepo } from '../wallet/postings.repo';
 import { subWalletsRepo } from '../wallet/sub-wallets.repo';
 import { type TransactionRow, transactionsRepo } from '../wallet/transactions.repo';
+import { assertWalletAccess } from '../wallet/wallet-access.service';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -34,6 +35,10 @@ export const lifecycleService = {
   async evaluate(db: DbOrTx, input: EvaluateInput): Promise<EvaluateOutput> {
     const txn = await transactionsRepo.findById(db, input.transactionId);
     if (!txn) throw new Error(`transaction not found: ${input.transactionId}`);
+    await assertWalletAccess(db, input.initiatingUserId, {
+      masterWalletId: txn.masterWalletId,
+      subWalletId: txn.subWalletId,
+    });
     if (txn.status !== 'draft') {
       throw new Error(`transaction not in draft: status=${txn.status}`);
     }

@@ -12,12 +12,15 @@ import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { subWalletsRepo } from '../wallet/sub-wallets.repo';
 import { transactionsRepo } from '../wallet/transactions.repo';
+import { assertWalletAccess } from '../wallet/wallet-access.service';
 import { reversalService } from './reversal.service';
 
 type DbOrTx = PostgresJsDatabase;
 
 export type SendInput = {
   transactionId: string;
+  /** The user triggering the send; authorized against the wallet before any transfer. */
+  actorUserId: string;
   /** household ref used in the NIP narration; usually the household id or a short slug. */
   householdRef: string;
   now: Date;
@@ -34,6 +37,10 @@ export const nipOutService = {
   async send(db: DbOrTx, adapter: AnchorAdapter, input: SendInput): Promise<SendOutput> {
     const txn = await transactionsRepo.findById(db, input.transactionId);
     if (!txn) throw new Error(`transaction not found: ${input.transactionId}`);
+    await assertWalletAccess(db, input.actorUserId, {
+      masterWalletId: txn.masterWalletId,
+      subWalletId: txn.subWalletId,
+    });
     if (txn.status !== 'in_flight') {
       throw new Error(`transaction not in_flight: status=${txn.status}`);
     }

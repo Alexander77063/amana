@@ -5,6 +5,7 @@ import type { AnchorAdapter } from '../../integrations/anchor/adapter';
 import { AnchorHttpError } from '../../integrations/anchor/client';
 import { selectNarration } from '../../integrations/anchor/narration';
 import type { AnchorTransferResponse } from '../../integrations/anchor/types';
+import { ConflictError } from '../../lib/errors';
 import { kobo } from '../../lib/kobo';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
@@ -65,6 +66,11 @@ export const nipOutService = {
       ? await ledgerAccountsRepo.findBySubWallet(db, txn.subWalletId)
       : masterLA;
     if (!sourceLA) throw new Error('source ledger account missing');
+
+    // Atomically claim the send so a concurrent/retried call cannot write a
+    // second reservation (double-debit). Loser sees a 409.
+    const claimed = await transactionsRepo.claimForSend(db, txn.id, input.now);
+    if (!claimed) throw new ConflictError(`transaction already sent: ${txn.id}`);
 
     // Phase 1: write reservation postings (atomic, balanced).
     const amount = kobo(txn.amountKobo as bigint);

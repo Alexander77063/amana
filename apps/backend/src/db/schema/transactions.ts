@@ -45,5 +45,7 @@ export const transactions = pgTable('transactions', {
   geolocation: geometry('geolocation', { type: 'point', srid: 4326 }),
   attachedMedia: jsonb('attached_media'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  // Set atomically when the NIP-out is submitted, so a retry can't re-reserve.
+  sentAt: timestamp('sent_at', { withTimezone: true }),
   settledAt: timestamp('settled_at', { withTimezone: true }),
 });

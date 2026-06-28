@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { idempotencyKeys } from '../../db/schema';
 import { CircuitBreaker, type CircuitBreakerConfig } from '../../lib/circuit-breaker';
@@ -119,7 +119,7 @@ export class AnchorAdapter {
   }
 
   async execIdempotent<R>(scope: string, key: string, fn: () => Promise<R>): Promise<R> {
-    const cached = await this.lookupCached<R>(key);
+    const cached = await this.lookupCached<R>(scope, key);
     if (cached !== undefined) return cached;
 
     return this.breaker.exec(async () => {
@@ -145,11 +145,13 @@ export class AnchorAdapter {
     throw lastErr;
   }
 
-  private async lookupCached<R>(key: string): Promise<R | undefined> {
+  private async lookupCached<R>(scope: string, key: string): Promise<R | undefined> {
+    // Match on (scope, key) — a key reused across scopes must never return
+    // another scope's cached response.
     const [row] = await this.db
       .select()
       .from(idempotencyKeys)
-      .where(eq(idempotencyKeys.key, key))
+      .where(and(eq(idempotencyKeys.scope, scope), eq(idempotencyKeys.key, key)))
       .limit(1);
     return row?.responseJson as R | undefined;
   }

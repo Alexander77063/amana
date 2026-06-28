@@ -39,7 +39,12 @@ export const authRoute = new Hono()
     const body = await parseBody(c, OtpVerifySchema);
     if (body instanceof Response) return body;
     const v = await otpService.verifyCode(db, { phone: body.phone, code: body.code });
-    if (v.kind !== 'verified') return c.json({ error: v.kind }, 401);
+    if (v.kind !== 'verified') {
+      // Collapse no_challenge / wrong_code into one generic error so a caller
+      // can't distinguish "no OTP outstanding for this phone" from "wrong code".
+      const error = v.kind === 'too_many_attempts' ? 'too_many_attempts' : 'invalid_code';
+      return c.json({ error }, 401);
+    }
 
     let user = await usersRepo.findByPhone(db, body.phone);
 

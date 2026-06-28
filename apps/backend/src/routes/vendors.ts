@@ -4,10 +4,11 @@ import { db } from '../db/client';
 import { anchorAdapterSingleton } from '../integrations/anchor';
 import { isOk } from '../lib/result';
 import { parseBody, parseParams, parseQuery } from '../lib/validate';
-import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
+import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { decodeNqr } from '../modules/vendors/nqr-decoder';
 import { recentsService } from '../modules/vendors/recents.service';
 import { vendorResolutionService } from '../modules/vendors/vendor-resolution.service';
+import { assertSubWalletAccess } from '../modules/wallet/wallet-access.service';
 
 const NameEnquiryQuery = z.object({
   bankCode: z.string().min(1),
@@ -30,6 +31,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
   .get('/name-enquiry', async (c) => {
     const q = parseQuery(c, NameEnquiryQuery);
     if (q instanceof Response) return q;
+    await assertSubWalletAccess(db, (c.get('actor') as Actor).userId, q.subWalletId);
     const result = await vendorResolutionService.resolve(db, anchorAdapterSingleton, {
       kind: 'account',
       bankCode: q.bankCode,
@@ -46,6 +48,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
   .get('/phone-lookup', async (c) => {
     const q = parseQuery(c, PhoneLookupQuery);
     if (q instanceof Response) return q;
+    await assertSubWalletAccess(db, (c.get('actor') as Actor).userId, q.subWalletId);
     const result = await vendorResolutionService.resolve(db, anchorAdapterSingleton, {
       kind: 'phone',
       phoneNumber: q.phoneNumber,
@@ -63,6 +66,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
     if (params instanceof Response) return params;
     const q = parseQuery(c, SubWalletQuery);
     if (q instanceof Response) return q;
+    await assertSubWalletAccess(db, (c.get('actor') as Actor).userId, q.subWalletId);
     const result = await vendorResolutionService.resolve(db, anchorAdapterSingleton, {
       kind: 'sticker',
       stickerUuid: params.uuid,
@@ -83,6 +87,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
   .post('/nqr-decode', async (c) => {
     const body = await parseBody(c, NqrDecodeBody);
     if (body instanceof Response) return body;
+    await assertSubWalletAccess(db, (c.get('actor') as Actor).userId, body.subWalletId);
     const decoded = decodeNqr(body.payload);
     if (!isOk(decoded)) return c.json({ error: 'BAD_INPUT', detail: decoded.error.message }, 400);
     // Confirm via name enquiry path to get authoritative name + touch recents
@@ -98,6 +103,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
   .get('/recents', async (c) => {
     const q = parseQuery(c, SubWalletQuery);
     if (q instanceof Response) return q;
+    await assertSubWalletAccess(db, (c.get('actor') as Actor).userId, q.subWalletId);
     const list = await recentsService.listTop10(db, q.subWalletId);
     return c.json({ recents: list }, 200);
   });

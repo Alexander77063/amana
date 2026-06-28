@@ -37,7 +37,7 @@ describe('sessionService', () => {
       bvn: factories.bvn(),
     });
     const first = await sessionService.issue(testDb, { userId: u.id, role: 'principal' });
-    const result = await sessionService.refresh(testDb, first.refreshToken, 'principal', u.id);
+    const result = await sessionService.refresh(testDb, first.refreshToken, u.id);
     if (result.kind !== 'rotated') throw new Error(`expected rotated, got ${result.kind}`);
     expect(result.tokens.refreshToken).not.toBe(first.refreshToken);
     expect(result.tokens.sessionId).not.toBe(first.sessionId);
@@ -54,7 +54,7 @@ describe('sessionService', () => {
       bvn: factories.bvn(),
     });
     await sessionService.issue(testDb, { userId: u.id, role: 'principal' });
-    const r = await sessionService.refresh(testDb, 'not-a-real-refresh-token', 'principal', u.id);
+    const r = await sessionService.refresh(testDb, 'not-a-real-refresh-token', u.id);
     expect(r.kind).toBe('invalid');
   });
 
@@ -68,7 +68,7 @@ describe('sessionService', () => {
     });
     const first = await sessionService.issue(testDb, { userId: u.id, role: 'principal' });
     await sessionService.revoke(testDb, first.sessionId);
-    const r = await sessionService.refresh(testDb, first.refreshToken, 'principal', u.id);
+    const r = await sessionService.refresh(testDb, first.refreshToken, u.id);
     expect(r.kind).toBe('invalid');
   });
 });

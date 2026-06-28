@@ -66,6 +66,7 @@ async function seedAndSendNip() {
     },
   ]);
   const txn = await txnIntentService.create(testDb, {
+    actorUserId: agent.id,
     masterWalletId: mw.master.id,
     subWalletId: sw.sub.id,
     amountKobo: kobo(5_000n),
@@ -92,6 +93,7 @@ async function seedAndSendNip() {
   });
   await nipOutService.send(testDb, adapter, {
     transactionId: txn.id,
+    actorUserId: agent.id,
     householdRef: hh.id,
     now: new Date('2026-05-03T12:00:00Z'),
   });

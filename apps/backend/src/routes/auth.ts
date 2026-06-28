@@ -26,7 +26,6 @@ const OtpVerifySchema = z.object({
 const RefreshSchema = z.object({
   refreshToken: z.string().min(1),
   userId: z.string().uuid(),
-  role: z.enum(['principal', 'agent']),
 });
 
 export const authRoute = new Hono()
@@ -87,7 +86,7 @@ export const authRoute = new Hono()
   .post('/refresh', async (c) => {
     const body = await parseBody(c, RefreshSchema);
     if (body instanceof Response) return body;
-    const r = await sessionService.refresh(db, body.refreshToken, body.role, body.userId);
+    const r = await sessionService.refresh(db, body.refreshToken, body.userId);
     if (r.kind !== 'rotated') return c.json({ error: r.kind }, 401);
     return c.json(
       {

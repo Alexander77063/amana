@@ -1,8 +1,11 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { Kobo } from '../../lib/kobo';
 import { type TransactionRow, transactionsRepo } from '../wallet/transactions.repo';
+import { assertWalletAccess } from '../wallet/wallet-access.service';
 
 export type CreateIntentInput = {
+  /** The user initiating the spend; authorized against the wallet before insert. */
+  actorUserId: string;
   masterWalletId: string;
   /** null means principal-direct spend per Decision #17. */
   subWalletId: string | null;
@@ -17,6 +20,10 @@ export type CreateIntentInput = {
 
 export const txnIntentService = {
   async create(db: PostgresJsDatabase, input: CreateIntentInput): Promise<TransactionRow> {
+    await assertWalletAccess(db, input.actorUserId, {
+      masterWalletId: input.masterWalletId,
+      subWalletId: input.subWalletId,
+    });
     return transactionsRepo.insert(db, {
       masterWalletId: input.masterWalletId,
       subWalletId: input.subWalletId,

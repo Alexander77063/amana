@@ -7,7 +7,7 @@ Amana TypeScript backend on Hono.
 - `modules/identity` — users, households, household members, KYC tier rules.
 - `modules/wallet` — master + sub wallets, ledger accounts, transactions, postings, double-entry write helper, balance.service (sub-wallet balance read).
 - `modules/audit` — append-only audit log + typed event constructors.
-- `modules/sticker` — vendor sticker resolution stub (per Decision #14).
+- `modules/sticker` — vendor sticker resolution (DB lookup with NOT_FOUND/UNBOUND/REVOKED handling, per Decision #14).
 - `modules/rules` — pure-function rule engine + 5 evaluators + replay corpus + versioned rule sets.
 - `modules/bumps` — Result-typed state machine + workflow service (create / decide / sweepExpired / consumeToken).
 - `modules/anomaly` — 4 features (amount z-score / hour-of-day / vendor novelty / velocity) + weighted aggregator.
@@ -42,7 +42,7 @@ Amana TypeScript backend on Hono.
 - `POST /auth/logout` — bearer required → revokes session
 - `GET  /me` — bearer required → returns the authed user
 - `POST /pairing` — bearer required (principal-only) → issues a pairing code for an agent to consume on `/auth/otp/verify`
-- `POST /households` — body: `{name}` → `{household, masterWallet}` (creates household + provisions placeholder Anchor virtual account; principal-only)
+- `POST /households` — body: `{name}` → `{household, masterWallet}` (creates household + real Anchor `createCustomer` + `provisionVirtualAccount`; principal-only)
 - `GET  /me/household` — returns the principal's household + master wallet
 - `GET  /me/household/members` — returns paired agents
 - `GET  /households/:id/sub-wallets` — list sub-wallets in a household (principal-only, owner-checked)

@@ -24,7 +24,14 @@ vi.mock('expo-server-sdk', () => {
   return { Expo: ExpoMock };
 });
 
-async function seedFundedSubWallet() {
+/**
+ * @param fundSubLedger When true (default), credits the sub-wallet's ledger account
+ *   with 100K kobo. NOTE: this is a *fixture-only* shape — in production, top-ups credit
+ *   the MASTER ledger account, and a sub-wallet's ledger account is never funded (sub-wallets
+ *   are spending envelopes, not balance-holding accounts). Pass `false` to model the real
+ *   production shape (an unfunded sub LA); see the "limits-only" regression test below.
+ */
+async function seedFundedSubWallet(fundSubLedger = true) {
   const principal = await usersRepo.insert(testDb, {
     role: 'principal',
     phone: factories.phone(),
@@ -50,21 +57,23 @@ async function seedFundedSubWallet() {
     agentUserId: agent.id,
     name: 'Driver',
   });
-  // Top up sub-wallet with 100K kobo via balanced posting
-  const topup = await transactionsRepo.insert(testDb, {
-    masterWalletId: mw.master.id,
-    kind: 'topup',
-    amountKobo: kobo(100_000n),
-    idempotencyKey: factories.idempotencyKey(),
-  });
-  await ledgerService.writeDoubleEntry(testDb, topup.id, [
-    { ledgerAccountId: sw.ledgerAccountId, debitKobo: kobo(100_000n), creditKobo: kobo(0n) },
-    {
-      ledgerAccountId: mw.ledgerAccountIds.suspense,
-      debitKobo: kobo(0n),
-      creditKobo: kobo(100_000n),
-    },
-  ]);
+  // Top up sub-wallet with 100K kobo via balanced posting (fixture-only — see fn doc).
+  if (fundSubLedger) {
+    const topup = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      kind: 'topup',
+      amountKobo: kobo(100_000n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    await ledgerService.writeDoubleEntry(testDb, topup.id, [
+      { ledgerAccountId: sw.ledgerAccountId, debitKobo: kobo(100_000n), creditKobo: kobo(0n) },
+      {
+        ledgerAccountId: mw.ledgerAccountIds.suspense,
+        debitKobo: kobo(0n),
+        creditKobo: kobo(100_000n),
+      },
+    ]);
+  }
   return {
     principalId: principal.id,
     agentId: agent.id,
@@ -122,6 +131,39 @@ describe('lifecycleService.evaluate — happy path', () => {
       now: new Date('2026-05-03T12:00:00Z'),
     });
     expect(result.kind).toBe('allow');
+  });
+
+  it('limits-only: first within-limit spend on an UNFUNDED sub-wallet is allowed, not bumped', async () => {
+    // Regression for the M4 funds-model bug (PR #12). Sub-wallets are spending envelopes;
+    // production top-ups credit the MASTER, never the sub ledger account. The former inert
+    // `amountKobo > subWalletAvailableKobo` check in evaluateLimit therefore fired on the
+    // FIRST within-limit spend of every limit-ruled sub-wallet, routing it to require_bump →
+    // bump_pending (a SPURIOUS bump, defeating the limits feature — NOT a hard block). The
+    // pre-existing happy-path test masked this by funding the sub LA, a shape production never
+    // produces; here we seed the real (unfunded) shape so the assertion exercises the bug.
+    const { principalId, agentId, subWalletId, masterId } = await seedFundedSubWallet(false);
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId,
+      createdByUserId: principalId,
+      rules: [{ kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo: 50_000n } }],
+    });
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: '058',
+      vendorAccount: '0123456789',
+      vendorResolvedName: 'MAMA',
+    });
+    const result = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: new Date('2026-05-03T12:00:00Z'),
+    });
+    expect(result.kind).toBe('allow');
+    expect(result.transaction.status).toBe('in_flight');
   });
 
   it('writes anomaly score and rule_eval audit-log entries', async () => {

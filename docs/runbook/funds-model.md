@@ -26,7 +26,7 @@ real money). Agents spend through **sub-wallets**. The locked decision (#7) is a
 > just the running total of what's been spent — never "what's left." Do not write
 > code that treats it as available balance. (That exact mistake — an inert
 > `amount > subWalletAvailableKobo` check in the limit evaluator — silently routed
-> every within-limit first spend to a bump; see [History](#history-the-spurious-bump-bug).)
+> every within-limit first spend to a bump request, defeating the limits feature.)
 
 ## Ledger accounts
 

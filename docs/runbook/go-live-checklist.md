@@ -47,21 +47,40 @@ profiles (`eas.json`) for staging/prod, or shipped builds point at localhost.
 
 The Anchor adapter is fully wired and covered by **mocked** tests, but **has never run
 against the real sandbox** — `tests/sandbox/anchor-e2e.test.ts` is `skipIf(!ANCHOR_API_KEY)`.
-Before pre-production, run it for real:
+Before pre-production, run it for real (the backend must be up on `BACKEND_URL`):
 
 ```bash
 ANCHOR_API_KEY=<sandbox key> pnpm --filter @amana/backend dev   # in one shell
 ANCHOR_API_KEY=<sandbox key> pnpm --filter @amana/backend test:sandbox
 ```
 
+The suite now has **two** cases:
+1. **Provisioning + topup + KYC** — real `createCustomer` + `provisionVirtualAccount`, then simulated `virtual_account.credited` → settled topup, then `kyc.approved` → tier bump.
+2. **Outbound spend (the real `/transfers` call)** — principal-direct `intent` → `evaluate` → `send` (hits live Anchor), then a simulated `transfer.completed` drives our settlement → `settled`.
+
 This is the one substantive item between "code complete" and "integration verified." It also:
 - confirms the `AnchorCreateCustomerRequest.fullName` contract against live Anchor (design §6 flagged this to verify);
-- surfaces Anchor's real **insufficient-balance** error signature → unblocks mapping it to a friendly "household needs to top up" message (the open M4 follow-up);
-- consider extending the e2e to cover the **outbound spend** leg (`/transactions/intent` → `/send` → `transfer.completed` → `settled`), which the design described but the current e2e omits (it only covers top-up + KYC).
+- surfaces Anchor's real **insufficient-balance** error signature → unblocks mapping it to a friendly "household needs to top up" message (the open M4 follow-up).
 
-## 6. Cosmetic cleanups (non-blocking)
+**Prerequisite for case 2:** the real `/transfers` call moves (sandbox) money, so the
+provisioned master account must actually be funded on Anchor's side — our simulated topup
+credits *our ledger only*, not Anchor's sandbox balance. If the send returns `FAILED`
+(insufficient balance) the test fails with a pointer to this note. Fund the sandbox account
+via the Anchor dashboard / a real inbound test transfer to the NUBAN, and/or override the
+destination with env vars: `SANDBOX_VENDOR_BANK_CODE`, `SANDBOX_VENDOR_ACCOUNT`,
+`SANDBOX_VENDOR_NAME`, `SANDBOX_SPEND_KOBO`.
 
-- Regenerate `apps/backend/src/db/migrations/meta/0020_snapshot.json` (skipped in the chain; migrations still apply, but `drizzle-kit generate` diffs are cleaner with it).
+## 6. Cosmetic cleanups
+
+- **Migration `meta/0020_snapshot.json` — verified harmless, no action.** `0020` is a
+  hand-written migration (like `0005`/`0007`/`0013`), so the drizzle snapshot chain skips it
+  (`0021.prevId → 0019.id`) and never had a `0020` snapshot. The *latest* snapshot (`0022`)
+  correctly reflects the live schema (it includes `anchor_customer_id` + `sent_at`), so
+  `drizzle-kit check` passes ("Everything's fine") and `drizzle-kit generate` reports "No
+  schema changes." drizzle only reads the latest snapshot for `generate` and the `.sql` files
+  for `migrate`, so the missing intermediate file is inert. Fabricating one would force
+  rewriting `0021.prevId` and risk corrupting a currently-consistent chain — left as-is by
+  design.
 - Stale README labels now corrected: the `sticker` module is implemented (not a "stub"), and `/households` does real Anchor provisioning (no "placeholder" virtual account).
 
 ## Standing guarantees (already done — do not re-litigate)

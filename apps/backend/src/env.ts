@@ -22,6 +22,11 @@ const EnvSchema = z.object({
     .regex(/^\d{6}$/)
     .optional(),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 chars'),
+  // 32-byte hex key for at-rest field encryption (BVN/NIN). In production deliver
+  // it via KMS / secrets-manager; a dev fallback is injected outside production.
+  FIELD_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'FIELD_ENCRYPTION_KEY must be 64 hex chars (32 bytes)'),
   JWT_ISSUER: z.string().default('amana'),
   JWT_ACCESS_TTL_SECONDS: z.coerce.number().int().positive().default(300),
   JWT_REFRESH_TTL_SECONDS: z.coerce
@@ -58,6 +63,10 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   const merged: NodeJS.ProcessEnv = { ...source };
   if (merged.NODE_ENV !== 'production' && !merged.JWT_SECRET) {
     merged.JWT_SECRET = 'dev-only-secret-do-not-use-in-prod-please-32+chars';
+  }
+  if (merged.NODE_ENV !== 'production' && !merged.FIELD_ENCRYPTION_KEY) {
+    merged.FIELD_ENCRYPTION_KEY =
+      '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
   }
   const parsed = EnvSchema.safeParse(merged);
   if (!parsed.success) {

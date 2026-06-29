@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { users } from '../../db/schema';
+import { encryptField } from '../../lib/field-crypto';
 
 export type DbOrTx = PostgresJsDatabase;
 
@@ -21,8 +22,9 @@ export const usersRepo = {
       .values({
         role: input.role,
         phone: input.phone,
-        bvn: input.bvn ?? null,
-        nin: input.nin,
+        // BVN/NIN are encrypted at rest; decrypted only at Anchor onboarding.
+        bvn: input.bvn ? encryptField(input.bvn) : null,
+        nin: encryptField(input.nin),
         kycTier: input.kycTier,
       })
       .returning();

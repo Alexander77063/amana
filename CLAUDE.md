@@ -115,4 +115,4 @@ Fly.io app `amana-api`, region `jnb`. Two process groups: `app` (web, `/health` 
 
 ## Docs
 
-`docs/adr/` (decisions), `docs/superpowers/plans/` (sub-plan implementation docs), `docs/superpowers/specs/` (design spec), `docs/runbook/` (`local-dev.md`, `anchor-sandbox.md`), `docs/brainstorm/locked-decisions.md`.
+`docs/adr/` (decisions), `docs/superpowers/plans/` (sub-plan implementation docs), `docs/superpowers/specs/` (design spec), `docs/runbook/` (`local-dev.md`, `anchor-sandbox.md`, `funds-model.md` — the limits-only sub-wallet funds model & money flows), `docs/brainstorm/locked-decisions.md`.

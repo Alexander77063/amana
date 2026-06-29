@@ -117,6 +117,54 @@ describe('POST /webhooks/anchor', () => {
     `);
     expect(audit[0]?.count).toBe('1'); // exactly one entry, not two
   });
+
+  it('returns 5xx and does not record the event when a handler fails (Anchor can retry)', async () => {
+    process.env.ANCHOR_WEBHOOK_SECRET = SECRET;
+    const hh = await householdsRepo.insert(testDb, {
+      principalUserId: (
+        await usersRepo.insert(testDb, {
+          role: 'principal',
+          phone: factories.phone(),
+          nin: factories.nin(),
+          kycTier: '2',
+          bvn: factories.bvn(),
+        })
+      ).id,
+      name: 'HH',
+    });
+    const mw = await masterWalletsRepo.provision(testDb, {
+      householdId: hh.id,
+      anchorVirtualAccount: 'VA-stuck',
+      anchorBankCode: '058',
+      anchorAccountId: 'anchor-stuck',
+    });
+    // A spend left in draft → settlement.finalise throws ("cannot settle in status draft").
+    await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      kind: 'spend',
+      amountKobo: kobo(5_000n),
+      idempotencyKey: 'k-stuck-draft',
+    });
+
+    const app = createServer();
+    const body = JSON.stringify({
+      id: 'evt-stuck',
+      type: 'transfer.completed',
+      createdAt: '2026-05-03T00:00:00Z',
+      data: { transferId: 't', reference: 'k-stuck-draft', status: 'COMPLETED' },
+    });
+    const res = await app.request('/webhooks/anchor', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-anchor-signature': sign(body) },
+      body,
+    });
+    expect(res.status).toBeGreaterThanOrEqual(500);
+    // The dedupe claim must be rolled back so Anchor's retry reprocesses the event.
+    const audit = await testDb.execute<{ count: string }>(sql`
+      SELECT COUNT(*)::text AS count FROM audit_log WHERE subject_kind = 'anchor_webhook'
+    `);
+    expect(audit[0]?.count).toBe('0');
+  });
 });
 
 async function seedInFlightTxn() {

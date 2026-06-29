@@ -11,8 +11,12 @@ export function evaluateLimit(
   // household's real funds is enforced authoritatively by Anchor at transfer time (an
   // over-balance NIP is rejected → reversed → FAILED — see nip-out.service / settlement),
   // not by the ledger (no ledger account holds an "available" figure under the envelope
-  // model). The former `amountKobo > subWalletAvailableKobo` check was inert and blocked
-  // every spend from an unfunded sub-wallet — i.e. the first spend on every sub-wallet.
+  // model). The former `amountKobo > subWalletAvailableKobo` check was inert: production
+  // top-ups credit the MASTER, so a sub LA balance is ~0 and the check fired on the FIRST
+  // within-limit spend of every *limit-ruled* sub-wallet. The engine has no deny verdict
+  // (Decision = allow | require_bump), so that became a SPURIOUS bump → bump_pending —
+  // silently routing legitimate within-limit spends to principal approval, defeating the
+  // limits feature. (Not a hard block.) Regression: lifecycle.service.test.ts "limits-only".
   const spent = cfg.windowKind === 'daily' ? ledger.spentLast24hKobo : ledger.spentLast30dKobo;
   const wouldBe = spent + intent.amountKobo;
   if (wouldBe > cfg.maxKobo) {

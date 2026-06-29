@@ -3,6 +3,7 @@ import { loadEnv } from '../src/env';
 
 const base = {
   JWT_SECRET: 'x'.repeat(32),
+  FIELD_ENCRYPTION_KEY: 'a'.repeat(64),
   DATABASE_URL: 'postgres://amana:amana_dev_only@localhost:5432/amana_dev',
 };
 

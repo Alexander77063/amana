@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { db } from '../db/client';
 import { anchorAdapterSingleton } from '../integrations/anchor';
 import { AnchorHttpError } from '../integrations/anchor/client';
+import { decryptField } from '../lib/field-crypto';
 import { parseBody } from '../lib/validate';
 import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
@@ -41,8 +42,9 @@ export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
           const customer = await anchorAdapterSingleton.createCustomer(
             {
               phoneNumber: user.phone,
-              nin: user.nin,
-              bvn: user.bvn ?? '',
+              // BVN/NIN are stored encrypted; decrypt only here, to send to Anchor.
+              nin: decryptField(user.nin),
+              bvn: user.bvn ? decryptField(user.bvn) : '',
               fullName: user.phone,
             },
             `anchor.customer.${a.userId}`,

@@ -75,8 +75,26 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       .join('\n');
     throw new Error(`Invalid environment variables:\n${issues}`);
   }
-  if (parsed.data.NODE_ENV === 'production' && parsed.data.DEV_OTP_BYPASS_CODE) {
-    throw new Error('DEV_OTP_BYPASS_CODE must not be set in production (universal OTP backdoor)');
+  if (parsed.data.NODE_ENV === 'production') {
+    if (parsed.data.DEV_OTP_BYPASS_CODE) {
+      throw new Error('DEV_OTP_BYPASS_CODE must not be set in production (universal OTP backdoor)');
+    }
+    // Production essentials with no safe default. They're modelled as optional so dev/test
+    // boot without them, but in production a missing value boots a broken app that fails
+    // dangerously at runtime (webhooks → 503 = lost settlement/top-up events = real money;
+    // OTP send → no logins). Fail fast at boot instead, mirroring the JWT_SECRET /
+    // FIELD_ENCRYPTION_KEY contract. Deliver via Fly secrets / KMS, never committed.
+    const required: Record<string, string | undefined> = {
+      ANCHOR_API_KEY: parsed.data.ANCHOR_API_KEY,
+      ANCHOR_WEBHOOK_SECRET: parsed.data.ANCHOR_WEBHOOK_SECRET,
+      TERMII_API_KEY: parsed.data.TERMII_API_KEY,
+    };
+    const missing = Object.entries(required)
+      .filter(([, v]) => !v)
+      .map(([k]) => k);
+    if (missing.length > 0) {
+      throw new Error(`Missing required production environment variables: ${missing.join(', ')}`);
+    }
   }
   return parsed.data;
 }

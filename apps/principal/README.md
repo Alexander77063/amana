@@ -6,7 +6,7 @@ The Amana Principal mobile app — Expo SDK 51 + React Native 0.74.5.
 
 Builds on 6b-1 (auth flow). Adds:
 
-- First-time setup of a household + master wallet (placeholder Anchor virtual account; real Anchor wiring lands in Sub-plan 7).
+- First-time setup of a household + master wallet (real Anchor virtual account provisioned server-side on `POST /households`).
 - Pair an agent: issue a one-time pairing code, copy it, share via SMS/WhatsApp out-of-band.
 - Members list: see paired agents.
 - Sub-wallet CRUD: create (must pick from paired agents), view balance + active rules, suspend/resume/close.

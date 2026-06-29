@@ -42,14 +42,15 @@ describe('evaluateLimit', () => {
     }
   });
 
-  it('denies when balance is insufficient (separate code from limit)', () => {
+  it('allows a spend from a sub-wallet with no stored balance (envelope/limits-only model)', () => {
+    // Sub-wallets are spending envelopes, not balance-holding accounts: control is by
+    // limit rules; overdraft is enforced authoritatively by Anchor at transfer time
+    // (an over-balance NIP is rejected → reversed), never by a per-sub-wallet available
+    // balance. A fresh sub-wallet (never funded) must be able to spend within its cap.
     const cfg: LimitRuleConfig = { windowKind: 'daily', maxKobo: 1_000_000n };
-    const r = evaluateLimit(
-      cfg,
-      intent(200_000n),
-      ledger({ subWalletAvailableKobo: kobo(50_000n) }),
-    );
-    expect(r?.code).toBe('INSUFFICIENT_FUNDS');
+    expect(
+      evaluateLimit(cfg, intent(200_000n), ledger({ subWalletAvailableKobo: kobo(0n) })),
+    ).toBeNull();
   });
 
   it('handles monthly window via spentLast30dKobo', () => {

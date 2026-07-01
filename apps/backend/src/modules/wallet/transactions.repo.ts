@@ -1,7 +1,7 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { transactions } from '../../db/schema';
-import type { Kobo } from '../../lib/kobo';
+import { type Kobo, kobo } from '../../lib/kobo';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -22,6 +22,7 @@ export type NewTransaction = {
   subWalletId?: string | null;
   kind: TxnKind;
   amountKobo: Kobo;
+  inflowFeeAbsorbedKobo?: Kobo | null;
   idempotencyKey: string;
   vendorAccount?: string | null;
   vendorBankCode?: string | null;
@@ -39,6 +40,7 @@ export const transactionsRepo = {
         subWalletId: input.subWalletId ?? null,
         kind: input.kind,
         amountKobo: input.amountKobo,
+        inflowFeeAbsorbedKobo: input.inflowFeeAbsorbedKobo ?? null,
         idempotencyKey: input.idempotencyKey,
         vendorAccount: input.vendorAccount ?? null,
         vendorBankCode: input.vendorBankCode ?? null,
@@ -63,6 +65,17 @@ export const transactionsRepo = {
       .where(eq(transactions.idempotencyKey, key))
       .limit(1);
     return row;
+  },
+
+  /** Lifetime sum of the inflow fee Amana absorbed across this wallet's top-ups. */
+  async sumInflowFeesAbsorbed(db: DbOrTx, masterWalletId: string): Promise<Kobo> {
+    const [row] = await db
+      .select({
+        total: sql<string>`coalesce(sum(${transactions.inflowFeeAbsorbedKobo}), 0)`,
+      })
+      .from(transactions)
+      .where(and(eq(transactions.masterWalletId, masterWalletId), eq(transactions.kind, 'topup')));
+    return kobo(BigInt(row?.total ?? '0'));
   },
 
   async setStatus(db: DbOrTx, id: string, status: TxnStatus, settledAt?: Date): Promise<void> {

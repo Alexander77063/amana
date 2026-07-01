@@ -20,6 +20,7 @@ export { TextInput } from './controls/TextInput';
 export { BalanceCard } from './data/BalanceCard';
 export { TransactionRow } from './data/TransactionRow';
 export { SectionHeader } from './data/SectionHeader';
+export { FeeCoverCard } from './data/FeeCoverCard';
 
 export { Badge } from './feedback/Badge';
 export { Skeleton } from './feedback/Skeleton';

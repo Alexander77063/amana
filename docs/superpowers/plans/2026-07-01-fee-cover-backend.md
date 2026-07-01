@@ -4,7 +4,7 @@
 
 **Goal:** Compute and persist the Anchor inflow fee Amana absorbs on each top-up, and expose a lifetime "fees covered" total on the principal's household endpoint.
 
-**Architecture:** A pure fee-computation function (integer kobo math) feeds a new nullable `inflow_fee_absorbed_kobo` column on `transactions`, written inside the existing top-up DB transaction. A repo aggregate sums it per master wallet; the principal's `GET /households/me/household` returns it. Mobile UI is a separate follow-on plan.
+**Architecture:** A pure fee-computation function (integer kobo math) feeds a new nullable `inflow_fee_absorbed_kobo` column on `transactions`, written inside the existing top-up DB transaction. A repo aggregate sums it per master wallet; the principal's `GET /me/household` returns it. Mobile UI is a separate follow-on plan.
 
 **Tech Stack:** Hono, Drizzle ORM, Postgres 16, `postgres-js`, Vitest (real DB), fast-check, TypeScript, Biome.
 
@@ -410,17 +410,21 @@ git commit -m "feat(transactions): record absorbed inflow fee on top-up"
 ```typescript
 // apps/backend/tests/routes/households.fees-covered.test.ts
 import { beforeEach, describe, expect, it } from 'vitest';
-import { app } from '../../src/server';
 import { kobo } from '../../src/lib/kobo';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
 import { usersRepo } from '../../src/modules/identity/users.repo';
 import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo';
 import { transactionsRepo } from '../../src/modules/wallet/transactions.repo';
+import { createServer } from '../../src/server';
 import { bearerHeaders } from '../helpers/bearer';
 import { factories } from '../helpers/factories';
 import { testDb, truncateAll } from '../helpers/test-db';
 
-describe('GET /households/me/household feesCoveredKobo', () => {
+// The Hono app is built via createServer(); the `/me/household` handler lives on
+// meHouseholdRoute, mounted at `/` (not under `/households`).
+const app = createServer();
+
+describe('GET /me/household feesCoveredKobo', () => {
   beforeEach(truncateAll);
 
   it('returns the lifetime sum of absorbed inflow fees', async () => {
@@ -446,7 +450,7 @@ describe('GET /households/me/household feesCoveredKobo', () => {
       inflowFeeAbsorbedKobo: kobo(5_000n),
     });
 
-    const res = await app.request('/households/me/household', {
+    const res = await app.request('/me/household', {
       headers: await bearerHeaders(principal),
     });
     expect(res.status).toBe(200);
@@ -461,7 +465,7 @@ describe('GET /households/me/household feesCoveredKobo', () => {
       nin: factories.nin(),
       kycTier: '1',
     });
-    const res = await app.request('/households/me/household', {
+    const res = await app.request('/me/household', {
       headers: await bearerHeaders(agent),
     });
     expect(res.status).toBe(403);

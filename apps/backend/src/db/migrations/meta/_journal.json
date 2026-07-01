@@ -162,6 +162,13 @@
       "when": 1782615295139,
       "tag": "0022_wild_revanche",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1782940058410,
+      "tag": "0023_wandering_penance",
+      "breakpoints": true
     }
   ]
 }

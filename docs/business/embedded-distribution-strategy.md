@@ -104,6 +104,53 @@ These are **future layers**, sequenced after the VAS wedge proves the model and 
    promo-credit flow? (Integration question for the build spec.)
 4. NDPR review scope for any contextual targeting before deals go live.
 
+## Rollout detail — VAS sequencing & the deals layer
+
+### VAS category sequence (gated by what Anchor supports today)
+
+Anchor's bill-payment product currently covers **airtime/data, electricity, and cable TV**
+(`anchor-pricing-note-2026-06-30.md` §3). Everything beyond that needs Anchor to add billers or a
+second aggregator — so the sequence is gated by availability, not just demand.
+
+**Phase 1 — already on Anchor rails (surface well, earn commission):**
+
+| Priority | Category | Commission | Why first |
+|---|---|---|---|
+| 1 | Airtime & data | 2% | Highest frequency + commission; universal across every persona; maps to a "data/airtime" allowance. |
+| 2 | Electricity | 0.5–1% (cap ₦1,000) | Essential, recurring, household + business; steady volume. |
+| 3 | Cable / TV | 1.2% (cap ₦1,500) | Recurring monthly, household; lower frequency. |
+
+**Phase 2 — needs biller expansion (confirm Anchor roadmap / add aggregator), by fit:**
+
+| Category | Segment fit | Note |
+|---|---|---|
+| Education / school fees | Strong — the parent/kid household core | High trust + value; school billers are often bespoke → higher integration effort. |
+| Transport / fuel | Riders, SMB staff | Fits the business segment; needs transport partners. |
+| Government payments | SMB | Tax / levies / vehicle; needs gov biller access. |
+| Gift cards / subscriptions | Consumer, discretionary | Lower necessity + mild brand tension for agent spend → lowest priority. |
+
+Open dependency: **confirm with Anchor which billers are live and their VAS roadmap** before
+committing the Phase 2 order.
+
+### The deals layer (mechanics)
+
+A partner-funded deal = a partner spends their marketing budget to give the *user* extra value;
+Amana surfaces it and earns on the uplift.
+
+- **Settlement (preferred):** the partner **pre-funds a promo budget**; the discount is applied at
+  purchase (user pays less, the budget covers the difference). Avoids Amana fronting cash / credit
+  risk. Alternative — Amana fronts and invoices monthly — only if a trusted partner requires it.
+- **Surfacing:** a "Deals" strip in the services hub + a badge on the biller. **Principal-facing**
+  (guardrail); contextually matched by the sub-wallet's **category-lock** (a household with a "data"
+  allowance sees data deals) — the signal Amana already owns, no surveillance.
+- **Controls:** a deal only helps within the agent's category-lock + limit; the principal sees /
+  approves. Deals are clearly labelled and **never worsen the user's price**.
+- **Revenue:** commission on the (higher) volume + an optional per-campaign fee. Measure redemption
+  + uplift per partner.
+- **Build-spec seed (future):** a `promotions` entity (partner, category/biller, discount rule,
+  budget, window, status) + `promotion_redemptions` linking to `transactions`. Detailed in the
+  eventual implementation spec.
+
 ## Next step
 
 When ready to build, the **VAS-expansion wedge** gets its own implementation spec + plan (schema

@@ -11,6 +11,7 @@ import { usersRepo } from '../modules/identity/users.repo';
 import { subwalletSnoozeRepo } from '../modules/notifications/subwallet-snooze.repo';
 import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../modules/wallet/sub-wallets.repo';
+import { transactionsRepo } from '../modules/wallet/transactions.repo';
 
 export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(jwtAuth())
@@ -146,6 +147,7 @@ export const meHouseholdRoute = new Hono<{ Variables: ActorVariables }>()
     if (!hh) return c.json({ error: 'no_household' }, 404);
     const mw = await masterWalletsRepo.findByHousehold(db, hh.id);
     if (!mw) return c.json({ error: 'no_master_wallet' }, 500);
+    const feesCoveredKobo = await transactionsRepo.sumInflowFeesAbsorbed(db, mw.id);
     return c.json(
       {
         household: { id: hh.id, name: hh.name, principalUserId: hh.principalUserId },
@@ -155,6 +157,7 @@ export const meHouseholdRoute = new Hono<{ Variables: ActorVariables }>()
           anchorBankCode: mw.anchorBankCode,
           currency: mw.currency,
           status: mw.status,
+          feesCoveredKobo: feesCoveredKobo.toString(),
         },
       },
       200,

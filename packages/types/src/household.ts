@@ -12,6 +12,12 @@ export type MasterWalletSummary = {
   anchorBankCode: string;
   currency: string;
   status?: MasterWalletStatus;
+  /**
+   * Lifetime sum (kobo, string) of bank inflow fees Amana absorbed on this
+   * wallet's top-ups. Present on `GET /me/household`; omitted on the create
+   * response (`POST /households`), hence optional.
+   */
+  feesCoveredKobo?: string;
 };
 
 export type HouseholdSnapshot = {

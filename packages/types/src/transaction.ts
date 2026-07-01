@@ -18,6 +18,12 @@ export type TransactionDetail = {
   /** BigInt-safe — string over the wire. */
   amountKobo: string;
 
+  /**
+   * Bank inflow fee (kobo, string) Amana absorbed on this specific top-up.
+   * Non-null only for `kind === 'topup'` rows that recorded a fee; null otherwise.
+   */
+  inflowFeeAbsorbedKobo: string | null;
+
   // Vendor — null on topups, fees, reversals, or when capture was incomplete.
   vendorResolvedName: string | null;
   /** Last-4 form like "***1234"; full account never leaves the server. */

@@ -8,6 +8,7 @@ type Row = {
   kind: TransactionDetail['kind'];
   status: TransactionDetail['status'];
   amount_kobo: string; // pg-js bigint → string
+  inflow_fee_absorbed_kobo: string | null; // pg-js bigint → string
   vendor_resolved_name: string | null;
   vendor_account: string | null;
   vendor_bank_code: string | null;
@@ -33,6 +34,7 @@ const DETAIL_SELECT = sql`
     t.kind::text AS kind,
     t.status::text AS status,
     t.amount_kobo::text AS amount_kobo,
+    t.inflow_fee_absorbed_kobo::text AS inflow_fee_absorbed_kobo,
     t.vendor_resolved_name,
     t.vendor_account,
     t.vendor_bank_code,
@@ -88,6 +90,7 @@ function buildDetail(row: Row): TransactionDetail {
     kind: row.kind,
     status: row.status,
     amountKobo: row.amount_kobo,
+    inflowFeeAbsorbedKobo: row.inflow_fee_absorbed_kobo,
     vendorResolvedName: row.vendor_resolved_name,
     vendorAccountMasked: maskAccount(row.vendor_account),
     vendorBankCode: row.vendor_bank_code,

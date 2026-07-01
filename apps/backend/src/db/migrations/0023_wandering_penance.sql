@@ -1,0 +1,1 @@
+ALTER TABLE "transactions" ADD COLUMN "inflow_fee_absorbed_kobo" bigint;

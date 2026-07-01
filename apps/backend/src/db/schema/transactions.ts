@@ -31,6 +31,7 @@ export const transactions = pgTable('transactions', {
   subWalletId: uuid('sub_wallet_id').references(() => subWallets.id, { onDelete: 'restrict' }), // nullable: principal direct spend
   kind: txnKindEnum('kind').notNull(),
   amountKobo: bigint('amount_kobo', { mode: 'bigint' }).notNull(),
+  inflowFeeAbsorbedKobo: bigint('inflow_fee_absorbed_kobo', { mode: 'bigint' }), // topup rows only; fee Amana absorbed
   status: txnStatusEnum('status').notNull().default('draft'),
   idempotencyKey: text('idempotency_key').notNull().unique(),
   nibssSessionId: text('nibss_session_id'),

@@ -7,6 +7,7 @@ import { auditEvents } from '../audit/events';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { transactionsRepo } from '../wallet/transactions.repo';
+import { computeInflowFeeAbsorbedKobo } from './inflow-fee';
 import { refundService } from './refund.service';
 
 type DbOrTx = PostgresJsDatabase;
@@ -81,6 +82,7 @@ export const topupService = {
         masterWalletId: mw.id,
         kind: 'topup',
         amountKobo: input.amountKobo,
+        inflowFeeAbsorbedKobo: computeInflowFeeAbsorbedKobo(input.amountKobo),
         idempotencyKey,
       });
       await transactionsRepo.setNibssSessionId(txDb, txn.id, input.nibssSessionId);

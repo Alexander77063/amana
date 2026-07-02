@@ -1,7 +1,8 @@
-import { Badge, Body, Button, Card, Screen, Skeleton, useTheme } from '@amana/ui';
+import { Badge, Body, Button, Card, FeeCoverCard, Screen, Skeleton, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
+import { formatNaira } from '../lib/format-money';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useBumpsStore } from '../state/bumps.store';
 import { useHouseholdStore } from '../state/household.store';
@@ -64,8 +65,18 @@ export function HomeDashboardScreen({ navigation }: Props): JSX.Element {
     return <Screen>{null}</Screen>;
   }
 
+  const feesCoveredKobo = masterWallet.feesCoveredKobo;
+  const showFeeCover = feesCoveredKobo !== undefined && BigInt(feesCoveredKobo) > 0n;
+
   return (
     <Screen title={household.name} scrollable>
+      {showFeeCover ? (
+        <FeeCoverCard
+          amount={formatNaira(feesCoveredKobo)}
+          onPress={() => navigation.navigate('FeeCoverInfo')}
+        />
+      ) : null}
+
       <Card>
         <Body strong>Top up your wallet</Body>
         <Body muted>Send via NIP transfer to:</Body>

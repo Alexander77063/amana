@@ -27,3 +27,5 @@ export { Skeleton } from './feedback/Skeleton';
 
 export { CoinSealMark } from './brand/CoinSealMark';
 export { CoinSealWordmark } from './brand/CoinSealWordmark';
+
+export { formatNaira } from './format/money';

@@ -1,4 +1,4 @@
-import { AmountText, Body, Button, Card, Label, Screen, useTheme } from '@amana/ui';
+import { AmountText, Body, Button, Card, Label, Screen, formatNaira, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
@@ -16,11 +16,6 @@ type ReceiptTxn = {
   nibssSessionId: string | null;
   attachedMedia: unknown;
 };
-
-function formatNaira(koboStr: string): string {
-  const naira = Number(BigInt(koboStr)) / 100;
-  return `₦${naira.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-NG', {

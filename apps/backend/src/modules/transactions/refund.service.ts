@@ -1,4 +1,4 @@
-import { and, desc, eq, gte } from 'drizzle-orm';
+import { and, desc, eq, gte, isNull } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { transactions } from '../../db/schema';
@@ -45,6 +45,7 @@ export const refundService = {
           eq(transactions.vendorAccount, input.senderAccountNumber),
           eq(transactions.amountKobo, input.amountKobo),
           gte(transactions.createdAt, cutoff),
+          isNull(transactions.refundedAt), // never re-match an already-refunded spend
         ),
       )
       .orderBy(desc(transactions.createdAt))
@@ -60,6 +61,13 @@ export const refundService = {
 
       const original = await transactionsRepo.findById(txDb, originalId);
       if (!original) return { kind: 'no_match' as const };
+
+      // Atomically claim this spend for refund. If a concurrent return already claimed it,
+      // don't double-credit — the caller (topupService) then books this inbound as a normal
+      // top-up instead. `findOriginatingSpend` already excludes claimed spends on the fast path;
+      // this closes the concurrent race.
+      const claimed = await transactionsRepo.claimForRefund(txDb, originalId, input.receivedAt);
+      if (!claimed) return { kind: 'no_match' as const };
 
       const externalLA = await ledgerAccountsRepo.findByMasterAndKind(
         txDb,

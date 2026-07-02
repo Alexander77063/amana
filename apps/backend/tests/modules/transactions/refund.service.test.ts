@@ -166,6 +166,54 @@ describe('refundService', () => {
     expect(await postingsRepo.accountBalance(testDb, feeLA!.id)).toBe(0n);
   });
 
+  it('does not double-credit when the same spend is returned twice', async () => {
+    const { masterId, subLA } = await seedFullySettledSpend();
+    const first = await refundService.handleRefund(testDb, {
+      masterWalletId: masterId,
+      amountKobo: kobo(5_000n),
+      senderBankCode: '058',
+      senderAccountNumber: '0123456789',
+      nibssSessionId: 'return-1',
+      receivedAt: new Date('2026-05-04T11:00:00Z'),
+    });
+    expect(first.kind).toBe('matched_and_refunded');
+    const balAfterFirst = await postingsRepo.accountBalance(testDb, subLA);
+
+    const second = await refundService.handleRefund(testDb, {
+      masterWalletId: masterId,
+      amountKobo: kobo(5_000n),
+      senderBankCode: '058',
+      senderAccountNumber: '0123456789',
+      nibssSessionId: 'return-2',
+      receivedAt: new Date('2026-05-04T12:00:00Z'),
+    });
+    expect(second.kind).toBe('no_match'); // already refunded — never re-matched
+    expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(balAfterFirst); // no double credit
+  });
+
+  it('routes a duplicate return to a top-up, not a second refund', async () => {
+    const { masterId } = await seedFullySettledSpend();
+    await refundService.handleRefund(testDb, {
+      masterWalletId: masterId,
+      amountKobo: kobo(5_000n),
+      senderBankCode: '058',
+      senderAccountNumber: '0123456789',
+      nibssSessionId: 'return-1',
+      receivedAt: new Date('2026-05-04T11:00:00Z'),
+    });
+    // A second inbound matching the same spend must NOT be a refund; it falls through to top-up.
+    const second = await topupService.handle(testDb, {
+      virtualAccountId: 'anchor-acct-test',
+      amountKobo: kobo(5_000n),
+      nibssSessionId: 'return-2-topup',
+      senderBankCode: '058',
+      senderAccountNumber: '0123456789',
+      senderAccountName: 'M',
+      receivedAt: new Date('2026-05-04T12:00:00Z'),
+    });
+    expect(second.kind).toBe('created'); // booked as a top-up (safe fall-through), not a refund
+  });
+
   it('topupService routes to refund when sender matches a recent spend', async () => {
     const { masterId, principalId } = await seedFullySettledSpend();
     const result = await topupService.handle(testDb, {

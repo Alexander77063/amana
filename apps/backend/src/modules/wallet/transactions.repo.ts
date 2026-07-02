@@ -98,6 +98,20 @@ export const transactionsRepo = {
     return rows.length > 0;
   },
 
+  /**
+   * Atomically claim a settled spend for refund by setting `refunded_at` only if it is
+   * still null. Returns true if this caller won the claim, false if it was already refunded —
+   * so a duplicate inbound return can't re-match and double-credit the original spend.
+   */
+  async claimForRefund(db: DbOrTx, spendTxnId: string, now: Date): Promise<boolean> {
+    const rows = await db
+      .update(transactions)
+      .set({ refundedAt: now })
+      .where(and(eq(transactions.id, spendTxnId), isNull(transactions.refundedAt)))
+      .returning({ id: transactions.id });
+    return rows.length > 0;
+  },
+
   async setNibssSessionId(db: DbOrTx, id: string, sessionId: string): Promise<void> {
     await db.update(transactions).set({ nibssSessionId: sessionId }).where(eq(transactions.id, id));
   },

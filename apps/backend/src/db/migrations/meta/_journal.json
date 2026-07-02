@@ -169,6 +169,13 @@
       "when": 1782940058410,
       "tag": "0023_wandering_penance",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1783011986002,
+      "tag": "0024_far_kree",
+      "breakpoints": true
     }
   ]
 }

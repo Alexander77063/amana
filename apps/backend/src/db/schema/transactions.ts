@@ -49,4 +49,7 @@ export const transactions = pgTable('transactions', {
   // Set atomically when the NIP-out is submitted, so a retry can't re-reserve.
   sentAt: timestamp('sent_at', { withTimezone: true }),
   settledAt: timestamp('settled_at', { withTimezone: true }),
+  // Set atomically when a settled spend is refunded, so a duplicate inbound return can't
+  // re-match and double-credit (it falls through to normal top-up handling instead).
+  refundedAt: timestamp('refunded_at', { withTimezone: true }),
 });

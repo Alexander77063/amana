@@ -3,11 +3,61 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { kobo } from '../../../src/lib/kobo';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
+import { ledgerAccountsRepo } from '../../../src/modules/wallet/ledger-accounts.repo';
+import { ledgerService } from '../../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
+
+async function seedMaster(): Promise<string> {
+  const principal = await usersRepo.insert(testDb, {
+    role: 'principal',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '2',
+    bvn: factories.bvn(),
+  });
+  const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
+  const mw = await masterWalletsRepo.provision(testDb, {
+    householdId: hh.id,
+    anchorVirtualAccount: `VA-${factories.walletId().slice(0, 8)}`,
+    anchorBankCode: '058',
+    anchorAccountId: `a-${factories.walletId().slice(0, 8)}`,
+  });
+  return mw.master.id;
+}
+
+describe('postingsRepo.findNegativeMasterBalances', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  it('flags an overdrawn master LA and ignores healthy ones', async () => {
+    const okMasterId = await seedMaster(); // no postings → balance 0, not negative
+    const badMasterId = await seedMaster();
+    const masterLA = await ledgerAccountsRepo.findByMasterAndKind(testDb, badMasterId, 'master');
+    const feeLA = await ledgerAccountsRepo.findByMasterAndKind(testDb, badMasterId, 'fee');
+    // Book a ₦100 fee against an empty wallet → the debit-normal master LA goes to −₦100.
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: badMasterId,
+      kind: 'fee',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    await ledgerService.writeDoubleEntry(testDb, txn.id, [
+      { ledgerAccountId: masterLA!.id, debitKobo: kobo(0n), creditKobo: kobo(10_000n) },
+      { ledgerAccountId: feeLA!.id, debitKobo: kobo(10_000n), creditKobo: kobo(0n) },
+    ]);
+
+    const negs = await postingsRepo.findNegativeMasterBalances(testDb);
+    const ids = negs.map((n) => n.masterWalletId);
+    expect(ids).toContain(badMasterId);
+    expect(ids).not.toContain(okMasterId);
+    expect(negs.find((n) => n.masterWalletId === badMasterId)?.balanceKobo).toBe(kobo(-10_000n));
+  });
+});
 
 describe('postings table (immutability)', () => {
   beforeEach(async () => {

@@ -10,6 +10,7 @@ import { refundService } from '../../../src/modules/transactions/refund.service'
 import { settlementService } from '../../../src/modules/transactions/settlement.service';
 import { topupService } from '../../../src/modules/transactions/topup.service';
 import { txnIntentService } from '../../../src/modules/transactions/txn-intent.service';
+import { ledgerAccountsRepo } from '../../../src/modules/wallet/ledger-accounts.repo';
 import { ledgerService } from '../../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
@@ -143,6 +144,74 @@ describe('refundService', () => {
     }
     // After refund: sub-wallet balance restored to 100K (105K from seed+spend, -5K from refund credit)
     expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(100_000n);
+  });
+
+  it('reverses the ₦100 platform fee when the spend is refunded', async () => {
+    const { masterId } = await seedFullySettledSpend();
+    const feeLA = await ledgerAccountsRepo.findByMasterAndKind(testDb, masterId, 'fee');
+    expect(feeLA).not.toBeNull();
+    // Settlement charged the ₦100 platform fee (fee LA is debit-side).
+    expect(await postingsRepo.accountBalance(testDb, feeLA!.id)).toBe(kobo(10_000n));
+
+    await refundService.handleRefund(testDb, {
+      masterWalletId: masterId,
+      amountKobo: kobo(5_000n),
+      senderBankCode: '058',
+      senderAccountNumber: '0123456789',
+      nibssSessionId: 'sess-refund-fee',
+      receivedAt: new Date('2026-05-04T11:00:00Z'),
+    });
+
+    // Refund policy (PRICING.md decision): the platform fee is reversed → fee LA back to zero.
+    expect(await postingsRepo.accountBalance(testDb, feeLA!.id)).toBe(0n);
+  });
+
+  it('does not double-credit when the same spend is returned twice', async () => {
+    const { masterId, subLA } = await seedFullySettledSpend();
+    const first = await refundService.handleRefund(testDb, {
+      masterWalletId: masterId,
+      amountKobo: kobo(5_000n),
+      senderBankCode: '058',
+      senderAccountNumber: '0123456789',
+      nibssSessionId: 'return-1',
+      receivedAt: new Date('2026-05-04T11:00:00Z'),
+    });
+    expect(first.kind).toBe('matched_and_refunded');
+    const balAfterFirst = await postingsRepo.accountBalance(testDb, subLA);
+
+    const second = await refundService.handleRefund(testDb, {
+      masterWalletId: masterId,
+      amountKobo: kobo(5_000n),
+      senderBankCode: '058',
+      senderAccountNumber: '0123456789',
+      nibssSessionId: 'return-2',
+      receivedAt: new Date('2026-05-04T12:00:00Z'),
+    });
+    expect(second.kind).toBe('no_match'); // already refunded — never re-matched
+    expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(balAfterFirst); // no double credit
+  });
+
+  it('routes a duplicate return to a top-up, not a second refund', async () => {
+    const { masterId } = await seedFullySettledSpend();
+    await refundService.handleRefund(testDb, {
+      masterWalletId: masterId,
+      amountKobo: kobo(5_000n),
+      senderBankCode: '058',
+      senderAccountNumber: '0123456789',
+      nibssSessionId: 'return-1',
+      receivedAt: new Date('2026-05-04T11:00:00Z'),
+    });
+    // A second inbound matching the same spend must NOT be a refund; it falls through to top-up.
+    const second = await topupService.handle(testDb, {
+      virtualAccountId: 'anchor-acct-test',
+      amountKobo: kobo(5_000n),
+      nibssSessionId: 'return-2-topup',
+      senderBankCode: '058',
+      senderAccountNumber: '0123456789',
+      senderAccountName: 'M',
+      receivedAt: new Date('2026-05-04T12:00:00Z'),
+    });
+    expect(second.kind).toBe('created'); // booked as a top-up (safe fall-through), not a refund
   });
 
   it('topupService routes to refund when sender matches a recent spend', async () => {

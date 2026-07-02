@@ -7,6 +7,7 @@ import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { reconciliationService } from '../../../src/modules/transactions/reconciliation.service';
 import { txnIntentService } from '../../../src/modules/transactions/txn-intent.service';
+import { ledgerAccountsRepo } from '../../../src/modules/wallet/ledger-accounts.repo';
 import { ledgerService } from '../../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
@@ -170,5 +171,42 @@ describe('reconciliationService.sweep', () => {
     );
     expect(result.inspected).toBe(0);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('reports master ledger accounts that have gone negative', async () => {
+    const principal = await usersRepo.insert(testDb, {
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
+    });
+    const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
+    const mw = await masterWalletsRepo.provision(testDb, {
+      householdId: hh.id,
+      anchorVirtualAccount: '2222222222',
+      anchorBankCode: '058',
+      anchorAccountId: 'anchor-neg',
+    });
+    const masterLA = await ledgerAccountsRepo.findByMasterAndKind(testDb, mw.master.id, 'master');
+    const feeLA = await ledgerAccountsRepo.findByMasterAndKind(testDb, mw.master.id, 'fee');
+    // Book a ₦100 fee against an empty wallet → master LA (debit-normal) goes to −₦100.
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      kind: 'fee',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    await ledgerService.writeDoubleEntry(testDb, txn.id, [
+      { ledgerAccountId: masterLA!.id, debitKobo: kobo(0n), creditKobo: kobo(10_000n) },
+      { ledgerAccountId: feeLA!.id, debitKobo: kobo(10_000n), creditKobo: kobo(0n) },
+    ]);
+
+    const result = await reconciliationService.sweep(
+      testDb,
+      makeAdapter(vi.fn()),
+      new Date('2026-05-03T12:00:00Z'),
+    );
+    expect(result.negativeMaster).toBeGreaterThanOrEqual(1);
   });
 });

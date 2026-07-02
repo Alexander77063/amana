@@ -79,10 +79,15 @@ The reserved spend leaves the building, and the fee is booked as a **separate**
 # spend settles
 debit  suspense   amount
 credit external    amount
-# fee (NIP_FEE_KOBO = ₦25)
+# fee (SPEND_FEE_KOBO = ₦100 — PRICING.md: ₦50 NIP cost + ₦50 margin)
 credit master      fee
 debit  fee         fee
 ```
+> **Note:** the fee is booked at settlement and is *not reserved at authorization*, and there is
+> no negative-balance CHECK on the master ledger account — so once a household's real balance is
+> under the fee, the master LA accrues negative (Amana-side ledger↔cash reconciliation drift, not a
+> user overdraft, since no spend gate reads the master LA balance). Track: fee-headroom reservation
+> or a negative-master-LA recon alert (see the fee-fix PR follow-ups).
 
 ### Failure → reversal on `transfer.failed` or synchronous Anchor rejection
 `reversalService.reverse` writes the reversing legs and marks the txn `FAILED`. No

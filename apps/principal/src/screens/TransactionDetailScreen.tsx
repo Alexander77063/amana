@@ -179,6 +179,19 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
         ) : null}
       </Card>
 
+      {txn.kind === 'topup' &&
+      txn.inflowFeeAbsorbedKobo !== null &&
+      BigInt(txn.inflowFeeAbsorbedKobo) > 0n ? (
+        <Card
+          accessible
+          accessibilityLabel={`Bank fee covered ${formatNaira(txn.inflowFeeAbsorbedKobo)}`}
+        >
+          <Body style={{ color: theme.colors.credit }}>
+            {`Bank fee covered: ${formatNaira(txn.inflowFeeAbsorbedKobo)} ✓`}
+          </Body>
+        </Card>
+      ) : null}
+
       {txn.agentNote ? (
         <Card>
           <Body style={{ fontStyle: 'italic' }}>📝 "{txn.agentNote}"</Body>

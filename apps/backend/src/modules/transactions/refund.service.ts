@@ -91,6 +91,34 @@ export const refundService = {
       await transactionsRepo.setNibssSessionId(txDb, refundTxn.id, input.nibssSessionId);
       await transactionsRepo.setStatus(txDb, refundTxn.id, 'settled', input.receivedAt);
 
+      // Refund policy (PRICING.md): a returned spend reverses the platform fee that was charged
+      // when it settled. Reverse the *exact* fee that was booked (robust to the historical ₦25 vs
+      // ₦100), idempotently keyed on the original spend so a retry can't double-reverse.
+      const feeTxn = await transactionsRepo.findByIdempotencyKey(txDb, `${originalId}-fee`);
+      if (feeTxn && (feeTxn.amountKobo as bigint) > 0n) {
+        const feeLA = await ledgerAccountsRepo.findByMasterAndKind(
+          txDb,
+          input.masterWalletId,
+          'fee',
+        );
+        if (!feeLA) throw new Error('refund: missing fee LA');
+        const feeAmount = kobo(feeTxn.amountKobo as bigint);
+        const feeReversal = await transactionsRepo.insert(txDb, {
+          masterWalletId: input.masterWalletId,
+          subWalletId: original.subWalletId,
+          kind: 'reversal',
+          amountKobo: feeAmount,
+          idempotencyKey: `${originalId}-fee-reversal`,
+        });
+        // Mirror-image of the settlement fee posting (credit master / debit fee): debit master to
+        // restore the household's balance, credit the fee LA to unwind the revenue.
+        await ledgerService.writeDoubleEntry(txDb, feeReversal.id, [
+          { ledgerAccountId: masterLA.id, debitKobo: feeAmount, creditKobo: kobo(0n) },
+          { ledgerAccountId: feeLA.id, debitKobo: kobo(0n), creditKobo: feeAmount },
+        ]);
+        await transactionsRepo.setStatus(txDb, feeReversal.id, 'settled', input.receivedAt);
+      }
+
       await auditRepo.append(
         txDb,
         auditEvents.txnSettled({

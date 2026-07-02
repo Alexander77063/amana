@@ -10,6 +10,7 @@ import { refundService } from '../../../src/modules/transactions/refund.service'
 import { settlementService } from '../../../src/modules/transactions/settlement.service';
 import { topupService } from '../../../src/modules/transactions/topup.service';
 import { txnIntentService } from '../../../src/modules/transactions/txn-intent.service';
+import { ledgerAccountsRepo } from '../../../src/modules/wallet/ledger-accounts.repo';
 import { ledgerService } from '../../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
@@ -143,6 +144,26 @@ describe('refundService', () => {
     }
     // After refund: sub-wallet balance restored to 100K (105K from seed+spend, -5K from refund credit)
     expect(await postingsRepo.accountBalance(testDb, subLA)).toBe(100_000n);
+  });
+
+  it('reverses the ₦100 platform fee when the spend is refunded', async () => {
+    const { masterId } = await seedFullySettledSpend();
+    const feeLA = await ledgerAccountsRepo.findByMasterAndKind(testDb, masterId, 'fee');
+    expect(feeLA).not.toBeNull();
+    // Settlement charged the ₦100 platform fee (fee LA is debit-side).
+    expect(await postingsRepo.accountBalance(testDb, feeLA!.id)).toBe(kobo(10_000n));
+
+    await refundService.handleRefund(testDb, {
+      masterWalletId: masterId,
+      amountKobo: kobo(5_000n),
+      senderBankCode: '058',
+      senderAccountNumber: '0123456789',
+      nibssSessionId: 'sess-refund-fee',
+      receivedAt: new Date('2026-05-04T11:00:00Z'),
+    });
+
+    // Refund policy (PRICING.md decision): the platform fee is reversed → fee LA back to zero.
+    expect(await postingsRepo.accountBalance(testDb, feeLA!.id)).toBe(0n);
   });
 
   it('topupService routes to refund when sender matches a recent spend', async () => {

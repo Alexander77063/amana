@@ -7,7 +7,7 @@ import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { notificationsRepo } from '../../../src/modules/notifications/notifications.repo';
 import { nipOutService } from '../../../src/modules/transactions/nip-out.service';
 import {
-  NIP_FEE_KOBO,
+  SPEND_FEE_KOBO,
   settlementService,
 } from '../../../src/modules/transactions/settlement.service';
 import { txnIntentService } from '../../../src/modules/transactions/txn-intent.service';
@@ -130,9 +130,12 @@ describe('settlementService.finalise', () => {
     expect(settled?.settledAt?.toISOString()).toBe(settledAt.toISOString());
     expect(settled?.nibssSessionId).toBe('99999');
 
-    // Fee LA accumulated NIP_FEE_KOBO debits (fee LA is debit-side; fee is recorded as a debit)
+    // Fee LA accumulated SPEND_FEE_KOBO debits (fee LA is debit-side; fee is recorded as a debit)
     const feeBal = await postingsRepo.accountBalance(testDb, feeLA);
-    expect(feeBal).toBe(NIP_FEE_KOBO);
+    expect(feeBal).toBe(SPEND_FEE_KOBO);
+    // Pin the confirmed pricing: ₦100 per spend (PRICING.md 2026-06-30), not the ₦25 MVP value.
+    expect(SPEND_FEE_KOBO).toBe(kobo(10_000n));
+    expect(feeBal).toBe(kobo(10_000n));
   });
 
   it('is idempotent — second call on already-settled txn is a no-op', async () => {

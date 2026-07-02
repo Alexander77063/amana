@@ -11,7 +11,9 @@ import { transactionsRepo } from '../wallet/transactions.repo';
 
 type DbOrTx = PostgresJsDatabase;
 
-export const NIP_FEE_KOBO = 2500n; // ₦25 per outbound NIP, Decision #10
+// ₦100 platform fee per spend — PRICING.md (confirmed 2026-06-30): ₦50 covers Anchor's NIP cost,
+// ₦50 is Amana's margin. Supersedes the ₦25 MVP placeholder ("Decision #10", 2026-05-03).
+export const SPEND_FEE_KOBO = 10000n;
 
 export type FinaliseInput = {
   transactionId: string;
@@ -67,7 +69,7 @@ export const settlementService = {
         masterWalletId: txn.masterWalletId,
         subWalletId: txn.subWalletId,
         kind: 'fee',
-        amountKobo: kobo(NIP_FEE_KOBO),
+        amountKobo: kobo(SPEND_FEE_KOBO),
         idempotencyKey: `${txn.id}-fee`,
       });
       const masterLA = await ledgerAccountsRepo.findByMasterAndKind(
@@ -77,8 +79,8 @@ export const settlementService = {
       );
       if (!masterLA) throw new Error('master LA missing');
       await ledgerService.writeDoubleEntry(txDb, feeTxn.id, [
-        { ledgerAccountId: masterLA.id, debitKobo: kobo(0n), creditKobo: kobo(NIP_FEE_KOBO) },
-        { ledgerAccountId: feeLA.id, debitKobo: kobo(NIP_FEE_KOBO), creditKobo: kobo(0n) },
+        { ledgerAccountId: masterLA.id, debitKobo: kobo(0n), creditKobo: kobo(SPEND_FEE_KOBO) },
+        { ledgerAccountId: feeLA.id, debitKobo: kobo(SPEND_FEE_KOBO), creditKobo: kobo(0n) },
       ]);
       await transactionsRepo.setStatus(txDb, feeTxn.id, 'settled', input.settledAt);
 
@@ -93,7 +95,7 @@ export const settlementService = {
         auditEvents.txnSettled({
           transactionId: txn.id,
           nibssSessionId: input.nibssSessionId,
-          feeKobo: NIP_FEE_KOBO,
+          feeKobo: SPEND_FEE_KOBO,
           settledAt: input.settledAt,
         }),
       );

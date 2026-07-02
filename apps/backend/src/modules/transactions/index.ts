@@ -17,7 +17,7 @@ export {
 
 export {
   settlementService,
-  NIP_FEE_KOBO,
+  SPEND_FEE_KOBO,
   type FinaliseInput,
 } from './settlement.service';
 

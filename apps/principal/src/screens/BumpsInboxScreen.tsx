@@ -16,6 +16,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useEffect, useMemo } from 'react';
 import { FlatList, RefreshControl, View } from 'react-native';
+import { formatNaira } from '../lib/format-money';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useBumpsStore } from '../state/bumps.store';
 import { usePushStore } from '../state/push.store';
@@ -39,13 +40,6 @@ function statusLabel(status: BumpStatus): string {
     case 'cancelled':
       return 'Cancelled';
   }
-}
-
-function formatNaira(amountKoboStr: string): string {
-  const kobo = BigInt(amountKoboStr);
-  const naira = kobo / 100n;
-  const remainder = kobo % 100n;
-  return `₦${naira.toLocaleString()}.${remainder.toString().padStart(2, '0')}`;
 }
 
 function expiresInLabel(expiresAt: string, now: Date): string {

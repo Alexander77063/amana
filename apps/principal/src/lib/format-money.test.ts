@@ -17,4 +17,9 @@ describe('formatNaira', () => {
   it('keeps sub-naira precision', () => {
     expect(formatNaira('12345')).toBe('₦123.45');
   });
+
+  it('is exact above 2^53 kobo (BigInt, no float coercion)', () => {
+    // 900719925474099999 kobo would lose its last digits via Number()/100.
+    expect(formatNaira('900719925474099999')).toBe('₦9,007,199,254,740,999.99');
+  });
 });

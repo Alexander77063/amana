@@ -2,6 +2,8 @@ import { and, eq, lt } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { transactions } from '../../db/schema';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
+import { logger } from '../../lib/logger';
+import { postingsRepo } from '../wallet/postings.repo';
 import { reversalService } from './reversal.service';
 import { settlementService } from './settlement.service';
 
@@ -15,6 +17,8 @@ export type SweepResult = {
   reversed: number;
   stillPending: number;
   unknown: number;
+  /** Master ledger accounts found with a negative balance (recon red flag). */
+  negativeMaster: number;
 };
 
 export const reconciliationService = {
@@ -65,6 +69,28 @@ export const reconciliationService = {
       }
     }
 
-    return { inspected: stuck.length, settled, reversed, stillPending, unknown };
+    // Observability guard: the platform fee is booked at settlement without upfront reservation,
+    // so a master ledger account can silently go negative (Amana-side ledger↔cash drift). Surface
+    // it as a structured alert on every sweep instead of letting it accrue unnoticed.
+    const negativeMaster = await postingsRepo.findNegativeMasterBalances(db);
+    for (const acc of negativeMaster) {
+      logger.error(
+        {
+          ledgerAccountId: acc.ledgerAccountId,
+          masterWalletId: acc.masterWalletId,
+          balanceKobo: acc.balanceKobo.toString(),
+        },
+        'recon: master ledger account has a negative balance',
+      );
+    }
+
+    return {
+      inspected: stuck.length,
+      settled,
+      reversed,
+      stillPending,
+      unknown,
+      negativeMaster: negativeMaster.length,
+    };
   },
 };

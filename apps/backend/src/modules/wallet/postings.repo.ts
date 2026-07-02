@@ -36,6 +36,36 @@ export const postingsRepo = {
   },
 
   /**
+   * Master ledger accounts whose balance (debits − credits) is negative — a reconciliation red
+   * flag. The platform fee is booked at settlement without upfront reservation, so a wallet that
+   * has spent down before the fee accrues can drive its (debit-normal) master LA negative — an
+   * Amana-side ledger↔cash drift that is otherwise silent. Surfaced by the recon sweep.
+   */
+  async findNegativeMasterBalances(
+    db: DbOrTx,
+  ): Promise<{ ledgerAccountId: string; masterWalletId: string; balanceKobo: Kobo }[]> {
+    const rows = await db.execute<{
+      ledger_account_id: string;
+      master_wallet_id: string;
+      balance: string;
+    }>(sql`
+      SELECT la.id AS ledger_account_id,
+             la.master_wallet_id,
+             (COALESCE(SUM(p.debit_kobo), 0) - COALESCE(SUM(p.credit_kobo), 0))::text AS balance
+      FROM ledger_accounts la
+      LEFT JOIN postings p ON p.ledger_account_id = la.id
+      WHERE la.kind = 'master'
+      GROUP BY la.id, la.master_wallet_id
+      HAVING (COALESCE(SUM(p.debit_kobo), 0) - COALESCE(SUM(p.credit_kobo), 0)) < 0
+    `);
+    return rows.map((r) => ({
+      ledgerAccountId: r.ledger_account_id,
+      masterWalletId: r.master_wallet_id,
+      balanceKobo: kobo(BigInt(r.balance)),
+    }));
+  },
+
+  /**
    * Sum of debit_kobo on *active* (sent, not reversed/failed) spend
    * transactions for a sub-wallet within a rolling window. Windowed by
    * `sent_at` and including `in_flight` — so spends that have been submitted but

@@ -1,5 +1,5 @@
 import type { TransactionSummary } from '@amana/types';
-import { Badge, Screen, SectionHeader, TransactionRow, useTheme } from '@amana/ui';
+import { Badge, Screen, SectionHeader, TransactionRow, formatNaira, useTheme } from '@amana/ui';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
@@ -17,11 +17,6 @@ import type { HistoryStackParamList } from '../nav/HistoryStack';
 import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<HistoryStackParamList, 'TransactionList'>;
-
-function formatNaira(koboStr: string): string {
-  const naira = Number(BigInt(koboStr)) / 100;
-  return `₦${naira.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
-}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' });

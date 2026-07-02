@@ -1,6 +1,16 @@
 import { ApiError } from '@amana/api-client';
 import type { TransactionDetail } from '@amana/types';
-import { AmountText, Badge, Body, Button, Card, Label, Screen, useTheme } from '@amana/ui';
+import {
+  AmountText,
+  Badge,
+  Body,
+  Button,
+  Card,
+  Label,
+  Screen,
+  formatNaira,
+  useTheme,
+} from '@amana/ui';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
@@ -14,11 +24,6 @@ type ScreenState =
   | { kind: 'loading' }
   | { kind: 'error'; code: string }
   | { kind: 'ready'; txn: TransactionDetail };
-
-function formatNaira(koboStr: string): string {
-  const naira = Number(BigInt(koboStr)) / 100;
-  return `₦${naira.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function formatDateTime(iso: string): string {
   return new Date(iso).toLocaleString('en-NG', {

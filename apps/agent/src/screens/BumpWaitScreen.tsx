@@ -1,4 +1,15 @@
-import { AmountText, Badge, Body, Button, Card, Heading, Label, Screen, useTheme } from '@amana/ui';
+import {
+  AmountText,
+  Badge,
+  Body,
+  Button,
+  Card,
+  Heading,
+  Label,
+  Screen,
+  formatNaira,
+  useTheme,
+} from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef, useState } from 'react';
@@ -14,11 +25,6 @@ function formatCountdown(ms: number): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${s.toString().padStart(2, '0')}`;
-}
-
-function formatNaira(koboStr: string): string {
-  const naira = Number(BigInt(koboStr)) / 100;
-  return `₦${naira.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {

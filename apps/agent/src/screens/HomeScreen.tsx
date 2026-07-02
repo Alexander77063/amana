@@ -1,5 +1,14 @@
 import type { TransactionSummary } from '@amana/types';
-import { AmountText, Badge, BalanceCard, Body, Screen, TransactionRow, useTheme } from '@amana/ui';
+import {
+  AmountText,
+  Badge,
+  BalanceCard,
+  Body,
+  Screen,
+  TransactionRow,
+  formatNaira,
+  useTheme,
+} from '@amana/ui';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { useFocusEffect } from '@react-navigation/native';
 import { useCallback, useState } from 'react';
@@ -9,11 +18,6 @@ import type { MainTabParamList } from '../nav/MainTabs';
 import { useAgentStore } from '../state/agent.store';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Home'>;
-
-function formatNaira(koboStr: string): string {
-  const naira = Number(BigInt(koboStr)) / 100;
-  return `₦${naira.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`;
-}
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-NG', { month: 'short', day: 'numeric' });

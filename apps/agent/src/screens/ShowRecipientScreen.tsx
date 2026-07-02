@@ -1,14 +1,9 @@
-import { AmountText, Body, Button, Card, Label, Screen, useTheme } from '@amana/ui';
+import { AmountText, Body, Button, Card, Label, Screen, formatNaira, useTheme } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { View } from 'react-native';
 import type { PayStackParamList } from '../nav/PayStack';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'ShowRecipient'>;
-
-function formatNaira(koboStr: string): string {
-  const naira = Number(BigInt(koboStr)) / 100;
-  return `₦${naira.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 export function ShowRecipientScreen({ route, navigation }: Props): JSX.Element {
   const theme = useTheme();

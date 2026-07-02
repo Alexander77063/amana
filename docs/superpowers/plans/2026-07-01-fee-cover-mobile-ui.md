@@ -14,6 +14,26 @@
 
 ---
 
+## Execution notes (2026-07-02, actual delivery)
+
+Two deviations from the plan-as-written, applied during execution on branch `feat/fee-cover-mobile`:
+
+1. **Task 7 async render pattern.** The plan's `TransactionDetailScreen` test used
+   `await act(async () => { rendered = render(...) })`, which throws
+   *"Can't access .root on unmounted test renderer"* with this harness. The shipped test uses the
+   repo's intended pattern instead: `const r = render(...); await flush();` (the `flush()` helper in
+   `apps/principal/test/render.tsx` awaits pending promises + effects). Import is
+   `{ flush, render, textContent }` — no `act`/`byLabel`.
+2. **Pre-existing broken tsconfig.** `apps/principal/tsconfig.json` had an *uncommitted* local line
+   `"ignoreDeprecations": "6.0"`, invalid for the installed TypeScript (TS5103), which failed
+   `typecheck` (and CI) independent of this feature. Reverted that one file to its committed state to
+   unblock; the committed version has no such line and typechecks clean.
+
+Everything else shipped as planned. Verification: UI 42/42, Principal 63/63, backend 601 pass +
+coverage gate green (stmts 94.2 / branch 82.1 / funcs 92.3 / lines 94.2), typecheck + Biome clean.
+
+---
+
 ## Spec deltas locked during plan-writing
 
 1. **Backend bridge required (not "already built").** `feesCoveredKobo` IS exposed on `GET /me/household`, but `inflowFeeAbsorbedKobo` is **not** on the transaction detail endpoint: `detail.service.ts` `DETAIL_SELECT` omits the column, `buildDetail` omits the field, and the `TransactionDetail` type lacks it. The per-top-up line cannot render without a narrow backend addition. Task 2 adds `t.inflow_fee_absorbed_kobo::text` to the SELECT, maps it in `buildDetail`, and adds a service test. This does not change the UI approach.

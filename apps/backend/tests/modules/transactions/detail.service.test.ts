@@ -180,6 +180,35 @@ describe('transactionDetailService.getByIdForPrincipal', () => {
     expect(r?.errorMessage).toBe('INSUFFICIENT_FUNDS');
   });
 
+  it('surfaces inflowFeeAbsorbedKobo for a top-up and null for a spend', async () => {
+    const { principal, mw } = await setup();
+    const topup = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      subWalletId: null,
+      kind: 'topup',
+      amountKobo: kobo(1_000_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      inflowFeeAbsorbedKobo: kobo(5_000n), // ₦50
+    });
+    const spend = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      subWalletId: null,
+      kind: 'spend',
+      amountKobo: kobo(2_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorAccount: '0123456789',
+      vendorBankCode: '058',
+      vendorResolvedName: 'V',
+    });
+
+    const t = await transactionDetailService.getByIdForPrincipal(testDb, topup.id, principal.id);
+    expect(t?.kind).toBe('topup');
+    expect(t?.inflowFeeAbsorbedKobo).toBe('5000');
+
+    const s = await transactionDetailService.getByIdForPrincipal(testDb, spend.id, principal.id);
+    expect(s?.inflowFeeAbsorbedKobo).toBeNull();
+  });
+
   it('returns anomaly score as a plain number (not the Drizzle decimal string)', async () => {
     const { principal, mw, sw } = await setup();
     const txn = await transactionsRepo.insert(testDb, {

@@ -4,6 +4,7 @@ import { BumpsInboxScreen } from '../screens/BumpsInboxScreen';
 import { CreateSubWalletScreen } from '../screens/CreateSubWalletScreen';
 import { EditRulesScreen } from '../screens/EditRulesScreen';
 import { EnableNotificationsScreen } from '../screens/EnableNotificationsScreen';
+import { FeeCoverInfoScreen } from '../screens/FeeCoverInfoScreen';
 import { HomeDashboardScreen } from '../screens/HomeDashboardScreen';
 import { HouseholdSetupScreen } from '../screens/HouseholdSetupScreen';
 import { MembersScreen } from '../screens/MembersScreen';
@@ -34,6 +35,7 @@ export type MainStackParamList = {
   NotificationKindDetail: { kind: NotificationKind };
   QuietHours: undefined;
   TransactionDetail: { transactionId: string };
+  FeeCoverInfo: undefined;
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -61,6 +63,11 @@ export function MainStack(): JSX.Element {
       <Stack.Screen name="NotificationKindDetail" component={NotificationKindDetailScreen} />
       <Stack.Screen name="QuietHours" component={QuietHoursScreen} />
       <Stack.Screen name="TransactionDetail" component={TransactionDetailScreen} />
+      <Stack.Screen
+        name="FeeCoverInfo"
+        component={FeeCoverInfoScreen}
+        options={{ presentation: 'modal' }}
+      />
     </Stack.Navigator>
   );
 }

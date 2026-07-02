@@ -17,6 +17,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useCallback, useState } from 'react';
 import { Linking, Pressable, View } from 'react-native';
 import { api } from '../lib/api';
+import { formatNaira } from '../lib/format-money';
 import type { MainStackParamList } from '../nav/MainStack';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'TransactionDetail'>;
@@ -28,12 +29,6 @@ type ScreenState =
 
 const ERR = (e: unknown): string =>
   e instanceof ApiError ? e.code : e instanceof Error ? e.message : 'unknown_error';
-
-function formatNaira(amountKoboStr: string): string {
-  const kobo = BigInt(amountKoboStr);
-  const naira = Number(kobo) / 100;
-  return `₦${naira.toLocaleString('en-NG', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
@@ -183,6 +178,19 @@ export function TransactionDetailScreen({ route, navigation }: Props): JSX.Eleme
           <Row label="Settled" value={formatDateTime(txn.settledAt)} />
         ) : null}
       </Card>
+
+      {txn.kind === 'topup' &&
+      txn.inflowFeeAbsorbedKobo !== null &&
+      BigInt(txn.inflowFeeAbsorbedKobo) > 0n ? (
+        <Card
+          accessible
+          accessibilityLabel={`Bank fee covered ${formatNaira(txn.inflowFeeAbsorbedKobo)}`}
+        >
+          <Body style={{ color: theme.colors.credit }}>
+            {`Bank fee covered: ${formatNaira(txn.inflowFeeAbsorbedKobo)} ✓`}
+          </Body>
+        </Card>
+      ) : null}
 
       {txn.agentNote ? (
         <Card>

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { BalanceCard } from '../src/data/BalanceCard';
+import { FeeCoverCard } from '../src/data/FeeCoverCard';
 import { SectionHeader } from '../src/data/SectionHeader';
 import { TransactionRow } from '../src/data/TransactionRow';
-import { byLabel, byRole, render, textContent } from './render';
+import { allByRole, byLabel, byRole, render, textContent } from './render';
 
 describe('BalanceCard', () => {
   it('renders the label and amount', () => {
@@ -53,5 +54,44 @@ describe('SectionHeader', () => {
     const { root } = render(<SectionHeader title="Recent activity" />);
     expect(byRole(root, 'header').props.accessibilityLabel).toBe('Recent activity');
     expect(textContent(root)).toContain('Recent activity');
+  });
+});
+
+describe('FeeCoverCard', () => {
+  it('renders the amount and the "bank fees covered" copy', () => {
+    const { root } = render(<FeeCoverCard amount="₦4,820.00" />);
+    const content = textContent(root);
+    expect(content).toContain('₦4,820.00');
+    expect(content).toContain('in bank fees covered');
+  });
+
+  it('announces amount plus explainer as one grouped label', () => {
+    const { root } = render(<FeeCoverCard amount="₦4,820.00" />);
+    expect(
+      byLabel(
+        root,
+        "₦4,820.00 in bank fees covered. Amana covers the bank's funding fee, so every naira you load lands.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it('is a button and fires onPress when interactive', () => {
+    let opened = false;
+    const { root } = render(
+      <FeeCoverCard
+        amount="₦4,820.00"
+        onPress={() => {
+          opened = true;
+        }}
+      />,
+    );
+    const card = byRole(root, 'button');
+    (card.props.onPress as () => void)();
+    expect(opened).toBe(true);
+  });
+
+  it('is not a button when no onPress is given', () => {
+    const { root } = render(<FeeCoverCard amount="₦0.00" />);
+    expect(allByRole(root, 'button')).toHaveLength(0);
   });
 });

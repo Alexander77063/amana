@@ -1,6 +1,9 @@
 # Hosting Architecture — AWS vs Fly.io (Well-Architected comparison)
 
-**Status:** Decision proposal — **awaiting your pick** (architecture selection is a hard gate; no IaC/apply until chosen)
+**Status:** ✅ **DECIDED (2026-07-03): stay on Fly.io** — cost-rational at current scale; revisit
+AWS (Candidate A) when a compliance/enterprise or scale forcing-function appears. **Proceeding with
+the cloud-readiness refactor anyway** (portable hygiene that also keeps Candidate A low-friction).
+No AWS IaC/spend.
 **Date:** 2026-07-03
 **Owner:** Alex
 **Scope:** Where to run the Amana backend + cron + Postgres. Mobile (EAS) and media (S3 `af-south-1`) are unaffected.

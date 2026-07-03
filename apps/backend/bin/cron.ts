@@ -1,20 +1,26 @@
 import { cronScheduler } from '../src/cron';
 import { bumpTtlSweepJob } from '../src/cron/jobs/bump-ttl-sweep.job';
 import { reconSweepJob } from '../src/cron/jobs/recon-sweep.job';
+import { closeDb } from '../src/db/client';
 import { logger } from '../src/lib/logger';
 
 cronScheduler.register(reconSweepJob);
 cronScheduler.register(bumpTtlSweepJob);
 cronScheduler.start();
 
-const shutdown = (signal: string) => {
+const shutdown = async (signal: string) => {
   logger.info({ signal }, 'cron worker shutting down');
   cronScheduler.stop();
+  try {
+    await closeDb(); // drain the Postgres pool on shutdown
+  } catch (e) {
+    logger.error({ err: (e as Error).message }, 'error closing db on shutdown');
+  }
   process.exit(0);
 };
 
-process.on('SIGINT', () => shutdown('SIGINT'));
-process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
 
 process.on('uncaughtException', (e) => {
   logger.error({ err: e.message, stack: e.stack }, 'cron worker uncaught exception');

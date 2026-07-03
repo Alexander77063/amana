@@ -81,11 +81,7 @@ export const topupService = {
       // Inflow-cap enforcement: Amana absorbs Anchor's 0.5% inflow fee up to ₦6,000 per wallet per
       // Africa/Lagos calendar month; the user pays the excess (netted from the credited amount).
       const grossFee = computeInflowFeeKobo(input.amountKobo);
-      const mtdAbsorbed = await transactionsRepo.sumInflowFeesAbsorbedInLagosMonth(
-        txDb,
-        mw.id,
-        input.receivedAt,
-      );
+      const mtdAbsorbed = await transactionsRepo.sumInflowFeesAbsorbedInLagosMonth(txDb, mw.id);
       const { absorbedKobo, chargedKobo } = splitInflowFee(grossFee, mtdAbsorbed);
       const creditedKobo = kobo((input.amountKobo as bigint) - (chargedKobo as bigint));
 

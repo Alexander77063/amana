@@ -82,22 +82,19 @@ export const transactionsRepo = {
 
   /**
    * Sum of inflow fee Amana absorbed for this wallet's top-ups in the **current Africa/Lagos
-   * calendar month** relative to `now` — the month-to-date figure the ₦6,000 cap is measured
-   * against. Bucketed in Lagos local time so the cap resets at Lagos midnight on the 1st.
+   * calendar month** — the month-to-date figure the ₦6,000 cap is measured against. The boundary
+   * is derived from the DB clock (`now()`), the same clock that stamps `created_at`, so the window
+   * and the filter can never skew (e.g. a webhook delivered late across a Lagos month-end). Lagos
+   * is UTC+1 year-round (no DST), so the cap resets at Lagos midnight on the 1st.
    */
-  async sumInflowFeesAbsorbedInLagosMonth(
-    db: DbOrTx,
-    masterWalletId: string,
-    now: Date,
-  ): Promise<Kobo> {
+  async sumInflowFeesAbsorbedInLagosMonth(db: DbOrTx, masterWalletId: string): Promise<Kobo> {
     const [row] = await db.execute<{ total: string }>(sql`
       SELECT coalesce(sum(inflow_fee_absorbed_kobo), 0)::text AS total
       FROM transactions
       WHERE master_wallet_id = ${masterWalletId}
         AND kind = 'topup'
         AND created_at >= (
-          date_trunc('month', ${now.toISOString()}::timestamptz AT TIME ZONE 'Africa/Lagos')
-          AT TIME ZONE 'Africa/Lagos'
+          date_trunc('month', now() AT TIME ZONE 'Africa/Lagos') AT TIME ZONE 'Africa/Lagos'
         )
     `);
     return kobo(BigInt(row?.total ?? '0'));

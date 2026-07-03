@@ -32,6 +32,7 @@ export const transactions = pgTable('transactions', {
   kind: txnKindEnum('kind').notNull(),
   amountKobo: bigint('amount_kobo', { mode: 'bigint' }).notNull(),
   inflowFeeAbsorbedKobo: bigint('inflow_fee_absorbed_kobo', { mode: 'bigint' }), // topup rows only; fee Amana absorbed
+  inflowFeeChargedKobo: bigint('inflow_fee_charged_kobo', { mode: 'bigint' }), // topup rows only; fee passed to the user (₦6k/mo cap)
   status: txnStatusEnum('status').notNull().default('draft'),
   idempotencyKey: text('idempotency_key').notNull().unique(),
   nibssSessionId: text('nibss_session_id'),

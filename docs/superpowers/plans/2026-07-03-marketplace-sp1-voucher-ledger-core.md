@@ -9,9 +9,16 @@
 **Tech Stack:** Hono, Drizzle, postgres-js, Zod, Vitest + fast-check, node-cron.
 
 **Money legs (verified against `nip-out.service.ts` / `settlement.service.ts` / `reversal.service.ts`):**
-- **Reserve** (purchase): `debit source (sub|master LA) = discounted`, `credit suspense = discounted`.
-- **Release** (redeem): `debit suspense = discounted`, `credit external = retailerNet`, `credit fee = commission` (`discounted = retailerNet + commission`); fire NIP-out of `retailerNet`.
-- **Refund** (expiry/cancel): `debit suspense = discounted`, `credit source = discounted`.
+- **Reserve** (purchase): `debit source (sub|master LA) = discounted`, `credit suspense = discounted`. (No Anchor call — just the hold.)
+- **Redeem-initiate** (retailer scans): **no ledger legs move.** Create a `redemption`-kind payout txn (`amount = retailerNet`, vendor = retailer bank, `idempotencyKey = redeem:<redemptionId>`), set it `in_flight`, mark the voucher `redeemed` + `payoutStatus=pending`, and initiate the Anchor transfer of `retailerNet`. Buyer's `discounted` stays in `suspense`.
+- **Redemption settle** (webhook `transfer.completed`, kind=redemption → `redemptionSettlementService.finalise`): `debit suspense = retailerNet, credit external = retailerNet` + `debit suspense = commission, credit fee = commission` (sum debits suspense = discounted). `payoutStatus=paid`.
+- **Refund** (expiry/cancel, NEVER redeemed): `debit suspense = discounted`, `credit source = discounted`. The ONLY buyer-refund path.
+
+**CRITICAL (advisor): redemption payout failure ≠ buyer refund.** The service was already delivered at the scan. On webhook `transfer.failed` for a redemption txn → **funds stay in `suspense`, voucher stays `redeemed`**, `payoutAttempts++`; if `payoutAttempts < 3` → `payoutStatus=failed_retryable` (ops/auto requeue re-initiates the transfer), else → `payoutStatus=stuck` (terminal, manual ops). **Never** `suspense→source`, never `reversalService`. Redemption gets its OWN settlement/failure handlers; the spend `settlementService`/`reversalService` are untouched (their tests are the regression guard). `webhooks.ts` change = a thin dispatch-by-`txn.kind` branch only.
+
+**Payout state machine (closed):** voucher `reserved → redeemed`(payout `pending → paid`) | `reserved → expired|refunded`. Payout `pending → paid` | `pending → failed_retryable → (requeue) pending | stuck`. Funds are always safe in `suspense` until either `paid` (→external) or `expired/refunded` (→source).
+
+**Schema addition (migration 0027):** `redemptions.payout_transaction_id` (uuid, FK transactions, nullable), `redemptions.payout_status` (enum `pending|paid|failed_retryable|stuck`, nullable), `redemptions.payout_attempts` (int, default 0). Generate via drizzle-kit; commit generated files.
 
 **Config constants (`modules/marketplace/config.ts`):** `MARKETPLACE_COMMISSION_BPS = 500` (5%, TBD pricing pass), `VOUCHER_TTL_HOURS = 168` (7d), `MARKETPLACE_SPEND_FEE_KOBO = 0n` (TBD). All overridable via env in `env.ts`.
 

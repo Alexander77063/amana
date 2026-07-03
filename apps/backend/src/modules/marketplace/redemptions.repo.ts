@@ -107,12 +107,18 @@ export const redemptionsRepo = {
       incrementAttempts?: boolean;
     },
   ): Promise<void> {
-    const set: Partial<typeof redemptions.$inferInsert> = {};
-    if (input.payoutTransactionId !== undefined)
-      set.payoutTransactionId = input.payoutTransactionId;
-    if (input.payoutStatus !== undefined) set.payoutStatus = input.payoutStatus;
-    if (input.incrementAttempts) set.payoutAttempts = sql`${redemptions.payoutAttempts} + 1`;
-    await db.update(redemptions).set(set).where(eq(redemptions.id, id));
+    await db
+      .update(redemptions)
+      .set({
+        ...(input.payoutTransactionId !== undefined && {
+          payoutTransactionId: input.payoutTransactionId,
+        }),
+        ...(input.payoutStatus !== undefined && { payoutStatus: input.payoutStatus }),
+        ...(input.incrementAttempts && {
+          payoutAttempts: sql`${redemptions.payoutAttempts} + 1`,
+        }),
+      })
+      .where(eq(redemptions.id, id));
   },
 
   /** Look up a redemption by its payout (NIP-out) transaction id — the webhook dispatch entry point. */

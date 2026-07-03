@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { bigint, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { bigint, integer, pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 import { users } from './identity';
 import { transactions } from './transactions';
 import { masterWallets, subWallets } from './wallet';
@@ -9,6 +9,13 @@ export const redemptionStatusEnum = pgEnum('redemption_status', [
   'redeemed',
   'expired',
   'refunded',
+]);
+
+export const redemptionPayoutStatusEnum = pgEnum('redemption_payout_status', [
+  'pending',
+  'paid',
+  'failed_retryable',
+  'stuck',
 ]);
 
 export const redemptions = pgTable('redemptions', {
@@ -35,6 +42,13 @@ export const redemptions = pgTable('redemptions', {
   code: text('code').notNull().unique(),
   qrToken: text('qr_token').notNull().unique(),
   status: redemptionStatusEnum('status').notNull().default('reserved'),
+  // The redemption payout (NIP-out) transaction created when the retailer scans. Nullable until redeemed.
+  payoutTransactionId: uuid('payout_transaction_id').references(() => transactions.id, {
+    onDelete: 'restrict',
+  }),
+  // Payout state machine, distinct from the voucher `status`. Nullable until the payout is initiated.
+  payoutStatus: redemptionPayoutStatusEnum('payout_status'),
+  payoutAttempts: integer('payout_attempts').notNull().default(0),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   redeemedAt: timestamp('redeemed_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

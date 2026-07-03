@@ -10,6 +10,7 @@ export const ledgerAccountKindEnum = pgEnum('ledger_account_kind', [
   'suspense',
   'fee',
   'external',
+  'commission',
 ]);
 export const normalSideEnum = pgEnum('normal_side', ['debit', 'credit']);
 

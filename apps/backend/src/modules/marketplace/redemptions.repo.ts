@@ -1,4 +1,4 @@
-import { and, desc, eq, lt } from 'drizzle-orm';
+import { and, desc, eq, lt, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { redemptions } from '../../db/schema';
 import type { Kobo } from '../../lib/kobo';
@@ -6,6 +6,8 @@ import type { Kobo } from '../../lib/kobo';
 type DbOrTx = PostgresJsDatabase;
 
 export type RedemptionStatus = 'reserved' | 'redeemed' | 'expired' | 'refunded';
+
+export type RedemptionPayoutStatus = 'pending' | 'paid' | 'failed_retryable' | 'stuck';
 
 export type RedemptionRow = typeof redemptions.$inferSelect;
 
@@ -89,6 +91,38 @@ export const redemptionsRepo = {
 
   async markStatus(db: DbOrTx, id: string, status: RedemptionStatus): Promise<void> {
     await db.update(redemptions).set({ status }).where(eq(redemptions.id, id));
+  },
+
+  /**
+   * Set the payout linkage / state for a redemption. Used by the redeem flow (link the payout txn,
+   * set `pending`) and the webhook handlers (`paid` / `failed_retryable` / `stuck`, bumping the
+   * attempt counter on failure).
+   */
+  async setPayout(
+    db: DbOrTx,
+    id: string,
+    input: {
+      payoutTransactionId?: string | null;
+      payoutStatus?: RedemptionPayoutStatus;
+      incrementAttempts?: boolean;
+    },
+  ): Promise<void> {
+    const set: Partial<typeof redemptions.$inferInsert> = {};
+    if (input.payoutTransactionId !== undefined)
+      set.payoutTransactionId = input.payoutTransactionId;
+    if (input.payoutStatus !== undefined) set.payoutStatus = input.payoutStatus;
+    if (input.incrementAttempts) set.payoutAttempts = sql`${redemptions.payoutAttempts} + 1`;
+    await db.update(redemptions).set(set).where(eq(redemptions.id, id));
+  },
+
+  /** Look up a redemption by its payout (NIP-out) transaction id — the webhook dispatch entry point. */
+  async findByPayoutTxnId(db: DbOrTx, txnId: string): Promise<RedemptionRow | undefined> {
+    const [row] = await db
+      .select()
+      .from(redemptions)
+      .where(eq(redemptions.payoutTransactionId, txnId))
+      .limit(1);
+    return row;
   },
 
   /** Reserved vouchers whose hold has expired (`expires_at < now`) — the expiry-sweep candidates. */

@@ -176,6 +176,13 @@
       "when": 1783011986002,
       "tag": "0024_far_kree",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1783029736042,
+      "tag": "0025_optimal_leader",
+      "breakpoints": true
     }
   ]
 }

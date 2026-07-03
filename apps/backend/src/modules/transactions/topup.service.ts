@@ -7,7 +7,7 @@ import { auditEvents } from '../audit/events';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { transactionsRepo } from '../wallet/transactions.repo';
-import { computeInflowFeeKobo } from './inflow-fee';
+import { computeInflowFeeKobo, splitInflowFee } from './inflow-fee';
 import { refundService } from './refund.service';
 
 type DbOrTx = PostgresJsDatabase;
@@ -78,19 +78,31 @@ export const topupService = {
         });
       }
 
+      // Inflow-cap enforcement: Amana absorbs Anchor's 0.5% inflow fee up to ₦6,000 per wallet per
+      // Africa/Lagos calendar month; the user pays the excess (netted from the credited amount).
+      const grossFee = computeInflowFeeKobo(input.amountKobo);
+      const mtdAbsorbed = await transactionsRepo.sumInflowFeesAbsorbedInLagosMonth(
+        txDb,
+        mw.id,
+        input.receivedAt,
+      );
+      const { absorbedKobo, chargedKobo } = splitInflowFee(grossFee, mtdAbsorbed);
+      const creditedKobo = kobo((input.amountKobo as bigint) - (chargedKobo as bigint));
+
       const txn = await transactionsRepo.insert(txDb, {
         masterWalletId: mw.id,
         kind: 'topup',
         amountKobo: input.amountKobo,
-        inflowFeeAbsorbedKobo: computeInflowFeeKobo(input.amountKobo),
+        inflowFeeAbsorbedKobo: absorbedKobo,
+        inflowFeeChargedKobo: chargedKobo,
         idempotencyKey,
       });
       await transactionsRepo.setNibssSessionId(txDb, txn.id, input.nibssSessionId);
 
-      // Topup posting: debit master (we now hold more), credit external (money came from outside).
+      // Topup posting: credit the wallet the NET amount (gross − the user-charged inflow fee).
       await ledgerService.writeDoubleEntry(txDb, txn.id, [
-        { ledgerAccountId: masterLA.id, debitKobo: input.amountKobo, creditKobo: kobo(0n) },
-        { ledgerAccountId: externalLA.id, debitKobo: kobo(0n), creditKobo: input.amountKobo },
+        { ledgerAccountId: masterLA.id, debitKobo: creditedKobo, creditKobo: kobo(0n) },
+        { ledgerAccountId: externalLA.id, debitKobo: kobo(0n), creditKobo: creditedKobo },
       ]);
 
       await transactionsRepo.setStatus(txDb, txn.id, 'settled', input.receivedAt);

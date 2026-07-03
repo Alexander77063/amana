@@ -6,6 +6,7 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     globals: false,
     globalSetup: ['tests/helpers/global-setup.ts'],
+    setupFiles: ['tests/helpers/setup.ts'],
     pool: 'forks',
     poolOptions: { forks: { singleFork: true } },
     // truncateAll and multi-step integration tests under accumulated DB load

@@ -55,6 +55,11 @@ const EnvSchema = z.object({
   RATE_LIMIT_OTP_PER_IP: z.coerce.number().int().positive().default(20),
   RATE_LIMIT_AUTH_PER_IP: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_PAIRING_PER_IP: z.coerce.number().int().positive().default(30),
+  // Marketplace (SP1 voucher/redemption ledger core). Additive with safe defaults; the fee is
+  // an explicit TBD (pricing pass) kept at 0 so it never double-dips a discounted purchase.
+  MARKETPLACE_COMMISSION_BPS: z.coerce.number().int().nonnegative().max(10_000).default(500),
+  VOUCHER_TTL_HOURS: z.coerce.number().int().positive().default(168),
+  MARKETPLACE_SPEND_FEE_KOBO: z.coerce.number().int().nonnegative().default(0),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

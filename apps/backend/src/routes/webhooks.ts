@@ -14,6 +14,7 @@ import { WebhookSignatureError, parseAndVerifyWebhook } from '../integrations/an
 import { kobo } from '../lib/kobo';
 import { logger } from '../lib/logger';
 import { usersRepo } from '../modules/identity/users.repo';
+import { redemptionSettlementService } from '../modules/marketplace/redemption-settlement.service';
 import { reversalService } from '../modules/transactions/reversal.service';
 import { settlementService } from '../modules/transactions/settlement.service';
 import { topupService } from '../modules/transactions/topup.service';
@@ -85,11 +86,19 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
         const data = event.data as AnchorTransferEventData;
         const txn = await transactionsRepo.findByIdempotencyKey(tx, data.reference);
         if (txn) {
-          await settlementService.finalise(tx, {
-            transactionId: txn.id,
-            nibssSessionId: data.nibssSessionId ?? null,
-            settledAt: new Date(event.createdAt),
-          });
+          if (txn.kind === 'redemption') {
+            await redemptionSettlementService.finalise(tx, {
+              payoutTransactionId: txn.id,
+              nibssSessionId: data.nibssSessionId ?? null,
+              settledAt: new Date(event.createdAt),
+            });
+          } else {
+            await settlementService.finalise(tx, {
+              transactionId: txn.id,
+              nibssSessionId: data.nibssSessionId ?? null,
+              settledAt: new Date(event.createdAt),
+            });
+          }
         } else {
           logger.warn({ reference: data.reference }, 'transfer.completed: no matching txn');
         }
@@ -97,11 +106,19 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
         const data = event.data as AnchorTransferEventData;
         const txn = await transactionsRepo.findByIdempotencyKey(tx, data.reference);
         if (txn) {
-          await reversalService.reverse(tx, {
-            transactionId: txn.id,
-            reason: data.failureReason ?? null,
-            failedAt: new Date(event.createdAt),
-          });
+          if (txn.kind === 'redemption') {
+            await redemptionSettlementService.handlePayoutFailed(tx, {
+              payoutTransactionId: txn.id,
+              reason: data.failureReason ?? null,
+              failedAt: new Date(event.createdAt),
+            });
+          } else {
+            await reversalService.reverse(tx, {
+              transactionId: txn.id,
+              reason: data.failureReason ?? null,
+              failedAt: new Date(event.createdAt),
+            });
+          }
         } else {
           logger.warn({ reference: data.reference }, 'transfer.failed: no matching txn');
         }

@@ -12,7 +12,15 @@ import {
 } from 'drizzle-orm/pg-core';
 import { masterWallets, subWallets } from './wallet';
 
-export const txnKindEnum = pgEnum('txn_kind', ['spend', 'topup', 'refund', 'fee', 'reversal']);
+export const txnKindEnum = pgEnum('txn_kind', [
+  'spend',
+  'topup',
+  'refund',
+  'fee',
+  'reversal',
+  'marketplace_purchase',
+  'redemption',
+]);
 export const txnStatusEnum = pgEnum('txn_status', [
   'draft',
   'rule_eval',

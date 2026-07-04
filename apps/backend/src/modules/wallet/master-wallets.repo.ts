@@ -16,7 +16,7 @@ export type ProvisionInput = {
 
 export type ProvisionedMasterWallet = {
   master: MasterWalletRow;
-  ledgerAccountIds: { master: string; suspense: string; fee: string };
+  ledgerAccountIds: { master: string; suspense: string; fee: string; commission: string };
 };
 
 export const masterWalletsRepo = {
@@ -48,10 +48,20 @@ export const masterWalletsRepo = {
         kind: 'fee',
         normalSide: 'credit',
       });
+      const commissionLA = await ledgerAccountsRepo.insert(tx as DbOrTx, {
+        masterWalletId: row.id,
+        kind: 'commission',
+        normalSide: 'credit',
+      });
 
       return {
         master: row,
-        ledgerAccountIds: { master: masterLA.id, suspense: suspenseLA.id, fee: feeLA.id },
+        ledgerAccountIds: {
+          master: masterLA.id,
+          suspense: suspenseLA.id,
+          fee: feeLA.id,
+          commission: commissionLA.id,
+        },
       };
     });
   },

@@ -5,7 +5,14 @@ import { type Kobo, kobo } from '../../lib/kobo';
 
 type DbOrTx = PostgresJsDatabase;
 
-export type TxnKind = 'spend' | 'topup' | 'refund' | 'fee' | 'reversal';
+export type TxnKind =
+  | 'spend'
+  | 'topup'
+  | 'refund'
+  | 'fee'
+  | 'reversal'
+  | 'marketplace_purchase'
+  | 'redemption';
 export type TxnStatus =
   | 'draft'
   | 'rule_eval'

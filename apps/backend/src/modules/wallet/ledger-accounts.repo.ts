@@ -4,7 +4,7 @@ import { ledgerAccounts } from '../../db/schema';
 
 type DbOrTx = PostgresJsDatabase;
 
-export type LedgerAccountKind = 'master' | 'sub' | 'suspense' | 'fee' | 'external';
+export type LedgerAccountKind = 'master' | 'sub' | 'suspense' | 'fee' | 'external' | 'commission';
 export type NormalSide = 'debit' | 'credit';
 
 export type NewLedgerAccount = {

@@ -187,6 +187,26 @@ export const auditEvents = {
     };
   },
 
+  marketplaceVoucherRefunded(input: {
+    redemptionId: string;
+    refundedKobo: bigint;
+    reason: 'expired' | 'cancelled';
+    refundedAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: input.reason === 'cancelled' ? 'user' : 'system',
+      actorUserId: null,
+      action: 'marketplace.voucher_refunded',
+      subjectKind: 'redemption',
+      subjectId: input.redemptionId,
+      payloadJson: {
+        refundedKobo: input.refundedKobo.toString(),
+        reason: input.reason,
+        refundedAt: input.refundedAt.toISOString(),
+      },
+    };
+  },
+
   marketplaceRedemptionPayoutFailed(input: {
     redemptionId: string;
     payoutTransactionId: string;

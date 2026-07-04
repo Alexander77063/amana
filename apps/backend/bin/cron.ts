@@ -1,11 +1,13 @@
 import { cronScheduler } from '../src/cron';
 import { bumpTtlSweepJob } from '../src/cron/jobs/bump-ttl-sweep.job';
 import { reconSweepJob } from '../src/cron/jobs/recon-sweep.job';
+import { voucherExpirySweepJob } from '../src/cron/jobs/voucher-expiry-sweep.job';
 import { closeDb } from '../src/db/client';
 import { logger } from '../src/lib/logger';
 
 cronScheduler.register(reconSweepJob);
 cronScheduler.register(bumpTtlSweepJob);
+cronScheduler.register(voucherExpirySweepJob);
 cronScheduler.start();
 
 const shutdown = async (signal: string) => {

@@ -102,11 +102,29 @@ export const redemptionSettlementService = {
         );
       }
 
-      await ledgerService.writeDoubleEntry(tx, payoutTxn.id, [
+      // Drain the full hold from suspense; credit the retailer's net and Amana's commission.
+      // Omit a leg whose amount is zero: the `postings` CHECK requires exactly one side non-zero,
+      // so a 0-kobo leg is invalid. commission rounds to 0 for a sub-20-kobo purchase (5% floor);
+      // retailerNet is 0 only in the degenerate 100%-commission case. `discounted > 0` guarantees
+      // at least one of the two credit legs remains, so the entry keeps ≥2 legs and stays balanced.
+      const legs = [
         { ledgerAccountId: suspenseLA.id, debitKobo: kobo(discounted), creditKobo: kobo(0n) },
-        { ledgerAccountId: externalLA.id, debitKobo: kobo(0n), creditKobo: kobo(retailerNet) },
-        { ledgerAccountId: commissionLA.id, debitKobo: kobo(0n), creditKobo: kobo(commission) },
-      ]);
+      ];
+      if (retailerNet > 0n) {
+        legs.push({
+          ledgerAccountId: externalLA.id,
+          debitKobo: kobo(0n),
+          creditKobo: kobo(retailerNet),
+        });
+      }
+      if (commission > 0n) {
+        legs.push({
+          ledgerAccountId: commissionLA.id,
+          debitKobo: kobo(0n),
+          creditKobo: kobo(commission),
+        });
+      }
+      await ledgerService.writeDoubleEntry(tx, payoutTxn.id, legs);
 
       await transactionsRepo.setStatus(tx, payoutTxn.id, 'settled', input.settledAt);
       if (input.nibssSessionId) {

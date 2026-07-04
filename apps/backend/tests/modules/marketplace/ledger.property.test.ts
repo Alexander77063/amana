@@ -102,10 +102,11 @@ describe('marketplace ledger invariants (property-based)', () => {
   it('reserve → redeem → settle conserves money: suspense released, external+commission credited exactly', async () => {
     await fc.assert(
       fc.asyncProperty(
-        // discounted >= 20 so commission = floor(discounted * 500/10000) >= 1 (a zero-value
-        // commission leg would violate the postings "exactly one side non-zero" CHECK). gross >= discounted.
+        // Full domain 0 < discounted <= gross — including sub-20-kobo purchases where commission
+        // floors to 0. finalise omits a zero-amount leg, so the entry stays valid (this exercises
+        // that path). gross >= discounted.
         fc
-          .bigInt({ min: 20n, max: 5_000_000n })
+          .bigInt({ min: 1n, max: 5_000_000n })
           .chain((discounted) =>
             fc
               .bigInt({ min: discounted, max: 10_000_000n })
@@ -117,7 +118,8 @@ describe('marketplace ledger invariants (property-based)', () => {
 
           const commission = (discounted * BigInt(MARKETPLACE_COMMISSION_BPS)) / 10000n;
           const retailerNet = discounted - commission;
-          expect(commission).toBeGreaterThan(0n);
+          // commission may be 0 for a sub-20-kobo purchase (5% floor); finalise omits the zero leg
+          // and assertion (4) below then expects a 0 delta on the commission LA.
 
           const suspenseBefore = await postingsRepo.accountBalance(
             testDb,

@@ -1,4 +1,5 @@
 export * from './catalog-items.repo';
+export * from './catalog.service';
 export * from './codes';
 export * from './config';
 export * from './deals.repo';

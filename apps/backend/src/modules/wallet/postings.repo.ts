@@ -66,10 +66,16 @@ export const postingsRepo = {
   },
 
   /**
-   * Sum of debit_kobo on *active* (sent, not reversed/failed) spend
-   * transactions for a sub-wallet within a rolling window. Windowed by
-   * `sent_at` and including `in_flight` — so spends that have been submitted but
-   * not yet settled count immediately, closing the rapid-spend limit bypass.
+   * Sum of debit_kobo on *active* spend obligations for a sub-wallet within a rolling window.
+   *
+   * Two mutually-exclusive (by `t.kind`) branches count toward the same limit window:
+   *  - **NIP spends** (`kind='spend'`): windowed by `sent_at`, including `in_flight` — so spends
+   *    submitted but not yet settled count immediately, closing the rapid-spend limit bypass.
+   *  - **Marketplace holds** (`kind='marketplace_purchase'`): a reserve debits the same sub LA but
+   *    the txn stays `draft` with no `sent_at`, so it is windowed by `created_at`. Only an *active*
+   *    hold counts — its redemption must still be `reserved` or `redeemed`. An expired/refunded hold
+   *    booked a reversing credit back to the sub LA, so it must NOT count (else it double-charges the
+   *    window against funds already returned).
    */
   async sumDebitsInWindow(
     db: DbOrTx,
@@ -85,10 +91,23 @@ export const postingsRepo = {
       INNER JOIN transactions t ON t.id = p.transaction_id
       WHERE la.sub_wallet_id = ${subWalletId}
         AND la.kind = 'sub'
-        AND t.kind = 'spend'
-        AND t.status IN ('in_flight', 'settled')
-        AND t.sent_at IS NOT NULL
-        AND t.sent_at >= ${cutoff.toISOString()}::timestamptz
+        AND (
+          (
+            t.kind = 'spend'
+            AND t.status IN ('in_flight', 'settled')
+            AND t.sent_at IS NOT NULL
+            AND t.sent_at >= ${cutoff.toISOString()}::timestamptz
+          )
+          OR (
+            t.kind = 'marketplace_purchase'
+            AND t.created_at >= ${cutoff.toISOString()}::timestamptz
+            AND EXISTS (
+              SELECT 1 FROM redemptions r
+              WHERE r.transaction_id = t.id
+                AND r.status IN ('reserved', 'redeemed')
+            )
+          )
+        )
     `);
     return kobo(BigInt(result[0]?.s ?? '0'));
   },

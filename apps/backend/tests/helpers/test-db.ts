@@ -14,6 +14,9 @@ const queryClient = postgres(TEST_DATABASE_URL, {
 export const testDb: PostgresJsDatabase = drizzle(queryClient);
 
 const TABLES_TO_TRUNCATE = [
+  'deals',
+  'catalog_items',
+  'retailers',
   'redemptions',
   'postings',
   'transactions',

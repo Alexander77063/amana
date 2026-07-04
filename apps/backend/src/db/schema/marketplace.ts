@@ -18,6 +18,66 @@ export const redemptionPayoutStatusEnum = pgEnum('redemption_payout_status', [
   'stuck',
 ]);
 
+export const retailerOnboardingStatusEnum = pgEnum('retailer_onboarding_status', [
+  'applied',
+  'kyb_pending',
+  'approved',
+  'suspended',
+]);
+
+export const catalogItemStatusEnum = pgEnum('catalog_item_status', ['active', 'inactive']);
+
+export const dealTypeEnum = pgEnum('deal_type', ['markdown']);
+
+export const dealStatusEnum = pgEnum('deal_status', ['active', 'paused', 'ended']);
+
+export const retailers = pgTable('retailers', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  businessName: text('business_name').notNull(),
+  // KYB in SP4 — the Anchor business customer id is null until then.
+  anchorBusinessCustomerId: text('anchor_business_customer_id'),
+  payoutBankCode: text('payout_bank_code').notNull(),
+  payoutAccountNumber: text('payout_account_number').notNull(),
+  // SP2 creates retailers directly live-approved; the apply→review→KYB flow is SP4.
+  onboardingStatus: retailerOnboardingStatusEnum('onboarding_status').notNull().default('approved'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const catalogItems = pgTable('catalog_items', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  retailerId: uuid('retailer_id')
+    .notNull()
+    .references(() => retailers.id, { onDelete: 'restrict' }),
+  name: text('name').notNull(),
+  // Gross list price (bigint kobo). Deals mark this down; effective price resolved in SP2 Task 4.
+  priceKobo: bigint('price_kobo', { mode: 'bigint' }).notNull(),
+  section: text('section').notNull(),
+  description: text('description'),
+  photoUrl: text('photo_url'),
+  durationMinutes: integer('duration_minutes'),
+  status: catalogItemStatusEnum('status').notNull().default('active'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const deals = pgTable('deals', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  retailerId: uuid('retailer_id')
+    .notNull()
+    .references(() => retailers.id, { onDelete: 'restrict' }),
+  // Null = retailer-wide (applies to all the retailer's items).
+  catalogItemId: uuid('catalog_item_id').references(() => catalogItems.id, {
+    onDelete: 'restrict',
+  }),
+  type: dealTypeEnum('type').notNull().default('markdown'),
+  // Exactly one of discountBps / discountKobo is set — enforced in the service (SP2 Task 4), not the DB.
+  discountBps: integer('discount_bps'),
+  discountKobo: bigint('discount_kobo', { mode: 'bigint' }),
+  startsAt: timestamp('starts_at', { withTimezone: true }).notNull(),
+  endsAt: timestamp('ends_at', { withTimezone: true }).notNull(),
+  status: dealStatusEnum('status').notNull().default('active'),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const redemptions = pgTable('redemptions', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   // The reserve (marketplace_purchase) transaction that holds the discounted funds in suspense.

@@ -258,4 +258,32 @@ describe('redemptionSettlementService.handlePayoutFailed', () => {
     const entries = await auditRepo.listBySubject(testDb, redemption.id);
     expect(entries.some((e) => e.action === 'marketplace.redemption_payout_failed')).toBe(true);
   });
+
+  it('(8d) a spurious transfer.failed AFTER settlement is a no-op — closes the double-payout window', async () => {
+    const { redemption, payoutTransactionId } = await seedAndRedeem();
+    // transfer.completed settles the payout (paid, ledger drained suspense→external+commission).
+    await redemptionSettlementService.finalise(testDb, {
+      payoutTransactionId,
+      nibssSessionId: 'test-session-8d',
+      settledAt: new Date('2026-07-02T00:05:00Z'),
+    });
+    const legsBefore = await postingsRepo.listByTransaction(testDb, payoutTransactionId);
+
+    // A reordered/spurious transfer.failed (a different Anchor event id, so webhook dedupe lets it
+    // through) must NOT flip the settled payout back to failed_retryable — else a requeue re-pays
+    // the retailer. Guard is `status !== 'in_flight' → return`.
+    await redemptionSettlementService.handlePayoutFailed(testDb, {
+      payoutTransactionId,
+      reason: 'late failure after settle',
+      failedAt: new Date('2026-07-02T00:06:00Z'),
+    });
+
+    const payout = await transactionsRepo.findById(testDb, payoutTransactionId);
+    expect(payout?.status).toBe('settled');
+    const row = await redemptionsRepo.findById(testDb, redemption.id);
+    expect(row?.payoutStatus).toBe('paid');
+    expect(row?.payoutAttempts).toBe(0);
+    const legsAfter = await postingsRepo.listByTransaction(testDb, payoutTransactionId);
+    expect(legsAfter.length).toBe(legsBefore.length);
+  });
 });

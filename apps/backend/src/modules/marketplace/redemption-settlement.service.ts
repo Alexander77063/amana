@@ -194,7 +194,11 @@ export const redemptionSettlementService = {
       const tx = txx as DbOrTx;
       const payoutTxn = await transactionsRepo.findById(tx, input.payoutTransactionId);
       if (!payoutTxn) throw new Error(`payout txn ${input.payoutTransactionId} not found`);
-      if (payoutTxn.status === 'failed') return; // idempotent: one failure per requeue cycle
+      // Only an in-flight payout can fail. Guard `!== 'in_flight'` (not just `=== 'failed'`): a
+      // reordered/spurious `transfer.failed` arriving AFTER a `transfer.completed` settled the payout
+      // must NOT flip a `settled`/`paid` redemption back to `failed_retryable` — that would let a
+      // requeue re-initiate the transfer and pay the retailer twice.
+      if (payoutTxn.status !== 'in_flight') return; // idempotent no-op for settled/failed
 
       const redemption = await redemptionsRepo.findByPayoutTxnId(tx, payoutTxn.id);
       if (!redemption) {

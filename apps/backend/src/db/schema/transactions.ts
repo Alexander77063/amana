@@ -20,6 +20,7 @@ export const txnKindEnum = pgEnum('txn_kind', [
   'reversal',
   'marketplace_purchase',
   'redemption',
+  'vas_purchase',
 ]);
 export const txnStatusEnum = pgEnum('txn_status', [
   'draft',

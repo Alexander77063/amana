@@ -3,6 +3,7 @@ export * from './catalog.service';
 export * from './codes';
 export * from './config';
 export * from './deals.repo';
+export * from './deals.service';
 export * from './expiry.service';
 export * from './purchase.service';
 export * from './redeem.service';

@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
+import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { ConflictError } from '../../lib/errors';
+import { ConflictError, LimitExceededError } from '../../lib/errors';
 import { type Kobo, kobo } from '../../lib/kobo';
+import { wouldExceedSpendLimit } from '../transactions/spend-limit';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { type TransactionRow, transactionsRepo } from '../wallet/transactions.repo';
@@ -99,7 +101,20 @@ export const purchaseService = {
           : masterLA;
         if (!sourceLA) throw new Error('source ledger account missing');
 
-        // SP5 control-fusion: rule/limit/bump evaluation wires in here (before reserve).
+        // SP5 control-fusion: enforce the sub-wallet spend limit before reserving. An agent
+        // marketplace hold consumes the same daily/30-day window as a NIP spend, so take the
+        // per-sub-wallet advisory lock (mirroring nip-out.service) to serialise concurrent
+        // reserves and close the evaluate→reserve race, then reject over-limit holds outright.
+        // A principal-direct purchase (subWalletId null) spends the master LA the principal owns
+        // (decision #17) and is not limit-gated.
+        if (subWalletId) {
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${subWalletId}))`);
+          if (await wouldExceedSpendLimit(tx, subWalletId, input.discountedKobo, now)) {
+            throw new LimitExceededError(
+              `marketplace purchase exceeds sub-wallet spend limit: ${input.discountedKobo}`,
+            );
+          }
+        }
 
         const txn = await transactionsRepo.insert(tx, {
           masterWalletId: input.masterWalletId,

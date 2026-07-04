@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { postings, redemptions, transactions } from '../../../src/db/schema';
-import { ForbiddenError } from '../../../src/lib/errors';
+import { ForbiddenError, LimitExceededError } from '../../../src/lib/errors';
 import { kobo } from '../../../src/lib/kobo';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { MARKETPLACE_COMMISSION_BPS } from '../../../src/modules/marketplace/config';
 import { purchaseService } from '../../../src/modules/marketplace/purchase.service';
 import { redemptionsRepo } from '../../../src/modules/marketplace/redemptions.repo';
+import { ruleSetService } from '../../../src/modules/rules/rule-set.service';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
@@ -208,5 +209,121 @@ describe('purchaseService.create — reserve', () => {
         }),
       ),
     ).rejects.toBeInstanceOf(ForbiddenError);
+  });
+});
+
+describe('purchaseService.create — spend-limit enforcement (SP5)', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  async function seedWithLimit(maxKobo: bigint) {
+    const s = await seed();
+    // Daily limit on the agent's sub-wallet.
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId: s.sw.sub.id,
+      createdByUserId: s.principal.id,
+      rules: [{ kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo } }],
+    });
+    return s;
+  }
+
+  it('(a) agent purchase over the daily limit → LimitExceededError, nothing written', async () => {
+    const { agent, mw, sw } = await seedWithLimit(10_000n);
+
+    await expect(
+      purchaseService.create(
+        testDb,
+        baseInput({
+          actorUserId: agent.id,
+          masterWalletId: mw.master.id,
+          subWalletId: sw.sub.id,
+          grossKobo: kobo(20_000n),
+          discountedKobo: kobo(15_000n), // > 10_000 limit
+        }),
+      ),
+    ).rejects.toBeInstanceOf(LimitExceededError);
+
+    const c = await countRows();
+    expect(c.txns).toBe(0);
+    expect(c.reds).toBe(0);
+    expect(c.posts).toBe(0);
+  });
+
+  it('(b) agent purchase under the daily limit → reserves normally', async () => {
+    const { agent, mw, sw } = await seedWithLimit(10_000n);
+
+    const { transaction, redemption } = await purchaseService.create(
+      testDb,
+      baseInput({
+        actorUserId: agent.id,
+        masterWalletId: mw.master.id,
+        subWalletId: sw.sub.id,
+        grossKobo: kobo(20_000n),
+        discountedKobo: kobo(5_000n), // under 10_000
+      }),
+    );
+
+    expect(transaction.kind).toBe('marketplace_purchase');
+    expect(redemption.status).toBe('reserved');
+    const c = await countRows();
+    expect(c.txns).toBe(1);
+    expect(c.reds).toBe(1);
+    expect(c.posts).toBe(2);
+  });
+
+  it('(c) two purchases each under the limit but together over it → the second throws', async () => {
+    const { agent, mw, sw } = await seedWithLimit(10_000n);
+
+    // First 6_000 hold: 0 + 6_000 <= 10_000 → reserves.
+    await purchaseService.create(
+      testDb,
+      baseInput({
+        actorUserId: agent.id,
+        masterWalletId: mw.master.id,
+        subWalletId: sw.sub.id,
+        grossKobo: kobo(20_000n),
+        discountedKobo: kobo(6_000n),
+      }),
+    );
+
+    // Second 6_000: window already holds 6_000 → 12_000 > 10_000 → throws (the window gate).
+    await expect(
+      purchaseService.create(
+        testDb,
+        baseInput({
+          actorUserId: agent.id,
+          masterWalletId: mw.master.id,
+          subWalletId: sw.sub.id,
+          grossKobo: kobo(20_000n),
+          discountedKobo: kobo(6_000n),
+        }),
+      ),
+    ).rejects.toBeInstanceOf(LimitExceededError);
+
+    // Only the first reserve persisted.
+    const c = await countRows();
+    expect(c.txns).toBe(1);
+    expect(c.reds).toBe(1);
+    expect(c.posts).toBe(2);
+  });
+
+  it('(d) principal-direct purchase (subWalletId null) ignores the limit', async () => {
+    // Publish a tiny limit on the sub-wallet, then buy principal-direct off the master LA.
+    const { principal, mw } = await seedWithLimit(1n);
+
+    const { transaction, redemption } = await purchaseService.create(
+      testDb,
+      baseInput({
+        actorUserId: principal.id,
+        masterWalletId: mw.master.id,
+        subWalletId: null,
+        grossKobo: kobo(20_000n),
+        discountedKobo: kobo(15_000n), // would blow the sub-wallet limit, but no sub-wallet here
+      }),
+    );
+
+    expect(transaction.subWalletId).toBeNull();
+    expect(redemption.status).toBe('reserved');
   });
 });

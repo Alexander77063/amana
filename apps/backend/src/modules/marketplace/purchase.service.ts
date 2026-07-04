@@ -1,16 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { ConflictError, LimitExceededError } from '../../lib/errors';
+import { ConflictError, LimitExceededError, NotFoundError } from '../../lib/errors';
 import { type Kobo, kobo } from '../../lib/kobo';
 import { wouldExceedSpendLimit } from '../transactions/spend-limit';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { type TransactionRow, transactionsRepo } from '../wallet/transactions.repo';
 import { assertWalletAccess } from '../wallet/wallet-access.service';
+import { catalogItemsRepo } from './catalog-items.repo';
 import { mintCode, mintQrToken } from './codes';
 import { MARKETPLACE_COMMISSION_BPS, VOUCHER_TTL_HOURS } from './config';
+import { dealsService } from './deals.service';
 import { type RedemptionRow, redemptionsRepo } from './redemptions.repo';
+import { retailersRepo } from './retailers.repo';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -27,7 +30,21 @@ export type PurchaseInput = {
   grossKobo: Kobo;
   discountedKobo: Kobo;
   idempotencyKey: string;
+  /** The deal that priced this buy, recorded on the voucher for audit; null = no active deal. */
+  dealId?: string | null;
   /** Injectable clock for deterministic expiry in tests; defaults to now. */
+  now?: Date;
+};
+
+export type CreateFromCatalogInput = {
+  /** The buyer initiating the purchase; authorized against the source wallet before any hold. */
+  actorUserId: string;
+  masterWalletId: string;
+  /** null → principal-direct purchase off the master LA (decision #17); set → agent sub-wallet. */
+  subWalletId?: string | null;
+  catalogItemId: string;
+  idempotencyKey: string;
+  /** Injectable clock for deterministic pricing + expiry in tests; defaults to now. */
   now?: Date;
 };
 
@@ -43,127 +60,184 @@ function isUniqueViolation(e: unknown): boolean {
 
 export const purchaseService = {
   /**
-   * Reserve discounted funds for a marketplace purchase: hold `discountedKobo` in the master
-   * wallet's `suspense` LA (debit source, credit suspense) and mint a `reserved` voucher. No Anchor
-   * call — funds stay inside the wallet until the retailer redeems (→ external) or the hold expires
-   * (→ back to source). Idempotent on `idempotencyKey`: a repeat call returns the existing
-   * reservation rather than double-reserving.
+   * Reserve discounted funds for a marketplace purchase from **caller-supplied** amounts. Retained
+   * for internal callers / tests that already hold the resolved retailer + price; the HTTP path uses
+   * `createFromCatalog`, which prices server-side. Delegates to the shared `reserve` seam.
    */
   async create(db: DbOrTx, input: PurchaseInput): Promise<PurchaseResult> {
-    const subWalletId = input.subWalletId ?? null;
+    return reserve(db, input);
+  },
+
+  /**
+   * The buyer-facing entry point: resolve the catalog item, its retailer's payout bank, and the
+   * **server-side** effective price (`dealsService.effectivePriceKobo`) — the client never supplies
+   * a price, closing the discount-spoof vector — then delegate to the same `reserve` seam. Rejects
+   * an unknown item (`NotFoundError`), an inactive item or unapproved/missing retailer
+   * (`ConflictError`); the shared reserve enforces the sub-wallet spend limit.
+   */
+  async createFromCatalog(db: DbOrTx, input: CreateFromCatalogInput): Promise<PurchaseResult> {
     const now = input.now ?? new Date();
 
-    // Authorize the actor against the source wallet by identity vs. ownership (never the JWT role):
-    // sub-wallet purchase → owning agent only; principal-direct → household principal only.
-    await assertWalletAccess(db, input.actorUserId, {
-      masterWalletId: input.masterWalletId,
-      subWalletId,
-    });
+    const item = await catalogItemsRepo.findById(db, input.catalogItemId);
+    if (!item) throw new NotFoundError(`catalog item ${input.catalogItemId} not found`);
+    if (item.status !== 'active') {
+      throw new ConflictError(`catalog item ${input.catalogItemId} is not active`);
+    }
 
-    // Guard the money shape: a positive discounted amount no larger than the gross list price.
-    if (!(0n < (input.discountedKobo as bigint) && input.discountedKobo <= input.grossKobo)) {
+    const retailer = await retailersRepo.findById(db, item.retailerId);
+    if (!retailer) throw new ConflictError(`retailer ${item.retailerId} not found`);
+    if (retailer.onboardingStatus !== 'approved') {
       throw new ConflictError(
-        `invalid purchase amounts: discounted=${input.discountedKobo} gross=${input.grossKobo}`,
+        `retailer ${item.retailerId} is not approved (status=${retailer.onboardingStatus})`,
       );
     }
 
-    // Amana's commission carved *from* the payment (bigint floor), recognised at redeem-settle.
-    const commissionKobo = kobo(
-      ((input.discountedKobo as bigint) * BigInt(MARKETPLACE_COMMISSION_BPS)) / 10000n,
+    // Price server-side: gross list price marked down by the best active deal at `now`.
+    const { grossKobo, discountedKobo, dealId } = await dealsService.effectivePriceKobo(
+      db,
+      input.catalogItemId,
+      now,
     );
 
-    // Fast-path idempotency: a repeat with the same key returns the existing reservation without
-    // re-entering the write transaction (the sequential case).
-    const prior = await transactionsRepo.findByIdempotencyKey(db, input.idempotencyKey);
-    if (prior) return loadExistingReservation(db, prior, input);
-
-    try {
-      return await db.transaction(async (txx) => {
-        const tx = txx as DbOrTx;
-
-        // Resolve ledger accounts (mirrors nip-out): source = sub-wallet LA, or master LA for a
-        // principal-direct purchase; sink = suspense.
-        const masterLA = await ledgerAccountsRepo.findByMasterAndKind(
-          tx,
-          input.masterWalletId,
-          'master',
-        );
-        const suspenseLA = await ledgerAccountsRepo.findByMasterAndKind(
-          tx,
-          input.masterWalletId,
-          'suspense',
-        );
-        if (!masterLA || !suspenseLA) {
-          throw new Error('master_wallet missing master/suspense LAs — should not happen');
-        }
-        const sourceLA = subWalletId
-          ? await ledgerAccountsRepo.findBySubWallet(tx, subWalletId)
-          : masterLA;
-        if (!sourceLA) throw new Error('source ledger account missing');
-
-        // SP5 control-fusion: enforce the sub-wallet spend limit before reserving. An agent
-        // marketplace hold consumes the same daily/30-day window as a NIP spend, so take the
-        // per-sub-wallet advisory lock (mirroring nip-out.service) to serialise concurrent
-        // reserves and close the evaluate→reserve race, then reject over-limit holds outright.
-        // A principal-direct purchase (subWalletId null) spends the master LA the principal owns
-        // (decision #17) and is not limit-gated.
-        if (subWalletId) {
-          await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${subWalletId}))`);
-          if (await wouldExceedSpendLimit(tx, subWalletId, input.discountedKobo, now)) {
-            throw new LimitExceededError(
-              `marketplace purchase exceeds sub-wallet spend limit: ${input.discountedKobo}`,
-            );
-          }
-        }
-
-        const txn = await transactionsRepo.insert(tx, {
-          masterWalletId: input.masterWalletId,
-          subWalletId,
-          kind: 'marketplace_purchase',
-          amountKobo: input.discountedKobo,
-          idempotencyKey: input.idempotencyKey,
-          vendorAccount: input.retailerAccount,
-          vendorBankCode: input.retailerBankCode,
-        });
-
-        // Reserve legs: debit source, credit suspense — the discounted hold.
-        await ledgerService.writeDoubleEntry(tx, txn.id, [
-          { ledgerAccountId: sourceLA.id, debitKobo: input.discountedKobo, creditKobo: kobo(0n) },
-          { ledgerAccountId: suspenseLA.id, debitKobo: kobo(0n), creditKobo: input.discountedKobo },
-        ]);
-
-        // Pre-generate the id so the QR token can be bound to the row (mintQrToken(id)) in one insert.
-        const redemptionId = randomUUID();
-        const redemption = await redemptionsRepo.insert(tx, {
-          id: redemptionId,
-          transactionId: txn.id,
-          buyerUserId: input.actorUserId,
-          masterWalletId: input.masterWalletId,
-          subWalletId,
-          retailerId: input.retailerId,
-          catalogItemId: input.catalogItemId,
-          grossKobo: input.grossKobo,
-          discountedKobo: input.discountedKobo,
-          commissionKobo,
-          code: mintCode(),
-          qrToken: mintQrToken(redemptionId),
-          expiresAt: new Date(now.getTime() + VOUCHER_TTL_HOURS * 3600 * 1000),
-          status: 'reserved',
-        });
-
-        return { transaction: txn, redemption };
-      });
-    } catch (e) {
-      // Concurrency backstop: a racing caller won the idempotency-key insert while we were mid-tx.
-      // After the 23505 the tx is poisoned, so the replay lookup runs on the outer `db`.
-      if (isUniqueViolation(e)) {
-        const dup = await transactionsRepo.findByIdempotencyKey(db, input.idempotencyKey);
-        if (dup) return loadExistingReservation(db, dup, input);
-      }
-      throw e;
-    }
+    return reserve(db, {
+      actorUserId: input.actorUserId,
+      masterWalletId: input.masterWalletId,
+      subWalletId: input.subWalletId ?? null,
+      retailerId: item.retailerId,
+      catalogItemId: input.catalogItemId,
+      retailerBankCode: retailer.payoutBankCode,
+      retailerAccount: retailer.payoutAccountNumber,
+      grossKobo,
+      discountedKobo,
+      dealId,
+      idempotencyKey: input.idempotencyKey,
+      now,
+    });
   },
 };
+
+/**
+ * Reserve discounted funds for a marketplace purchase: hold `discountedKobo` in the master
+ * wallet's `suspense` LA (debit source, credit suspense) and mint a `reserved` voucher. No Anchor
+ * call — funds stay inside the wallet until the retailer redeems (→ external) or the hold expires
+ * (→ back to source). Idempotent on `idempotencyKey`: a repeat call returns the existing
+ * reservation rather than double-reserving. Shared by `create` and `createFromCatalog`.
+ */
+async function reserve(db: DbOrTx, input: PurchaseInput): Promise<PurchaseResult> {
+  const subWalletId = input.subWalletId ?? null;
+  const now = input.now ?? new Date();
+
+  // Authorize the actor against the source wallet by identity vs. ownership (never the JWT role):
+  // sub-wallet purchase → owning agent only; principal-direct → household principal only.
+  await assertWalletAccess(db, input.actorUserId, {
+    masterWalletId: input.masterWalletId,
+    subWalletId,
+  });
+
+  // Guard the money shape: a positive discounted amount no larger than the gross list price.
+  if (!(0n < (input.discountedKobo as bigint) && input.discountedKobo <= input.grossKobo)) {
+    throw new ConflictError(
+      `invalid purchase amounts: discounted=${input.discountedKobo} gross=${input.grossKobo}`,
+    );
+  }
+
+  // Amana's commission carved *from* the payment (bigint floor), recognised at redeem-settle.
+  const commissionKobo = kobo(
+    ((input.discountedKobo as bigint) * BigInt(MARKETPLACE_COMMISSION_BPS)) / 10000n,
+  );
+
+  // Fast-path idempotency: a repeat with the same key returns the existing reservation without
+  // re-entering the write transaction (the sequential case).
+  const prior = await transactionsRepo.findByIdempotencyKey(db, input.idempotencyKey);
+  if (prior) return loadExistingReservation(db, prior, input);
+
+  try {
+    return await db.transaction(async (txx) => {
+      const tx = txx as DbOrTx;
+
+      // Resolve ledger accounts (mirrors nip-out): source = sub-wallet LA, or master LA for a
+      // principal-direct purchase; sink = suspense.
+      const masterLA = await ledgerAccountsRepo.findByMasterAndKind(
+        tx,
+        input.masterWalletId,
+        'master',
+      );
+      const suspenseLA = await ledgerAccountsRepo.findByMasterAndKind(
+        tx,
+        input.masterWalletId,
+        'suspense',
+      );
+      if (!masterLA || !suspenseLA) {
+        throw new Error('master_wallet missing master/suspense LAs — should not happen');
+      }
+      const sourceLA = subWalletId
+        ? await ledgerAccountsRepo.findBySubWallet(tx, subWalletId)
+        : masterLA;
+      if (!sourceLA) throw new Error('source ledger account missing');
+
+      // SP5 control-fusion: enforce the sub-wallet spend limit before reserving. An agent
+      // marketplace hold consumes the same daily/30-day window as a NIP spend, so take the
+      // per-sub-wallet advisory lock (mirroring nip-out.service) to serialise concurrent
+      // reserves and close the evaluate→reserve race, then reject over-limit holds outright.
+      // A principal-direct purchase (subWalletId null) spends the master LA the principal owns
+      // (decision #17) and is not limit-gated.
+      if (subWalletId) {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${subWalletId}))`);
+        if (await wouldExceedSpendLimit(tx, subWalletId, input.discountedKobo, now)) {
+          throw new LimitExceededError(
+            `marketplace purchase exceeds sub-wallet spend limit: ${input.discountedKobo}`,
+          );
+        }
+      }
+
+      const txn = await transactionsRepo.insert(tx, {
+        masterWalletId: input.masterWalletId,
+        subWalletId,
+        kind: 'marketplace_purchase',
+        amountKobo: input.discountedKobo,
+        idempotencyKey: input.idempotencyKey,
+        vendorAccount: input.retailerAccount,
+        vendorBankCode: input.retailerBankCode,
+      });
+
+      // Reserve legs: debit source, credit suspense — the discounted hold.
+      await ledgerService.writeDoubleEntry(tx, txn.id, [
+        { ledgerAccountId: sourceLA.id, debitKobo: input.discountedKobo, creditKobo: kobo(0n) },
+        { ledgerAccountId: suspenseLA.id, debitKobo: kobo(0n), creditKobo: input.discountedKobo },
+      ]);
+
+      // Pre-generate the id so the QR token can be bound to the row (mintQrToken(id)) in one insert.
+      const redemptionId = randomUUID();
+      const redemption = await redemptionsRepo.insert(tx, {
+        id: redemptionId,
+        transactionId: txn.id,
+        buyerUserId: input.actorUserId,
+        masterWalletId: input.masterWalletId,
+        subWalletId,
+        retailerId: input.retailerId,
+        catalogItemId: input.catalogItemId,
+        dealId: input.dealId ?? null,
+        grossKobo: input.grossKobo,
+        discountedKobo: input.discountedKobo,
+        commissionKobo,
+        code: mintCode(),
+        qrToken: mintQrToken(redemptionId),
+        expiresAt: new Date(now.getTime() + VOUCHER_TTL_HOURS * 3600 * 1000),
+        status: 'reserved',
+      });
+
+      return { transaction: txn, redemption };
+    });
+  } catch (e) {
+    // Concurrency backstop: a racing caller won the idempotency-key insert while we were mid-tx.
+    // After the 23505 the tx is poisoned, so the replay lookup runs on the outer `db`.
+    if (isUniqueViolation(e)) {
+      const dup = await transactionsRepo.findByIdempotencyKey(db, input.idempotencyKey);
+      if (dup) return loadExistingReservation(db, dup, input);
+    }
+    throw e;
+  }
+}
 
 /**
  * Return the reservation already booked under this idempotency key, after asserting it belongs to

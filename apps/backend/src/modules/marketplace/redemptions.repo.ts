@@ -12,6 +12,12 @@ export type RedemptionPayoutStatus = 'pending' | 'paid' | 'failed_retryable' | '
 export type RedemptionRow = typeof redemptions.$inferSelect;
 
 export type NewRedemption = {
+  /**
+   * Optional explicit primary key. The purchase service pre-generates the uuid so it can bind the
+   * QR token to the row id (`mintQrToken(id)`) in a single insert — the DB `gen_random_uuid()`
+   * default still applies when omitted.
+   */
+  id?: string;
   transactionId: string;
   buyerUserId: string;
   masterWalletId: string;
@@ -33,6 +39,7 @@ export const redemptionsRepo = {
     const [row] = await db
       .insert(redemptions)
       .values({
+        ...(input.id !== undefined && { id: input.id }),
         transactionId: input.transactionId,
         buyerUserId: input.buyerUserId,
         masterWalletId: input.masterWalletId,
@@ -55,6 +62,16 @@ export const redemptionsRepo = {
 
   async findById(db: DbOrTx, id: string): Promise<RedemptionRow | undefined> {
     const [row] = await db.select().from(redemptions).where(eq(redemptions.id, id)).limit(1);
+    return row;
+  },
+
+  /** The redemption reserved by a given purchase (reserve) transaction — the idempotency-replay lookup. */
+  async findByTransactionId(db: DbOrTx, transactionId: string): Promise<RedemptionRow | undefined> {
+    const [row] = await db
+      .select()
+      .from(redemptions)
+      .where(eq(redemptions.transactionId, transactionId))
+      .limit(1);
     return row;
   },
 

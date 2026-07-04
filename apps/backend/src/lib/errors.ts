@@ -19,3 +19,14 @@ export class ConflictError extends Error {
     this.name = 'ConflictError';
   }
 }
+
+/**
+ * Thrown when a referenced resource does not exist (e.g. a redeem for an unknown
+ * voucher code). The error handler maps it to HTTP 404.
+ */
+export class NotFoundError extends Error {
+  constructor(message = 'not found') {
+    super(message);
+    this.name = 'NotFoundError';
+  }
+}

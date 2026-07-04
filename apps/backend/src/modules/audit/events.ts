@@ -139,6 +139,78 @@ export const auditEvents = {
     };
   },
 
+  marketplaceRedeemed(input: {
+    redemptionId: string;
+    payoutTransactionId: string;
+    retailerId: string;
+    retailerNetKobo: bigint;
+    status: 'PENDING' | 'FAILED';
+    reason: string | null;
+  }): AuditEntry {
+    return {
+      actorKind: 'system',
+      actorUserId: null,
+      action: 'marketplace.redeemed',
+      subjectKind: 'redemption',
+      subjectId: input.redemptionId,
+      payloadJson: {
+        payoutTransactionId: input.payoutTransactionId,
+        retailerId: input.retailerId,
+        retailerNetKobo: input.retailerNetKobo.toString(),
+        status: input.status,
+        reason: input.reason,
+      },
+    };
+  },
+
+  marketplaceRedemptionSettled(input: {
+    redemptionId: string;
+    payoutTransactionId: string;
+    retailerNetKobo: bigint;
+    commissionKobo: bigint;
+    nibssSessionId: string | null;
+    settledAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'partner',
+      actorUserId: null,
+      action: 'marketplace.redemption_settled',
+      subjectKind: 'redemption',
+      subjectId: input.redemptionId,
+      payloadJson: {
+        payoutTransactionId: input.payoutTransactionId,
+        retailerNetKobo: input.retailerNetKobo.toString(),
+        commissionKobo: input.commissionKobo.toString(),
+        nibssSessionId: input.nibssSessionId,
+        settledAt: input.settledAt.toISOString(),
+      },
+    };
+  },
+
+  marketplaceRedemptionPayoutFailed(input: {
+    redemptionId: string;
+    payoutTransactionId: string;
+    payoutStatus: 'failed_retryable' | 'stuck';
+    payoutAttempts: number;
+    reason: string | null;
+    failedAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'system',
+      actorUserId: null,
+      action: 'marketplace.redemption_payout_failed',
+      subjectKind: 'redemption',
+      subjectId: input.redemptionId,
+      payloadJson: {
+        payoutTransactionId: input.payoutTransactionId,
+        payoutStatus: input.payoutStatus,
+        payoutAttempts: input.payoutAttempts,
+        reason: input.reason,
+        failedAt: input.failedAt.toISOString(),
+      },
+    };
+  },
+
   txnToppedUp(input: {
     transactionId: string;
     masterWalletId: string;

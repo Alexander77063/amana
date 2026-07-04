@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { transactions } from '../../db/schema';
+import { runInBackground } from '../../lib/background';
 import type { Kobo } from '../../lib/kobo';
 import { logger } from '../../lib/logger';
 import { type Result, err, ok } from '../../lib/result';
@@ -76,28 +77,30 @@ export const bumpWorkflowService = {
 
     // Dispatch notification best-effort — never blocks bump creation.
     const dispatchDb = notifDb ?? db;
-    subWalletsRepo
-      .findPrincipalAndAgent(dispatchDb, input.subWalletId)
-      .then(async (resolved) => {
-        if (!resolved) return;
-        await notificationService.dispatch(dispatchDb, {
-          kind: 'bump_requested',
-          recipientUserId: resolved.principalUserId,
-          dedupeKey: `bump:${result.bumpRequest.id}`,
-          amountKobo: input.amountKobo,
-          subWalletId: input.subWalletId,
-          payload: {
-            bumpRequestId: result.bumpRequest.id,
-            transactionId: input.transactionId,
+    runInBackground(
+      subWalletsRepo
+        .findPrincipalAndAgent(dispatchDb, input.subWalletId)
+        .then(async (resolved) => {
+          if (!resolved) return;
+          await notificationService.dispatch(dispatchDb, {
+            kind: 'bump_requested',
+            recipientUserId: resolved.principalUserId,
+            dedupeKey: `bump:${result.bumpRequest.id}`,
             amountKobo: input.amountKobo,
-            vendorResolvedName: input.vendorResolvedName,
-            agentDisplayName: resolved.agentDisplayName,
-          },
-        });
-      })
-      .catch((e: unknown) =>
-        logger.error({ err: (e as Error).message }, 'bump_requested notification failed'),
-      );
+            subWalletId: input.subWalletId,
+            payload: {
+              bumpRequestId: result.bumpRequest.id,
+              transactionId: input.transactionId,
+              amountKobo: input.amountKobo,
+              vendorResolvedName: input.vendorResolvedName,
+              agentDisplayName: resolved.agentDisplayName,
+            },
+          });
+        })
+        .catch((e: unknown) =>
+          logger.error({ err: (e as Error).message }, 'bump_requested notification failed'),
+        ),
+    );
 
     return result;
   },
@@ -140,24 +143,26 @@ export const bumpWorkflowService = {
     });
 
     if (result.kind === 'ok') {
-      notificationService
-        .dispatch(db, {
-          kind: 'bump_decided',
-          recipientUserId: result.value.bumpRequest.requestedByUserId,
-          dedupeKey: `bump-decided:${result.value.bumpRequest.id}`,
-          amountKobo: result.value.bumpRequest.amountKobo,
-          subWalletId: result.value.bumpRequest.subWalletId,
-          payload: {
-            bumpRequestId: result.value.bumpRequest.id,
-            transactionId: result.value.bumpRequest.transactionId,
+      runInBackground(
+        notificationService
+          .dispatch(db, {
+            kind: 'bump_decided',
+            recipientUserId: result.value.bumpRequest.requestedByUserId,
+            dedupeKey: `bump-decided:${result.value.bumpRequest.id}`,
             amountKobo: result.value.bumpRequest.amountKobo,
-            vendorResolvedName: result.value.bumpRequest.vendorResolvedName,
-            decision: input.decision,
-          },
-        })
-        .catch((e: unknown) =>
-          logger.error({ err: (e as Error).message }, 'bump_decided notification failed'),
-        );
+            subWalletId: result.value.bumpRequest.subWalletId,
+            payload: {
+              bumpRequestId: result.value.bumpRequest.id,
+              transactionId: result.value.bumpRequest.transactionId,
+              amountKobo: result.value.bumpRequest.amountKobo,
+              vendorResolvedName: result.value.bumpRequest.vendorResolvedName,
+              decision: input.decision,
+            },
+          })
+          .catch((e: unknown) =>
+            logger.error({ err: (e as Error).message }, 'bump_decided notification failed'),
+          ),
+      );
     }
 
     return result;

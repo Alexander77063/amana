@@ -1,4 +1,5 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { runInBackground } from '../../lib/background';
 import { type Kobo, kobo } from '../../lib/kobo';
 import { logger } from '../../lib/logger';
 import { anomalyService } from '../anomaly/anomaly.service';
@@ -161,28 +162,30 @@ export const lifecycleService = {
     if (result.kind === 'allow' || result.kind === 'bump_pending') {
       const score = result.transaction.anomalyScore as number | null;
       if (score !== null && score >= 0.85) {
-        subWalletsRepo
-          .findPrincipalAndAgent(db, subWalletId)
-          .then(async (resolved) => {
-            if (!resolved) return;
-            await notificationService.dispatch(db, {
-              kind: 'anomaly_alert',
-              recipientUserId: resolved.principalUserId,
-              dedupeKey: `anomaly:${txn.id}`,
-              anomalyScore: score,
-              subWalletId,
-              payload: {
-                transactionId: txn.id,
-                subWalletId,
-                amountKobo: txn.amountKobo as bigint,
-                vendorResolvedName: txn.vendorResolvedName ?? 'Unknown',
+        runInBackground(
+          subWalletsRepo
+            .findPrincipalAndAgent(db, subWalletId)
+            .then(async (resolved) => {
+              if (!resolved) return;
+              await notificationService.dispatch(db, {
+                kind: 'anomaly_alert',
+                recipientUserId: resolved.principalUserId,
+                dedupeKey: `anomaly:${txn.id}`,
                 anomalyScore: score,
-              },
-            });
-          })
-          .catch((e: unknown) =>
-            logger.error({ err: (e as Error).message }, 'anomaly_alert notification failed'),
-          );
+                subWalletId,
+                payload: {
+                  transactionId: txn.id,
+                  subWalletId,
+                  amountKobo: txn.amountKobo as bigint,
+                  vendorResolvedName: txn.vendorResolvedName ?? 'Unknown',
+                  anomalyScore: score,
+                },
+              });
+            })
+            .catch((e: unknown) =>
+              logger.error({ err: (e as Error).message }, 'anomaly_alert notification failed'),
+            ),
+        );
       }
     }
 

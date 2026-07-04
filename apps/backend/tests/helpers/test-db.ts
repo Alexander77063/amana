@@ -1,5 +1,6 @@
 import { type PostgresJsDatabase, drizzle } from 'drizzle-orm/postgres-js';
 import postgres from 'postgres';
+import { drainBackgroundTasks } from '../../src/lib/background';
 import { resetRateLimitStore } from '../../src/middleware/rate-limit';
 
 const TEST_DATABASE_URL =
@@ -45,6 +46,12 @@ const TABLES_TO_TRUNCATE = [
 ] as const;
 
 export async function truncateAll(): Promise<void> {
+  // Drain in-flight fire-and-forget notification dispatches (bump/anomaly) BEFORE deleting rows.
+  // They run detached on the shared app pool, so without this a dangling notification insert would
+  // race the DELETE of the `users` row it references (FK-violation noise) and contend with
+  // truncation for connections/row locks — the flakiness that slowed unrelated tests past 30s.
+  await drainBackgroundTasks();
+
   // Counters are per-process and shared across tests (singleFork); reset them so
   // the wired rate limiters start fresh each test and never bleed across cases.
   resetRateLimitStore();

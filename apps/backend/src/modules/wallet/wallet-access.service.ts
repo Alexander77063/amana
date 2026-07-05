@@ -39,18 +39,22 @@ export async function assertWalletAccess(
 }
 
 /**
- * Authorize access to a single sub-wallet (the owning agent OR its household
- * principal). Throws ForbiddenError otherwise. Used by sub-wallet-scoped reads
- * such as vendor resolution / recents.
+ * Authorize access to a single sub-wallet. By default either the owning agent
+ * OR its household principal passes; with `{ principalOnly: true }` only the
+ * owning household principal passes (the owning agent is rejected). Throws
+ * ForbiddenError otherwise. Used by sub-wallet-scoped reads such as vendor
+ * resolution / recents, and by principal-only mutations (e.g. VAS beneficiary
+ * add/remove).
  */
 export async function assertSubWalletAccess(
   db: DbOrTx,
   userId: string,
   subWalletId: string,
+  options?: { principalOnly?: boolean },
 ): Promise<void> {
   const sw = await subWalletsRepo.findById(db, subWalletId);
   if (!sw) throw new ForbiddenError();
-  if (sw.agentUserId === userId) return;
+  if (!options?.principalOnly && sw.agentUserId === userId) return;
   const mw = await masterWalletsRepo.findById(db, sw.masterWalletId);
   if (!mw) throw new ForbiddenError();
   const hh = await householdsRepo.findById(db, mw.householdId);

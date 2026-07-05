@@ -157,6 +157,15 @@ describe('VAS beneficiary CRUD routes', () => {
     expect(del.status).toBe(403);
   });
 
+  it('DELETE /vas/beneficiaries/:id — malformed (non-uuid) id → 400, not a 500', async () => {
+    const { principal } = await seed();
+    const res = await app.request('/vas/beneficiaries/not-a-uuid', {
+      method: 'DELETE',
+      headers: await bearerHeaders(principal),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('GET /vas/beneficiaries — no bearer → 401', async () => {
     const res = await app.request(
       '/vas/beneficiaries?subWalletId=00000000-0000-0000-0000-000000000000',

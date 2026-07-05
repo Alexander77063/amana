@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { db } from '../db/client';
 import { anchorAdapterSingleton } from '../integrations/anchor';
 import { NotFoundError } from '../lib/errors';
-import { parseBody, parseQuery } from '../lib/validate';
+import { parseBody, parseParams, parseQuery } from '../lib/validate';
 import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { householdsRepo } from '../modules/identity/households.repo';
 import { beneficiariesService } from '../modules/vas/beneficiaries.service';
@@ -146,7 +146,10 @@ export const vasRoute = new Hono<{ Variables: ActorVariables }>()
     return c.json({ beneficiaries }, 200);
   })
   .delete('/beneficiaries/:id', async (c) => {
+    // Validate the path UUID so a malformed id returns 400, not a Postgres 22P02 → 500.
+    const p = parseParams(c, z.object({ id: z.string().uuid() }));
+    if (p instanceof Response) return p;
     const a = c.get('actor') as Actor;
-    await beneficiariesService.remove(db, a.userId, c.req.param('id'));
+    await beneficiariesService.remove(db, a.userId, p.id);
     return c.json({ ok: true }, 200);
   });

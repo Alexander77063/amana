@@ -17,6 +17,7 @@ import { notificationsListRoute } from './routes/notifications';
 import { pairingRoute } from './routes/pairing';
 import { subWalletsRoute } from './routes/sub-wallets';
 import { transactionsRoute } from './routes/transactions';
+import { vasRoute } from './routes/vas';
 import { vendorsRoute } from './routes/vendors';
 import { webhooksRoute } from './routes/webhooks';
 
@@ -114,6 +115,7 @@ export function createServer(): Hono {
   app.route('/households', householdsRoute);
   app.route('/sub-wallets', subWalletsRoute);
   app.route('/marketplace', marketplaceRoute);
+  app.route('/vas', vasRoute);
   app.route('/media', mediaRoute);
   app.route('/', buildMeRouter());
   app.onError(errorHandler);

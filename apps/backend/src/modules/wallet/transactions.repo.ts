@@ -12,7 +12,8 @@ export type TxnKind =
   | 'fee'
   | 'reversal'
   | 'marketplace_purchase'
-  | 'redemption';
+  | 'redemption'
+  | 'vas_purchase';
 export type TxnStatus =
   | 'draft'
   | 'rule_eval'

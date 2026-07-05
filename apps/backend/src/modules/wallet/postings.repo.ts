@@ -68,7 +68,7 @@ export const postingsRepo = {
   /**
    * Sum of debit_kobo on *active* spend obligations for a sub-wallet within a rolling window.
    *
-   * Two mutually-exclusive (by `t.kind`) branches count toward the same limit window:
+   * Three mutually-exclusive (by `t.kind`) branches count toward the same limit window:
    *  - **NIP spends** (`kind='spend'`): windowed by `sent_at`, including `in_flight` — so spends
    *    submitted but not yet settled count immediately, closing the rapid-spend limit bypass.
    *  - **Marketplace holds** (`kind='marketplace_purchase'`): a reserve debits the same sub LA but
@@ -76,6 +76,10 @@ export const postingsRepo = {
    *    hold counts — its redemption must still be `reserved` or `redeemed`. An expired/refunded hold
    *    booked a reversing credit back to the sub LA, so it must NOT count (else it double-charges the
    *    window against funds already returned).
+   *  - **VAS holds** (`kind='vas_purchase'`): a reserve debits the same sub LA, windowed by
+   *    `created_at`. VAS status *is* the txn status, so we filter directly on
+   *    `t.status IN ('in_flight','settled')` — a refunded (`failed`) bill drops out automatically,
+   *    no redemption-style EXISTS join needed.
    */
   async sumDebitsInWindow(
     db: DbOrTx,
@@ -106,6 +110,11 @@ export const postingsRepo = {
               WHERE r.transaction_id = t.id
                 AND r.status IN ('reserved', 'redeemed')
             )
+          )
+          OR (
+            t.kind = 'vas_purchase'
+            AND t.status IN ('in_flight', 'settled')
+            AND t.created_at >= ${cutoff.toISOString()}::timestamptz
           )
         )
     `);

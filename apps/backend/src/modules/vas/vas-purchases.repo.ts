@@ -7,6 +7,7 @@ type DbOrTx = PostgresJsDatabase;
 export const vasPurchasesRepo = {
   async insert(db: DbOrTx, row: typeof vasPurchases.$inferInsert) {
     const [r] = await db.insert(vasPurchases).values(row).returning();
+    if (!r) throw new Error('vas_purchases insert returned no row');
     return r;
   },
   async findById(db: DbOrTx, id: string) {
@@ -25,7 +26,7 @@ export const vasPurchasesRepo = {
     db: DbOrTx,
     id: string,
     patch: {
-      status: 'pending' | 'successful' | 'failed';
+      status?: 'pending' | 'successful' | 'failed';
       anchorBillId?: string;
       token?: string | null;
       commissionKobo?: bigint;

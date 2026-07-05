@@ -19,6 +19,8 @@ const TABLES_TO_TRUNCATE = [
   'catalog_items',
   'retailers',
   'redemptions',
+  'vas_purchases',
+  'vas_beneficiaries',
   'postings',
   'transactions',
   'one_shot_tokens',

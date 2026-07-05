@@ -258,4 +258,68 @@ export const auditEvents = {
       },
     };
   },
+
+  vasPurchaseInitiated(input: {
+    vasPurchaseId: string;
+    transactionId: string;
+    anchorBillId: string;
+    category: string;
+    now: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'user',
+      actorUserId: null,
+      action: 'vas.purchase.initiated',
+      subjectKind: 'vas_purchase',
+      subjectId: input.vasPurchaseId,
+      payloadJson: {
+        transactionId: input.transactionId,
+        anchorBillId: input.anchorBillId,
+        category: input.category,
+        at: input.now.toISOString(),
+      },
+    };
+  },
+
+  vasPurchaseSettled(input: {
+    vasPurchaseId: string;
+    transactionId: string;
+    category: string;
+    commissionKobo: bigint;
+    settledAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'partner',
+      actorUserId: null,
+      action: 'vas.purchase.settled',
+      subjectKind: 'vas_purchase',
+      subjectId: input.vasPurchaseId,
+      payloadJson: {
+        transactionId: input.transactionId,
+        category: input.category,
+        commissionKobo: input.commissionKobo.toString(),
+        at: input.settledAt.toISOString(),
+      },
+    };
+  },
+
+  vasPurchaseFailed(input: {
+    vasPurchaseId: string;
+    transactionId: string;
+    reason: string;
+    failedAt: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'partner',
+      actorUserId: null,
+      action: 'vas.purchase.failed',
+      subjectKind: 'vas_purchase',
+      subjectId: input.vasPurchaseId,
+      payloadJson: {
+        transactionId: input.transactionId,
+        reason: input.reason,
+        at: input.failedAt.toISOString(),
+      },
+    };
+  },
 };

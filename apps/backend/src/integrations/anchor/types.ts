@@ -85,7 +85,10 @@ export type AnchorWebhookEventType =
   | 'transfer.failed'
   | 'virtual_account.credited'
   | 'kyc.approved'
-  | 'kyc.rejected';
+  | 'kyc.rejected'
+  | 'bills.initiated'
+  | 'bills.successful'
+  | 'bills.failed';
 
 export interface AnchorTransferEventData {
   transferId: string;
@@ -116,6 +119,63 @@ export interface AnchorCreateCustomerResponse {
   fullName: string;
   phoneNumber: string;
   kycLevel: 'TIER_1' | 'TIER_2' | 'TIER_3';
+}
+
+// ── Digital VAS (bill payment) ──────────────────────────────────────────────
+// Flat internal contract, mirroring the transfer methods above (kobo bigint on
+// the request, serialized as a string by bigintReplacer). NOT Anchor's public
+// nested JSON:API shape — see the VAS adapter methods for the rationale.
+
+export type VasBillType = 'Airtime' | 'Data' | 'Electricity' | 'CableTV';
+
+export interface AnchorBiller {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+export interface AnchorBillProduct {
+  id: string;
+  name: string;
+  slug: string;
+  amountKobo: bigint | null; // fixed-price products (data plans); null = variable (airtime)
+}
+
+export interface AnchorCustomerValidation {
+  customerNumber: string;
+  customerName: string;
+}
+
+// FLAT request body — mirrors AnchorTransferRequest (amountKobo: bigint, serialized as a
+// kobo string by bigintReplacer). Do NOT nest under data/attributes.
+export interface AnchorBillRequest {
+  type: VasBillType;
+  provider?: string; // biller slug (airtime/data)
+  productSlug?: string; // data plan / disco product
+  phoneNumber?: string; // airtime/data recipient
+  meterAccountNumber?: string; // electricity/cable recipient
+  amountKobo: bigint; // kobo (bigint → string on the wire)
+  reference: string; // = idempotency key
+  accountId: string; // Anchor DepositAccount id (Amana's operating account)
+}
+
+// FLAT response — mirrors AnchorTransferResponse. commissionKobo/token/failureReason are the
+// assumed field names of the flat internal contract (verified when the live-E2E gate closes).
+export interface AnchorBillResponse {
+  id: string;
+  status: 'PENDING' | 'INITIATED' | 'COMPLETED' | 'FAILED';
+  commissionKobo: bigint;
+  token: string | null; // prepaid electricity token when present
+  failureReason?: string | null;
+}
+
+// Webhook payload (flat, mirrors AnchorTransferEventData). `reference` = our idempotency key.
+export interface AnchorBillEventData {
+  billId: string;
+  reference: string;
+  commissionKobo?: bigint | string;
+  token?: string | null;
+  failureReason?: string | null;
 }
 
 export interface AnchorKycApprovedData {

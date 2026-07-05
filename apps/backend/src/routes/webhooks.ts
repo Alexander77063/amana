@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { db } from '../db/client';
 import { auditLog } from '../db/schema';
 import type {
+  AnchorBillEventData,
   AnchorKycApprovedData,
   AnchorKycRejectedData,
   AnchorTransferEventData,
@@ -18,6 +19,8 @@ import { redemptionSettlementService } from '../modules/marketplace/redemption-s
 import { reversalService } from '../modules/transactions/reversal.service';
 import { settlementService } from '../modules/transactions/settlement.service';
 import { topupService } from '../modules/transactions/topup.service';
+import { vasPurchasesRepo } from '../modules/vas/vas-purchases.repo';
+import { vasSettlementService } from '../modules/vas/vas-settlement.service';
 import { transactionsRepo } from '../modules/wallet/transactions.repo';
 
 const HEADER = 'x-anchor-signature';
@@ -145,6 +148,40 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
       } else if (event.type === 'kyc.rejected') {
         const data = event.data as AnchorKycRejectedData;
         logger.warn({ customerId: data.customerId, reason: data.reason }, 'kyc.rejected');
+      } else if (event.type === 'bills.successful') {
+        const data = event.data as AnchorBillEventData;
+        const txn = await transactionsRepo.findByIdempotencyKey(tx, data.reference);
+        if (txn && txn.kind === 'vas_purchase') {
+          await vasSettlementService.finalise(tx, {
+            transactionId: txn.id,
+            commissionKobo: BigInt(data.commissionKobo ?? 0),
+            token: data.token ?? null,
+            settledAt: new Date(event.createdAt),
+          });
+        } else {
+          logger.warn({ reference: data.reference }, 'bills.successful: no matching vas txn');
+        }
+      } else if (event.type === 'bills.failed') {
+        const data = event.data as AnchorBillEventData;
+        const txn = await transactionsRepo.findByIdempotencyKey(tx, data.reference);
+        if (txn && txn.kind === 'vas_purchase' && txn.status === 'in_flight') {
+          await reversalService.reverse(tx, {
+            transactionId: txn.id,
+            reason: data.failureReason ?? 'bill failed',
+            failedAt: new Date(event.createdAt),
+          });
+          const vas = await vasPurchasesRepo.findByTransactionId(tx, txn.id);
+          if (vas) {
+            await vasPurchasesRepo.setResult(tx, vas.id, {
+              status: 'failed',
+              completedAt: new Date(event.createdAt),
+            });
+          }
+        } else {
+          logger.warn({ reference: data.reference }, 'bills.failed: no matching in_flight vas txn');
+        }
+      } else if (event.type === 'bills.initiated') {
+        // Acknowledged + audited by the outer claim; no ledger action.
       } else {
         logger.info({ type: event.type }, 'anchor webhook: unhandled event type');
       }

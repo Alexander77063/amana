@@ -14,6 +14,9 @@ const KNOWN_TYPES: ReadonlySet<AnchorWebhookEventType> = new Set([
   'virtual_account.credited',
   'kyc.approved',
   'kyc.rejected',
+  'bills.initiated',
+  'bills.successful',
+  'bills.failed',
 ]);
 
 export function parseAndVerifyWebhook(

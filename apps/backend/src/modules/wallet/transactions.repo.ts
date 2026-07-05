@@ -68,6 +68,23 @@ export const transactionsRepo = {
     return row;
   },
 
+  /**
+   * Row-locking read (`SELECT … FOR UPDATE`). Must be called inside a transaction: it takes an
+   * exclusive lock on the row so concurrent check-then-act state transitions (settle vs reverse,
+   * settle vs settle) serialise — the second caller blocks, then re-reads the terminal status and
+   * no-ops. Without this, two settle/reverse paths can both read `in_flight` under READ COMMITTED
+   * and both commit, double-crediting the ledger.
+   */
+  async findByIdForUpdate(db: DbOrTx, id: string): Promise<TransactionRow | undefined> {
+    const [row] = await db
+      .select()
+      .from(transactions)
+      .where(eq(transactions.id, id))
+      .limit(1)
+      .for('update');
+    return row;
+  },
+
   async findByIdempotencyKey(db: DbOrTx, key: string): Promise<TransactionRow | undefined> {
     const [row] = await db
       .select()

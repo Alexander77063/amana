@@ -23,7 +23,11 @@ const PurchaseBody = z.object({
   provider: z.string().min(1),
   productSlug: z.string().min(1).nullable().optional(),
   recipient: z.string().min(3),
-  amountKobo: z.string().regex(/^\d+$/),
+  // Positive kobo only: '0' would book a 0/0 posting that trips the postings CHECK → 500.
+  amountKobo: z
+    .string()
+    .regex(/^\d+$/)
+    .refine((s) => BigInt(s) > 0n, 'amount must be positive'),
   idempotencyKey: z.string().min(1),
 });
 

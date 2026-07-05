@@ -36,7 +36,12 @@ export const vasSettlementService = {
   async finalise(db: DbOrTx, input: VasFinaliseInput): Promise<void> {
     const notify = await db.transaction<SettledInfo | null>(async (txx) => {
       const tx = txx as DbOrTx;
-      const txn = await transactionsRepo.findById(tx, input.transactionId);
+      // Lock the row FOR UPDATE before the status check. VAS has TWO settle triggers (inline
+      // `COMPLETED` from payBill + the `bills.successful` webhook) plus the refund path, so
+      // concurrent settle-vs-settle / settle-vs-reverse must serialise here — otherwise both read
+      // `in_flight` under READ COMMITTED and both commit, draining suspense twice / double-crediting
+      // (postings has no per-(txn,account) uniqueness to catch it).
+      const txn = await transactionsRepo.findByIdForUpdate(tx, input.transactionId);
       if (!txn) throw new Error(`vas txn ${input.transactionId} not found`);
       if (txn.status === 'settled') return null; // idempotent: webhook may fire twice
       if (txn.status !== 'in_flight') {

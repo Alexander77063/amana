@@ -151,7 +151,7 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
       } else if (event.type === 'bills.successful') {
         const data = event.data as AnchorBillEventData;
         const txn = await transactionsRepo.findByIdempotencyKey(tx, data.reference);
-        if (txn && txn.kind === 'vas_purchase') {
+        if (txn && txn.kind === 'vas_purchase' && txn.status === 'in_flight') {
           await vasSettlementService.finalise(tx, {
             transactionId: txn.id,
             commissionKobo: BigInt(data.commissionKobo ?? 0),
@@ -159,7 +159,10 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
             settledAt: new Date(event.createdAt),
           });
         } else {
-          logger.warn({ reference: data.reference }, 'bills.successful: no matching vas txn');
+          // No-op (ack 200): unknown txn, or already terminal (settled/failed). Guarding on
+          // `in_flight` stops a `bills.successful` that arrives AFTER a `bills.failed` from calling
+          // finalise on a failed txn → throw → 500 → Anchor retries the same event forever.
+          logger.warn({ reference: data.reference }, 'bills.successful: no in_flight vas txn');
         }
       } else if (event.type === 'bills.failed') {
         const data = event.data as AnchorBillEventData;

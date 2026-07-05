@@ -3,7 +3,7 @@ import { postings, transactions, vasPurchases } from '../../../src/db/schema';
 import type { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { AnchorHttpError } from '../../../src/integrations/anchor/client';
 import type { AnchorBillResponse } from '../../../src/integrations/anchor/types';
-import { ForbiddenError, LimitExceededError } from '../../../src/lib/errors';
+import { ConflictError, ForbiddenError, LimitExceededError } from '../../../src/lib/errors';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { ruleSetService } from '../../../src/modules/rules/rule-set.service';
@@ -305,6 +305,33 @@ describe('vasPurchaseService.create', () => {
     expect(await countRows()).toEqual({ txns: 1, vas: 1, posts: 2 });
     // payBill called only once — the replay short-circuits before Anchor.
     expect(adapter.payBill).toHaveBeenCalledTimes(1);
+  });
+
+  it('(j) IDOR: another buyer reusing an idempotency key is rejected, not leaked', async () => {
+    // Buyer A creates a purchase with key K.
+    const a = await seedWithLimit(100_000n);
+    const adapter = fakeAdapter({
+      payBill: async () => ({ id: 'bill_a', status: 'PENDING', commissionKobo: 100n, token: null }),
+    });
+    const key = factories.idempotencyKey();
+    const first = await vasPurchaseService.create(
+      testDb,
+      adapter,
+      ownPhoneInput(a, { idempotencyKey: key }),
+    );
+
+    // Buyer B (separate household/wallet) submits the SAME key against B's own wallet. The short-
+    // circuit must NOT return A's row — it re-authorizes the found resource against the actor and
+    // throws ConflictError instead (no cross-tenant leak of recipient/amount/token).
+    const b = await seedWithLimit(100_000n);
+    await expect(
+      vasPurchaseService.create(testDb, adapter, ownPhoneInput(b, { idempotencyKey: key })),
+    ).rejects.toBeInstanceOf(ConflictError);
+
+    // Only A's purchase exists; B triggered no reserve and no second Anchor call for A's txn.
+    const aRow = await vasPurchasesRepo.findById(testDb, first.vasPurchaseId);
+    expect(aRow?.buyerUserId).toBe(a.agent.id);
+    expect(await countRows()).toEqual({ txns: 1, vas: 1, posts: 2 });
   });
 
   it('(i) sync/webhook race COMPLETED: webhook already settled → no throw, no double-settle', async () => {

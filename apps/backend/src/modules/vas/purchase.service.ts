@@ -78,13 +78,18 @@ export const vasPurchaseService = {
     const existing = await transactionsRepo.findByIdempotencyKey(db, input.idempotencyKey);
     if (existing) {
       const v = await vasPurchasesRepo.findByTransactionId(db, existing.id);
-      if (v) {
+      // Re-authorize the RETURNED resource against the actor — `assertWalletAccess` above only
+      // authorized the SUPPLIED wallet, not this pre-existing row. Without this, submitting another
+      // buyer's idempotency key would leak their purchase (recipient, amount, prepaid token). A key
+      // that maps to someone else's txn is a conflict, not a hit.
+      if (v && v.buyerUserId === input.actorUserId) {
         return {
           transactionId: existing.id,
           vasPurchaseId: v.id,
           status: existing.status as VasCreateOutput['status'],
         };
       }
+      throw new ConflictError(`idempotency key already used: ${input.idempotencyKey}`);
     }
 
     const kind = VAS_RECIPIENT_KIND[input.category];

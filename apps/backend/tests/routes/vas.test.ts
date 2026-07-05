@@ -218,6 +218,24 @@ describe('VAS routes', () => {
     expect(res.status).toBe(400);
   });
 
+  it('POST /vas/purchase — zero amount → 400 (never reaches a 0/0 posting)', async () => {
+    const { agent, sw } = await seed();
+    const app = createServer();
+    const res = await app.request('/vas/purchase', {
+      method: 'POST',
+      headers: await bearerHeaders(agent),
+      body: JSON.stringify({
+        subWalletId: sw.sub.id,
+        category: 'airtime',
+        provider: 'mtn',
+        recipient: agent.phone,
+        amountKobo: '0',
+        idempotencyKey: 'k',
+      }),
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('GET /vas/billers?category=airtime → 200 list', async () => {
     const { agent } = await seed();
     const app = createServer();

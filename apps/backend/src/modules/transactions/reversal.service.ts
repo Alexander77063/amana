@@ -22,7 +22,11 @@ export const reversalService = {
   async reverse(db: DbOrTx, input: ReverseInput): Promise<void> {
     return db.transaction(async (tx) => {
       const txDb = tx as DbOrTx;
-      const txn = await transactionsRepo.findById(txDb, input.transactionId);
+      // Lock the row FOR UPDATE before the status check so a concurrent settle/reverse serialises
+      // (the second caller blocks, re-reads the terminal status, and no-ops) — closes the
+      // settle-vs-reverse fund-loss race (reverse writes a separate txn, so no posting constraint
+      // would otherwise block a double-apply).
+      const txn = await transactionsRepo.findByIdForUpdate(txDb, input.transactionId);
       if (!txn) throw new Error(`transaction ${input.transactionId} not found`);
       if (txn.status === 'failed') return; // idempotent
       if (txn.status !== 'in_flight') {

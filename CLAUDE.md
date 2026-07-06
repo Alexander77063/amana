@@ -44,7 +44,7 @@ Mobile builds go through **EAS** (`pnpm exec eas build`), not the `build` script
 The module layout differs from a typical "service/repo/routes-per-module" pattern. Don't assume; follow what's here:
 
 - **HTTP routes are centralized in `apps/backend/src/routes/`** (one file per resource: `auth.ts`, `households.ts`, `transactions.ts`, `bumps.ts`, `webhooks.ts`, …), mounted in `src/server.ts` via `createServer()` (Hono). Routes do **not** live inside module folders.
-- **`apps/backend/src/modules/<domain>/`** holds business logic only, in flat dot-namespaced files: `*.service.ts`, `*.repo.ts`, plus an `index.ts` barrel. Modules: `anomaly, audit, auth, bumps, identity, media, notifications, rules, sticker, transactions, vendors, wallet`.
+- **`apps/backend/src/modules/<domain>/`** holds business logic only, in flat dot-namespaced files: `*.service.ts`, `*.repo.ts`, plus an `index.ts` barrel. Modules: `anomaly, audit, auth, bumps, identity, marketplace, media, notifications, rules, sticker, transactions, vas, vendors, wallet`.
 - Larger modules split further: `wallet/` has `ledger.service.ts` + `balance.service.ts` and per-table repos; `transactions/` has **no repo** and many services (`lifecycle, settlement, reversal, refund, topup, reconciliation, nip-out`, …); `rules/` has `engine.ts` + `evaluators/` + `replay/`; `notifications/` has `providers/` + `templates/`.
 - **Dependency-injection convention:** repos and services take the `db` handle (or an open transaction) as their **first argument** (`tx as DbOrTx` cast). This is what makes services composable inside a single DB transaction — preserve it.
 
@@ -115,4 +115,4 @@ Fly.io app `amana-api`, region `jnb`. Two process groups: `app` (web, `/health` 
 
 ## Docs
 
-`docs/adr/` (decisions), `docs/superpowers/plans/` (sub-plan implementation docs), `docs/superpowers/specs/` (design spec), `docs/runbook/` (`local-dev.md`, `anchor-sandbox.md`, `funds-model.md` — the limits-only sub-wallet funds model & money flows, `go-live-checklist.md` — pre-production readiness), `docs/brainstorm/locked-decisions.md`.
+`docs/adr/` (decisions), `docs/superpowers/plans/` (sub-plan implementation docs), `docs/superpowers/specs/` (design spec), `docs/runbook/` (`local-dev.md`, `anchor-sandbox.md`, `funds-model.md` — the limits-only sub-wallet funds model & money flows, `vas.md` — digital VAS (airtime/data/electricity/cable) money model, cash-out control & webhook flow, `go-live-checklist.md` — pre-production readiness), `docs/brainstorm/locked-decisions.md`.

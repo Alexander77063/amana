@@ -118,6 +118,73 @@ export class AnchorAdapter {
     );
   }
 
+  async listBillers(category: string): Promise<import('./types').AnchorBiller[]> {
+    const res = await this.breaker.exec(() =>
+      this.executeWithRetry(() =>
+        this.client.get<{ data: Array<{ id: string; name: string; slug: string }> }>(
+          `/bills/billers?category=${encodeURIComponent(category)}`,
+        ),
+      ),
+    );
+    return res.data.map((b) => ({ id: b.id, name: b.name, slug: b.slug }));
+  }
+
+  async listProducts(billerId: string): Promise<import('./types').AnchorBillProduct[]> {
+    const res = await this.breaker.exec(() =>
+      this.executeWithRetry(() =>
+        this.client.get<{
+          data: Array<{ id: string; name: string; slug: string; amountKobo?: string | null }>;
+        }>(`/bills/billers/${encodeURIComponent(billerId)}/products`),
+      ),
+    );
+    return res.data.map((p) => ({
+      id: p.id,
+      name: p.name,
+      slug: p.slug,
+      amountKobo: p.amountKobo != null ? BigInt(p.amountKobo) : null,
+    }));
+  }
+
+  async validateCustomer(
+    providerSlug: string,
+    accountNumber: string,
+  ): Promise<import('./types').AnchorCustomerValidation> {
+    return this.breaker.exec(() =>
+      this.executeWithRetry(() =>
+        this.client.get<import('./types').AnchorCustomerValidation>(
+          `/bills/customer-validation/${encodeURIComponent(providerSlug)}/${encodeURIComponent(accountNumber)}`,
+        ),
+      ),
+    );
+  }
+
+  async payBill(
+    input: import('./types').AnchorBillRequest,
+    idempotencyKey: string,
+  ): Promise<import('./types').AnchorBillResponse> {
+    // Request is a verbatim flat pass-through (amountKobo bigint → kobo-string via
+    // bigintReplacer), mirroring `transfer`. The response is mapped OUTSIDE
+    // execIdempotent: the flat contract returns commissionKobo as a JSON string, and a
+    // bigint cannot be cached into the idempotency_keys jsonb column — so we cache the
+    // raw string response and coerce to bigint here (consistent on cache hit and miss).
+    const raw = await this.execIdempotent('anchor.bill', idempotencyKey, () =>
+      this.client.post<{
+        id: string;
+        status: import('./types').AnchorBillResponse['status'];
+        commissionKobo?: string | number | null;
+        token?: string | null;
+        failureReason?: string | null;
+      }>('/bills', input, { idempotencyKey }),
+    );
+    return {
+      id: raw.id,
+      status: raw.status,
+      commissionKobo: raw.commissionKobo != null ? BigInt(raw.commissionKobo) : 0n,
+      token: raw.token ?? null,
+      failureReason: raw.failureReason ?? null,
+    };
+  }
+
   async execIdempotent<R>(scope: string, key: string, fn: () => Promise<R>): Promise<R> {
     const cached = await this.lookupCached<R>(scope, key);
     if (cached !== undefined) return cached;

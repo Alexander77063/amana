@@ -8,8 +8,10 @@ import { LimitExceededError } from '../../../src/lib/errors';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { ruleSetService } from '../../../src/modules/rules/rule-set.service';
+import { reversalService } from '../../../src/modules/transactions/reversal.service';
 import type { VasCreateInput, VasCreateOutput } from '../../../src/modules/vas/purchase.service';
 import { vasPurchaseService } from '../../../src/modules/vas/purchase.service';
+import { vasSettlementService } from '../../../src/modules/vas/vas-settlement.service';
 import { ledgerAccountsRepo } from '../../../src/modules/wallet/ledger-accounts.repo';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
@@ -229,5 +231,79 @@ describe('vasPurchaseService.create — hardening', () => {
     expect(txnRows.length).toBe(1);
     // The sub-wallet source LA reflects exactly one ₦6,000 reserve debit (not two).
     expect(await postingsRepo.accountBalance(testDb, s.sw.ledgerAccountId)).toBe(600_000n);
+  });
+
+  /** Reserve one in_flight VAS purchase (PENDING payBill) and return its txn id. */
+  async function reserveInFlight(s: Seeded, amountKobo: bigint): Promise<string> {
+    const out = await vasPurchaseService.create(
+      testDb,
+      fakeAdapter(async () => ({
+        id: 'bill_pending',
+        status: 'PENDING' as const,
+        commissionKobo: 0n,
+        token: null,
+      })),
+      ownPhoneInput(s, { amountKobo, idempotencyKey: factories.idempotencyKey() }),
+    );
+    expect(out.status).toBe('in_flight');
+    return out.transactionId;
+  }
+
+  // ── Test 3 — concurrent settle-vs-settle serialises (the SELECT … FOR UPDATE row lock) ──────────
+  it('two concurrent settles on one in_flight txn settle EXACTLY once (row lock)', async () => {
+    const s = await seedWithLimit(1_000_000n);
+    const txnId = await reserveInFlight(s, 500_000n); // ₦5,000 held in suspense
+
+    const settle = () =>
+      vasSettlementService.finalise(testDb, {
+        transactionId: txnId,
+        commissionKobo: 10_000n, // ₦100
+        token: null,
+        settledAt: new Date(),
+      });
+    // Two `bills.successful` (or an inline-COMPLETED racing a webhook) hit the SAME hold at once.
+    await Promise.all([settle(), settle()]);
+
+    // Without the FOR UPDATE lock both read `in_flight` under READ COMMITTED and both write a settle
+    // leg-set: suspense drained twice (→ +₦5,000, not 0) and commission double-credited (₦200). The
+    // lock forces the second to block, re-read `settled`, and no-op — so this asserts the fix.
+    const [txn] = await testDb.select().from(transactions).where(eq(transactions.id, txnId));
+    expect(txn.status).toBe('settled');
+    await txnDebitsEqualCredits(txnId);
+    expect(await postingsRepo.accountBalance(testDb, s.mw.ledgerAccountIds.suspense)).toBe(0n);
+    // credit-normal → negate. A double-settle would read ₦200 (20_000n).
+    expect(-(await postingsRepo.accountBalance(testDb, s.mw.ledgerAccountIds.commission))).toBe(
+      10_000n,
+    );
+  });
+
+  // ── Test 4 — concurrent settle-vs-reverse serialises (no settle-AND-refund double-move) ─────────
+  it('concurrent settle + reverse on one in_flight txn → exactly one terminal outcome, suspense→0', async () => {
+    const s = await seedWithLimit(1_000_000n);
+    const txnId = await reserveInFlight(s, 500_000n);
+
+    // A `bills.successful` and a contradictory `bills.failed` race for the same hold. Without the
+    // shared row lock both read `in_flight`: the bill is paid to the biller (settle credits external)
+    // AND the buyer is refunded (reverse credits source) — free goods + a hole in suspense.
+    await Promise.allSettled([
+      vasSettlementService.finalise(testDb, {
+        transactionId: txnId,
+        commissionKobo: 10_000n,
+        token: null,
+        settledAt: new Date(),
+      }),
+      reversalService.reverse(testDb, {
+        transactionId: txnId,
+        reason: 'bill failed',
+        failedAt: new Date(),
+      }),
+    ]);
+
+    const [txn] = await testDb.select().from(transactions).where(eq(transactions.id, txnId));
+    // Exactly one terminal state won — never both applied.
+    expect(['settled', 'failed']).toContain(txn.status);
+    // Whichever won drains suspense back to exactly 0 (settle → external+commission; reverse →
+    // source). A settle-AND-reverse double-apply would leave suspense at +₦5,000.
+    expect(await postingsRepo.accountBalance(testDb, s.mw.ledgerAccountIds.suspense)).toBe(0n);
   });
 });

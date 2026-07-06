@@ -43,7 +43,11 @@ export const vasSettlementService = {
       // (postings has no per-(txn,account) uniqueness to catch it).
       const txn = await transactionsRepo.findByIdForUpdate(tx, input.transactionId);
       if (!txn) throw new Error(`vas txn ${input.transactionId} not found`);
-      if (txn.status === 'settled') return null; // idempotent: webhook may fire twice
+      // Terminal → idempotent no-op. `settled`: a webhook fired twice. `failed`: a `bills.failed`
+      // (or sync reverse) already refunded this hold — a contradictory late `bills.successful` must
+      // NOT settle an already-refunded txn (would double-move money), and must not 500 (→ webhook
+      // retry storm). Both are safe no-ops; the FOR UPDATE lock above makes the check race-free.
+      if (txn.status === 'settled' || txn.status === 'failed') return null;
       if (txn.status !== 'in_flight') {
         throw new Error(`cannot settle vas txn in status ${txn.status}`);
       }

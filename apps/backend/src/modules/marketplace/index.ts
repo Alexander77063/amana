@@ -9,4 +9,5 @@ export * from './purchase.service';
 export * from './redeem.service';
 export * from './redemption-settlement.service';
 export * from './redemptions.repo';
+export * from './retailer-onboarding.service';
 export * from './retailers.repo';

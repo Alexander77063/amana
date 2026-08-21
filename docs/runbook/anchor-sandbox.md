@@ -44,3 +44,20 @@ pnpm --filter @amana/backend exec tsx scripts/anchor-smoke.ts
 
 Anchor support is responsive on their developer Slack — invite link in the
 Anchor dashboard.
+
+## Business KYB (marketplace retailers)
+
+Marketplace retailers are **business** customers, not personal ones. `createBusinessCustomer`
+POSTs the flat internal contract to `/business-customers` (mirroring `createCustomer`) and the
+verdict arrives asynchronously as a `kyb.approved` / `kyb.rejected` webhook.
+
+Two things to know when testing against sandbox:
+
+- The call is idempotency-cached under its **own scope** (`anchor.business_customer`), keyed
+  `kyb:<retailerId>`. Re-submitting KYB for the same retailer will not create a second business
+  customer — clear `idempotency_keys` if you deliberately want a fresh one in sandbox.
+- `anchor_business_customer_id` is UNIQUE on `retailers`, because the `kyb.*` webhook resolves the
+  retailer by it. Reusing one sandbox business customer across two seeded retailers will fail on
+  insert rather than silently making the webhook ambiguous.
+
+Full flow and the ops runbook: `docs/runbook/retailer-onboarding.md`.

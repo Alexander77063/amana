@@ -16,6 +16,7 @@ import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.re
 import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { factories } from '../../helpers/factories';
+import { ensureRetailerAndItem } from '../../helpers/marketplace-seed';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
 // Settlement dispatches a best-effort buyer notification (Expo push) — stub the SDK so it never
@@ -29,7 +30,9 @@ vi.mock('expo-server-sdk', () => {
   return { Expo: ExpoMock };
 });
 
-const RETAILER_ID = 'retailer-1';
+// Assigned by `seed()` per property run — redemptions.retailer_id is a real uuid FK (SP4).
+let RETAILER_ID: string;
+let ITEM_ID: string;
 const RETAILER_BANK = '058';
 const RETAILER_ACCT = '0123456789';
 
@@ -60,6 +63,9 @@ async function seed() {
     agentUserId: agent.id,
     name: 'Driver',
   });
+  const seeded = await ensureRetailerAndItem(testDb);
+  RETAILER_ID = seeded.retailer.id;
+  ITEM_ID = seeded.item.id;
   return { hh, mw, sw, agentId: agent.id };
 }
 
@@ -135,7 +141,7 @@ describe('marketplace ledger invariants (property-based)', () => {
             masterWalletId: mw.master.id,
             subWalletId: sw.sub.id,
             retailerId: RETAILER_ID,
-            catalogItemId: 'item-1',
+            catalogItemId: ITEM_ID,
             retailerBankCode: RETAILER_BANK,
             retailerAccount: RETAILER_ACCT,
             grossKobo: kobo(gross),
@@ -213,7 +219,7 @@ describe('marketplace ledger invariants (property-based)', () => {
             masterWalletId: mw.master.id,
             subWalletId: sw.sub.id,
             retailerId: RETAILER_ID,
-            catalogItemId: 'item-1',
+            catalogItemId: ITEM_ID,
             retailerBankCode: RETAILER_BANK,
             retailerAccount: RETAILER_ACCT,
             grossKobo: kobo(gross),

@@ -14,6 +14,8 @@ const KNOWN_TYPES: ReadonlySet<AnchorWebhookEventType> = new Set([
   'virtual_account.credited',
   'kyc.approved',
   'kyc.rejected',
+  'kyb.approved',
+  'kyb.rejected',
   'bills.initiated',
   'bills.successful',
   'bills.failed',

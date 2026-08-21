@@ -17,6 +17,7 @@ Set as **Fly secrets** (`fly secrets set …`), never committed. The backend now
 | `ANCHOR_API_KEY` | ✅ enforced | Anchor API key (sandbox key until real-money go-live) |
 | `ANCHOR_WEBHOOK_SECRET` | ✅ enforced | HMAC verify on `/webhooks/anchor`; missing → 503 = lost money |
 | `TERMII_API_KEY` | ✅ enforced | OTP SMS; missing → no logins |
+| `ADMIN_API_KEY` | ✅ enforced | ≥32 chars; `x-admin-api-key` on `/retailers` ops routes. Unset = every admin route 401s (fails closed) |
 | `SENTRY_DSN` | recommended | error reporting |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | if media used | S3 `af-south-1` |
 | `DEV_OTP_BYPASS_CODE` | **must be UNSET** | enforced: boot throws if set in prod |

@@ -35,7 +35,10 @@ export const retailers = pgTable('retailers', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   businessName: text('business_name').notNull(),
   // KYB in SP4 — the Anchor business customer id is null until then.
-  anchorBusinessCustomerId: text('anchor_business_customer_id'),
+  // Unique: the KYB webhook resolves a retailer by this id, so two retailers sharing one
+  // Anchor business customer would make that lookup ambiguous. Postgres treats NULLs as
+  // distinct, so the many not-yet-KYB'd retailers are unaffected.
+  anchorBusinessCustomerId: text('anchor_business_customer_id').unique(),
   payoutBankCode: text('payout_bank_code').notNull(),
   payoutAccountNumber: text('payout_account_number').notNull(),
   // SP2 creates retailers directly live-approved; the apply→review→KYB flow is SP4.
@@ -92,10 +95,15 @@ export const redemptions = pgTable('redemptions', {
     .references(() => masterWallets.id, { onDelete: 'restrict' }),
   // Nullable: principal-direct purchase spends the master LA (decision #17), no sub-wallet.
   subWalletId: uuid('sub_wallet_id').references(() => subWallets.id, { onDelete: 'restrict' }),
-  // Text placeholders in SP1; SP4 swaps retailerId/catalogItemId to FKs via migration.
-  retailerId: text('retailer_id').notNull(),
-  catalogItemId: text('catalog_item_id').notNull(),
-  dealId: text('deal_id'),
+  // Real FKs since SP4 (0030). `restrict` on delete: a retailer or catalog item with
+  // redemptions against it is financial history and must not be deletable out from under them.
+  retailerId: uuid('retailer_id')
+    .notNull()
+    .references(() => retailers.id, { onDelete: 'restrict' }),
+  catalogItemId: uuid('catalog_item_id')
+    .notNull()
+    .references(() => catalogItems.id, { onDelete: 'restrict' }),
+  dealId: uuid('deal_id').references(() => deals.id, { onDelete: 'restrict' }),
   grossKobo: bigint('gross_kobo', { mode: 'bigint' }).notNull(),
   discountedKobo: bigint('discounted_kobo', { mode: 'bigint' }).notNull(),
   commissionKobo: bigint('commission_kobo', { mode: 'bigint' }).notNull(),

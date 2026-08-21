@@ -15,6 +15,7 @@ const prodSecrets = {
   ANCHOR_API_KEY: 'anchor-test-key',
   ANCHOR_WEBHOOK_SECRET: 'whsec-test',
   TERMII_API_KEY: 'termii-test-key',
+  ADMIN_API_KEY: 'z'.repeat(32),
 };
 
 describe('env: production-required secrets', () => {
@@ -39,9 +40,20 @@ describe('env: production-required secrets', () => {
     expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).toThrow(/TERMII_API_KEY/);
   });
 
+  it('throws in production when ADMIN_API_KEY is missing', () => {
+    const { ADMIN_API_KEY: _omit, ...rest } = prodSecrets;
+    expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).toThrow(/ADMIN_API_KEY/);
+  });
+
+  it('rejects a too-short ADMIN_API_KEY outright (schema, not just presence)', () => {
+    expect(() =>
+      loadEnv({ ...base, ...prodSecrets, ADMIN_API_KEY: 'short', NODE_ENV: 'production' }),
+    ).toThrow(/ADMIN_API_KEY/);
+  });
+
   it('lists every missing required secret in one error', () => {
     expect(() => loadEnv({ ...base, NODE_ENV: 'production' })).toThrow(
-      /ANCHOR_API_KEY.*ANCHOR_WEBHOOK_SECRET.*TERMII_API_KEY/s,
+      /ANCHOR_API_KEY.*ANCHOR_WEBHOOK_SECRET.*TERMII_API_KEY.*ADMIN_API_KEY/s,
     );
   });
 

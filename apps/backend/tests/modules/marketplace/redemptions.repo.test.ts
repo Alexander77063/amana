@@ -7,7 +7,12 @@ import { redemptionsRepo } from '../../../src/modules/marketplace/redemptions.re
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { factories } from '../../helpers/factories';
+import { seedRetailerAndItem } from '../../helpers/marketplace-seed';
 import { testDb, truncateAll } from '../../helpers/test-db';
+
+// Real FK targets — redemptions.{retailer_id,catalog_item_id} are uuid FKs (SP4).
+let retailerId: string;
+let catalogItemId: string;
 
 async function seedContext() {
   const principal = await usersRepo.insert(testDb, {
@@ -72,8 +77,8 @@ async function insertRedemption(
     buyerUserId: overrides.buyerUserId ?? ctx.agentId,
     masterWalletId: ctx.masterId,
     subWalletId: ctx.subId,
-    retailerId: 'retailer-1',
-    catalogItemId: 'item-1',
+    retailerId,
+    catalogItemId,
     dealId: null,
     grossKobo: kobo(10_000n),
     discountedKobo: kobo(9_000n),
@@ -88,6 +93,9 @@ async function insertRedemption(
 describe('redemptions.repo', () => {
   beforeEach(async () => {
     await truncateAll();
+    const seeded = await seedRetailerAndItem(testDb);
+    retailerId = seeded.retailer.id;
+    catalogItemId = seeded.item.id;
   });
 
   it('insert defaults status=reserved and round-trips via findById', async () => {

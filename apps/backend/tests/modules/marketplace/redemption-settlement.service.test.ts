@@ -15,6 +15,7 @@ import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { factories } from '../../helpers/factories';
+import { ensureRetailerAndItem } from '../../helpers/marketplace-seed';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
 vi.mock('expo-server-sdk', () => {
@@ -26,7 +27,9 @@ vi.mock('expo-server-sdk', () => {
   return { Expo: ExpoMock };
 });
 
-const RETAILER_ID = 'retailer-1';
+// Assigned per-test by the seed helpers below — redemptions.retailer_id is a real uuid FK (SP4).
+let RETAILER_ID: string;
+let ITEM_ID: string;
 const RETAILER_BANK = '058';
 const RETAILER_ACCT = '0123456789';
 const GROSS = 20_000n;
@@ -60,12 +63,15 @@ async function seedAndRedeem() {
     agentUserId: agent.id,
     name: 'Driver',
   });
+  const seeded = await ensureRetailerAndItem(testDb);
+  RETAILER_ID = seeded.retailer.id;
+  ITEM_ID = seeded.item.id;
   const { redemption } = await purchaseService.create(testDb, {
     actorUserId: agent.id,
     masterWalletId: mw.master.id,
     subWalletId: sw.sub.id,
     retailerId: RETAILER_ID,
-    catalogItemId: 'item-1',
+    catalogItemId: ITEM_ID,
     retailerBankCode: RETAILER_BANK,
     retailerAccount: RETAILER_ACCT,
     grossKobo: kobo(GROSS),

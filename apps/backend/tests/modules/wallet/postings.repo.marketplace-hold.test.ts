@@ -10,9 +10,14 @@ import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { factories } from '../../helpers/factories';
+import { ensureRetailerAndItem } from '../../helpers/marketplace-seed';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
 const DAY = 24 * 60 * 60;
+
+// Assigned by `seed()` — redemptions.retailer_id / catalog_item_id are real uuid FKs (SP4).
+let RETAILER_ID: string;
+let ITEM_ID: string;
 
 describe('postingsRepo.sumDebitsInWindow — marketplace holds', () => {
   beforeEach(async () => {
@@ -45,13 +50,16 @@ describe('postingsRepo.sumDebitsInWindow — marketplace holds', () => {
       agentUserId: agent.id,
       name: 'Driver',
     });
+    const seeded = await ensureRetailerAndItem(testDb);
+    RETAILER_ID = seeded.retailer.id;
+    ITEM_ID = seeded.item.id;
     return { agent, mw, sw };
   }
 
   function purchaseInput(over: Record<string, unknown>) {
     return {
-      retailerId: 'retailer-1',
-      catalogItemId: 'item-1',
+      retailerId: RETAILER_ID,
+      catalogItemId: ITEM_ID,
       retailerBankCode: '058',
       retailerAccount: '0123456789',
       grossKobo: kobo(20_000n),

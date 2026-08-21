@@ -98,7 +98,7 @@ The live Anchor E2E suite (`tests/sandbox/anchor-e2e.test.ts`, `pnpm test:sandbo
 
 ## Environment
 
-Canonical schema: **`apps/backend/src/env.ts`** (Zod, parsed at import, throws a formatted list on failure). Most vars have dev-safe defaults. Production essentials with **no safe default**, all **enforced at boot** (`loadEnv` throws in `NODE_ENV=production` if missing): `JWT_SECRET` (≥32 chars), `FIELD_ENCRYPTION_KEY` (64 hex), `ANCHOR_API_KEY`, `ANCHOR_WEBHOOK_SECRET`, `TERMII_API_KEY` (dev fallbacks/optionality apply only outside production); `DEV_OTP_BYPASS_CODE` is rejected in production. Before go-live, register the Termii sender ID and flip `ANCHOR_API_BASE_URL` off the sandbox default — see `docs/runbook/go-live-checklist.md`. AWS region for S3 media is `af-south-1` (`MEDIA_BUCKET=amana-media-af-south-1`).
+Canonical schema: **`apps/backend/src/env.ts`** (Zod, parsed at import, throws a formatted list on failure). Most vars have dev-safe defaults. Production essentials with **no safe default**, all **enforced at boot** (`loadEnv` throws in `NODE_ENV=production` if missing): `JWT_SECRET` (≥32 chars), `FIELD_ENCRYPTION_KEY` (64 hex), `ANCHOR_API_KEY`, `ANCHOR_WEBHOOK_SECRET`, `TERMII_API_KEY`, `ADMIN_API_KEY` (≥32 chars — the ops key for `/retailers`; unset means the admin surface 401s, never opens) (dev fallbacks/optionality apply only outside production); `DEV_OTP_BYPASS_CODE` is rejected in production. Before go-live, register the Termii sender ID and flip `ANCHOR_API_BASE_URL` off the sandbox default — see `docs/runbook/go-live-checklist.md`. AWS region for S3 media is `af-south-1` (`MEDIA_BUCKET=amana-media-af-south-1`).
 
 ## Shared packages
 
@@ -115,4 +115,4 @@ Fly.io app `amana-api`, region `jnb`. Two process groups: `app` (web, `/health` 
 
 ## Docs
 
-`docs/adr/` (decisions), `docs/superpowers/plans/` (sub-plan implementation docs), `docs/superpowers/specs/` (design spec), `docs/runbook/` (`local-dev.md`, `anchor-sandbox.md`, `funds-model.md` — the limits-only sub-wallet funds model & money flows, `vas.md` — digital VAS (airtime/data/electricity/cable) money model, cash-out control & webhook flow, `go-live-checklist.md` — pre-production readiness), `docs/brainstorm/locked-decisions.md`.
+`docs/adr/` (decisions), `docs/superpowers/plans/` (sub-plan implementation docs), `docs/superpowers/specs/` (design spec), `docs/runbook/` (`local-dev.md`, `anchor-sandbox.md`, `funds-model.md` — the limits-only sub-wallet funds model & money flows, `vas.md` — digital VAS (airtime/data/electricity/cable) money model, cash-out control & webhook flow, `retailer-onboarding.md` — marketplace retailer state machine, admin auth & `kyb.*` webhooks, `go-live-checklist.md` — pre-production readiness), `docs/brainstorm/locked-decisions.md`.

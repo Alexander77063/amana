@@ -14,9 +14,12 @@ import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { factories } from '../../helpers/factories';
+import { ensureRetailerAndItem, seedRetailerAndItem } from '../../helpers/marketplace-seed';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
-const RETAILER_ID = 'retailer-1';
+// Assigned per-test by the seed helpers below — redemptions.retailer_id is a real uuid FK (SP4).
+let RETAILER_ID: string;
+let ITEM_ID: string;
 const RETAILER_BANK = '058';
 const RETAILER_ACCT = '0123456789';
 const GROSS = 20_000n;
@@ -52,12 +55,15 @@ async function seedReserved() {
     agentUserId: agent.id,
     name: 'Driver',
   });
+  const seeded = await ensureRetailerAndItem(testDb);
+  RETAILER_ID = seeded.retailer.id;
+  ITEM_ID = seeded.item.id;
   const { redemption } = await purchaseService.create(testDb, {
     actorUserId: agent.id,
     masterWalletId: mw.master.id,
     subWalletId: sw.sub.id,
     retailerId: RETAILER_ID,
-    catalogItemId: 'item-1',
+    catalogItemId: ITEM_ID,
     retailerBankCode: RETAILER_BANK,
     retailerAccount: RETAILER_ACCT,
     grossKobo: kobo(GROSS),
@@ -168,10 +174,13 @@ describe('redeemService.redeem', () => {
   it('(3) wrong retailer → ForbiddenError', async () => {
     const { hh, redemption } = await seedReserved();
     const { adapter, fetchSpy } = okAdapter({ id: 'x', status: 'PENDING', reference: 'x' });
+    // A real second retailer, not a literal — retailer_id is a uuid FK, and a non-uuid
+    // string would fail as a Postgres cast error rather than the authz denial under test.
+    const other = await seedRetailerAndItem(testDb, { businessName: 'Someone Else Ltd' });
 
     await expect(
       redeemService.redeem(testDb, adapter, {
-        retailerId: 'someone-else',
+        retailerId: other.retailer.id,
         code: redemption.code,
         now: new Date('2026-07-02T00:00:00Z'),
         householdRef: hh.id,

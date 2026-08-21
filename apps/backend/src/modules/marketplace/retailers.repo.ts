@@ -107,6 +107,18 @@ export const retailersRepo = {
     return row;
   },
 
+  /** Ops review queue: every retailer in one onboarding status, newest first. */
+  async listByOnboardingStatus(
+    db: DbOrTx,
+    status: RetailerOnboardingStatus,
+  ): Promise<RetailerRow[]> {
+    return db
+      .select()
+      .from(retailers)
+      .where(eq(retailers.onboardingStatus, status))
+      .orderBy(desc(retailers.createdAt));
+  },
+
   /** All live-approved retailers, newest first — the buyer-facing retailer directory (SP5). */
   async listApproved(db: DbOrTx): Promise<RetailerRow[]> {
     return db

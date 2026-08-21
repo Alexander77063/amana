@@ -15,6 +15,7 @@ import { mediaRoute } from './routes/media';
 import { notificationPrefsRoute } from './routes/notification-prefs';
 import { notificationsListRoute } from './routes/notifications';
 import { pairingRoute } from './routes/pairing';
+import { retailersRoute } from './routes/retailers';
 import { subWalletsRoute } from './routes/sub-wallets';
 import { transactionsRoute } from './routes/transactions';
 import { vasRoute } from './routes/vas';
@@ -115,6 +116,7 @@ export function createServer(): Hono {
   app.route('/households', householdsRoute);
   app.route('/sub-wallets', subWalletsRoute);
   app.route('/marketplace', marketplaceRoute);
+  app.route('/retailers', retailersRoute);
   app.route('/vas', vasRoute);
   app.route('/media', mediaRoute);
   app.route('/', buildMeRouter());

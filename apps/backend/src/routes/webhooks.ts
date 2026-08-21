@@ -6,6 +6,8 @@ import { db } from '../db/client';
 import { auditLog } from '../db/schema';
 import type {
   AnchorBillEventData,
+  AnchorKybApprovedData,
+  AnchorKybRejectedData,
   AnchorKycApprovedData,
   AnchorKycRejectedData,
   AnchorTransferEventData,
@@ -16,6 +18,7 @@ import { kobo } from '../lib/kobo';
 import { logger } from '../lib/logger';
 import { usersRepo } from '../modules/identity/users.repo';
 import { redemptionSettlementService } from '../modules/marketplace/redemption-settlement.service';
+import { retailerOnboardingService } from '../modules/marketplace/retailer-onboarding.service';
 import { reversalService } from '../modules/transactions/reversal.service';
 import { settlementService } from '../modules/transactions/settlement.service';
 import { topupService } from '../modules/transactions/topup.service';
@@ -148,6 +151,28 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
       } else if (event.type === 'kyc.rejected') {
         const data = event.data as AnchorKycRejectedData;
         logger.warn({ customerId: data.customerId, reason: data.reason }, 'kyc.rejected');
+      } else if (event.type === 'kyb.approved') {
+        const data = event.data as AnchorKybApprovedData;
+        const r = await retailerOnboardingService.handleKybApproved(tx, data.businessCustomerId);
+        if (!r) {
+          logger.warn(
+            { businessCustomerId: data.businessCustomerId },
+            'kyb.approved: no matching retailer',
+          );
+        }
+      } else if (event.type === 'kyb.rejected') {
+        const data = event.data as AnchorKybRejectedData;
+        const r = await retailerOnboardingService.handleKybRejected(
+          tx,
+          data.businessCustomerId,
+          data.reason,
+        );
+        if (!r) {
+          logger.warn(
+            { businessCustomerId: data.businessCustomerId },
+            'kyb.rejected: no matching retailer',
+          );
+        }
       } else if (event.type === 'bills.successful') {
         const data = event.data as AnchorBillEventData;
         const txn = await transactionsRepo.findByIdempotencyKey(tx, data.reference);

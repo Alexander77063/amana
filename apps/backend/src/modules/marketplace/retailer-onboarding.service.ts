@@ -98,7 +98,9 @@ export const retailerOnboardingService = {
     db: DbOrTx,
     businessCustomerId: string,
   ): Promise<RetailerRow | undefined> {
-    return transitionByBusinessCustomerId(db, businessCustomerId, 'approved');
+    const result = await transitionByBusinessCustomerId(db, businessCustomerId, 'approved');
+    if (result?.transitioned) logger.info({ businessCustomerId }, 'kyb.approved: retailer approved');
+    return result?.row;
   },
 
   /** `kyb.rejected` webhook. Same idempotency contract as `handleKybApproved`. */
@@ -107,9 +109,18 @@ export const retailerOnboardingService = {
     businessCustomerId: string,
     reason: string,
   ): Promise<RetailerRow | undefined> {
-    const row = await transitionByBusinessCustomerId(db, businessCustomerId, 'suspended');
-    if (row) logger.warn({ businessCustomerId, reason }, 'kyb.rejected: retailer suspended');
-    return row;
+    const result = await transitionByBusinessCustomerId(db, businessCustomerId, 'suspended');
+    if (result?.transitioned) {
+      logger.warn({ businessCustomerId, reason }, 'kyb.rejected: retailer suspended');
+    } else if (result) {
+      // A late rejection for a retailer that already left kyb_pending. Worth surfacing —
+      // it means Anchor and our state disagree — but it must not change the status.
+      logger.warn(
+        { businessCustomerId, reason, onboardingStatus: result.row.onboardingStatus },
+        'kyb.rejected: ignored, retailer no longer kyb_pending',
+      );
+    }
+    return result?.row;
   },
 
   /**
@@ -146,7 +157,7 @@ async function transitionByBusinessCustomerId(
   db: DbOrTx,
   businessCustomerId: string,
   to: RetailerOnboardingStatus,
-): Promise<RetailerRow | undefined> {
+): Promise<{ row: RetailerRow; transitioned: boolean } | undefined> {
   const retailer = await retailersRepo.findByAnchorBusinessCustomerId(db, businessCustomerId);
   if (!retailer) return undefined;
   const updated = await retailersRepo.transitionOnboardingStatus(
@@ -157,5 +168,5 @@ async function transitionByBusinessCustomerId(
   );
   // CAS miss = the retailer already left `kyb_pending` (re-delivered event, or an ops
   // decision landed first). Return the row unchanged so the webhook acks instead of retrying.
-  return updated ?? retailer;
+  return updated ? { row: updated, transitioned: true } : { row: retailer, transitioned: false };
 }

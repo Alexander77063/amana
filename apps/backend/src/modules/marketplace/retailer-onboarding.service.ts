@@ -2,11 +2,7 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
 import { ConflictError, NotFoundError } from '../../lib/errors';
 import { logger } from '../../lib/logger';
-import {
-  type RetailerOnboardingStatus,
-  type RetailerRow,
-  retailersRepo,
-} from './retailers.repo';
+import { type RetailerOnboardingStatus, type RetailerRow, retailersRepo } from './retailers.repo';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -99,7 +95,8 @@ export const retailerOnboardingService = {
     businessCustomerId: string,
   ): Promise<RetailerRow | undefined> {
     const result = await transitionByBusinessCustomerId(db, businessCustomerId, 'approved');
-    if (result?.transitioned) logger.info({ businessCustomerId }, 'kyb.approved: retailer approved');
+    if (result?.transitioned)
+      logger.info({ businessCustomerId }, 'kyb.approved: retailer approved');
     return result?.row;
   },
 

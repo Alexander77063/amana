@@ -63,7 +63,9 @@ describe('AnchorAdapter.createBusinessCustomer', () => {
   it('caches under its own scope and replays without a second HTTP call', async () => {
     const fetchSpy = vi
       .fn()
-      .mockResolvedValue(okResponse({ id: 'biz-2', businessName: 'Bola Foods', kybStatus: 'PENDING' }));
+      .mockResolvedValue(
+        okResponse({ id: 'biz-2', businessName: 'Bola Foods', kybStatus: 'PENDING' }),
+      );
     const adapter = adapterWith(fetchSpy);
     const key = factories.idempotencyKey();
     const input = { businessName: 'Bola Foods', bvn: '22222222222' };
@@ -76,7 +78,9 @@ describe('AnchorAdapter.createBusinessCustomer', () => {
     const rows = await testDb
       .select()
       .from(idempotencyKeys)
-      .where(and(eq(idempotencyKeys.scope, 'anchor.business_customer'), eq(idempotencyKeys.key, key)));
+      .where(
+        and(eq(idempotencyKeys.scope, 'anchor.business_customer'), eq(idempotencyKeys.key, key)),
+      );
     expect(rows).toHaveLength(1);
   });
 });

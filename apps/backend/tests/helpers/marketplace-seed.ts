@@ -1,11 +1,11 @@
 import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { retailers } from '../../src/db/schema';
+import { kobo } from '../../src/lib/kobo';
 import { catalogItemsRepo } from '../../src/modules/marketplace/catalog-items.repo';
 import type { CatalogItemRow } from '../../src/modules/marketplace/catalog-items.repo';
 import { retailersRepo } from '../../src/modules/marketplace/retailers.repo';
 import type { RetailerRow } from '../../src/modules/marketplace/retailers.repo';
-import { kobo } from '../../src/lib/kobo';
 import { factories } from './factories';
 
 /**

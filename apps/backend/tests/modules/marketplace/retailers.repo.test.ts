@@ -97,7 +97,10 @@ describe('retailersRepo', () => {
   });
 
   it('findByAnchorBusinessCustomerId resolves the retailer, undefined when unknown', async () => {
-    const r = await retailersRepo.insert(testDb, newRetailer({ anchorBusinessCustomerId: 'biz-7' }));
+    const r = await retailersRepo.insert(
+      testDb,
+      newRetailer({ anchorBusinessCustomerId: 'biz-7' }),
+    );
     const found = await retailersRepo.findByAnchorBusinessCustomerId(testDb, 'biz-7');
     expect(found?.id).toBe(r.id);
     expect(await retailersRepo.findByAnchorBusinessCustomerId(testDb, 'biz-nope')).toBeUndefined();

@@ -87,7 +87,7 @@ describe('POST /webhooks/anchor — kyb dispatch', () => {
     const res = await app.request('/webhooks/anchor', {
       method: 'POST',
       body,
-      headers: { 'content-type': 'application/json', 'x-anchor-signature': sign(`${body} ` ) },
+      headers: { 'content-type': 'application/json', 'x-anchor-signature': sign(`${body} `) },
     });
     expect(res.status).toBe(401);
   });

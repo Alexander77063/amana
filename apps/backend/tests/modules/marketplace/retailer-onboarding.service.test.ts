@@ -128,19 +128,29 @@ describe('retailerOnboardingService KYB webhooks', () => {
 
   it('handleKybRejected moves kyb_pending to suspended', async () => {
     await applyAndSubmit('biz-3');
-    const after = await retailerOnboardingService.handleKybRejected(testDb, 'biz-3', 'docs invalid');
+    const after = await retailerOnboardingService.handleKybRejected(
+      testDb,
+      'biz-3',
+      'docs invalid',
+    );
     expect(after?.onboardingStatus).toBe('suspended');
   });
 
   it('handleKybRejected never un-approves an already-approved retailer', async () => {
     await applyAndSubmit('biz-3b');
     await retailerOnboardingService.handleKybApproved(testDb, 'biz-3b');
-    const after = await retailerOnboardingService.handleKybRejected(testDb, 'biz-3b', 'late reject');
+    const after = await retailerOnboardingService.handleKybRejected(
+      testDb,
+      'biz-3b',
+      'late reject',
+    );
     expect(after?.onboardingStatus).toBe('approved');
   });
 
   it('returns undefined when no retailer matches the business customer id', async () => {
-    expect(await retailerOnboardingService.handleKybApproved(testDb, 'biz-unknown')).toBeUndefined();
+    expect(
+      await retailerOnboardingService.handleKybApproved(testDb, 'biz-unknown'),
+    ).toBeUndefined();
     expect(
       await retailerOnboardingService.handleKybRejected(testDb, 'biz-unknown', 'x'),
     ).toBeUndefined();

@@ -1,5 +1,27 @@
 # Marketplace SP4 — Retailer Onboarding & Business KYB (backend) Implementation Plan
 
+> **STATUS: IMPLEMENTED (2026-08-21).** Tasks 1–7 are complete on
+> `feat/marketplace-sp4-retailer-kyb-backend`. The checkboxes below are left as written — read this
+> header for what actually shipped. Deliberate deviations from the plan as drafted:
+>
+> - **Task 1** — the sketched test constructed `AnchorAdapter` with a bare client; the real
+>   constructor takes `{ db, client }`. Test follows `adapter.kyc.test.ts` instead. Scope is
+>   `anchor.business_customer`.
+> - **Task 3/4** — guarded transitions are an **atomic compare-and-set**
+>   (`transitionOnboardingStatus`), not the plan's read-then-write. The read-then-write version
+>   lets a KYB re-submit racing a `kyb.approved` webhook demote a live retailer; there is a
+>   regression test for exactly that. `submitKyb` writes the Anchor id and the status in one
+>   statement rather than two.
+> - **Task 5** — added `GET /retailers?status=` (the ops review queue; the plan gave no way to
+>   *find* an application) and `listByOnboardingStatus`. The `kyb.*` webhook tests live in a new
+>   `tests/routes/webhooks.kyb.test.ts` rather than extending `webhooks.marketplace.test.ts`.
+> - **Task 6** — blast radius measured at **8** files, not ~9. Reseeding uses a shared
+>   `tests/helpers/marketplace-seed.ts`; `ensureRetailerAndItem` is idempotent because several
+>   suites truncate more than once per file. Also added a **UNIQUE** on
+>   `retailers.anchor_business_customer_id` (not in the plan) — the `kyb.*` webhook resolves the
+>   retailer by that column, so duplicates would make the lookup ambiguous.
+> - **Still SP4a.** The retailer portal and retailer-scoped auth remain SP4b, deferred.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the backend for the curated retailer-onboarding lifecycle (`applied → kyb_pending → approved / suspended`) with Anchor **Business KYB**, an admin/ops auth surface to drive it, KYB webhook handling, and the long-planted `redemptions` text→uuid **FK migration** — all backend, no portal UI.

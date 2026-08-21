@@ -36,9 +36,27 @@ Two rules the code enforces that matter operationally:
 - **`suspended` is a one-way door for `approve`.** Un-suspending is not an ops button; a suspended
   retailer must be re-applied and go back through KYB. This is deliberate — `suspended` is where a
   KYB rejection lands, so a resurrect button would be a KYB bypass.
-- **Only `approved` retailers transact.** `purchaseService` refuses a purchase whose retailer is not
-  `approved`, and `catalogService` refuses to list items for one. Suspending is therefore a live kill
-  switch, not just a label.
+- **Only `approved` retailers transact — on the *inbound* side.** `purchaseService`,
+  `catalogService`, and `dealsService` all refuse a retailer that is not `approved`, so suspending
+  immediately stops new catalog items, new deals, and new purchases.
+
+### Known gap: suspension does not stop redemption of vouchers already sold
+
+`redeemService` does **not** check `onboardingStatus` (it never has — SP1 shipped before the status
+was meaningful). A retailer suspended *after* buyers have bought vouchers can still scan those
+vouchers and receive the NIP-out payout. Purchases require `approved`, so this only affects vouchers
+sold while the retailer was live — but that is exactly the fraud case: approve → sell → get caught →
+collect anyway.
+
+This is left unchanged in SP4a **deliberately**, because closing it is a money-flow product decision,
+not a bug fix: blocking redemption strands the buyer's funds in suspense until the voucher expires
+and refunds, which is the right answer for a fraudulent retailer and the wrong one for a retailer
+suspended over paperwork. Until it is decided:
+
+- Treat `suspend` as *"stop new business"*, not *"stop all payouts."*
+- To stop outstanding payouts on a suspended retailer today, the lever is expiry — vouchers refund
+  their buyers automatically once past TTL (`VOUCHER_TTL_HOURS`, default 168h).
+- Watch `GET /retailers?status=suspended` against redemption activity after any suspension.
 
 ### Why every guarded transition is a compare-and-set
 
@@ -175,3 +193,12 @@ real wire shape of `/business-customers` is only exercised by the gated live E2E
 - Retailer **portal** app + the Expo-web/PWA vs Next platform decision.
 - Retailer-scoped auth (a retailer logging in to see its own catalog, deals, and redemptions).
 - Retailer self-serve application — today ops creates the row.
+- **A decision on the redemption gap in §1** — should `redeemService` refuse a suspended retailer?
+  Needs a product answer on buyer funds (refund-on-expiry vs. honour the voucher), then a
+  `redeemService` guard plus a way to settle outstanding vouchers on suspension.
+- **An un-suspend path.** `approve` deliberately refuses `suspended`, and there is no re-apply
+  endpoint that clears the old row — a suspended retailer's catalog items still exist and still
+  point at it. If ops needs to reinstate a retailer, that flow does not exist yet.
+- **Rate limiting on the admin surface.** `/retailers` is not behind `attachRateLimiters`. A ≥32-char
+  key makes brute force infeasible, but there is no lockout or per-IP throttle on a static
+  credential.

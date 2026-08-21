@@ -86,6 +86,8 @@ export type AnchorWebhookEventType =
   | 'virtual_account.credited'
   | 'kyc.approved'
   | 'kyc.rejected'
+  | 'kyb.approved'
+  | 'kyb.rejected'
   | 'bills.initiated'
   | 'bills.successful'
   | 'bills.failed';
@@ -119,6 +121,25 @@ export interface AnchorCreateCustomerResponse {
   fullName: string;
   phoneNumber: string;
   kycLevel: 'TIER_1' | 'TIER_2' | 'TIER_3';
+}
+
+// ── Business KYB (marketplace retailer onboarding, SP4) ─────────────────────
+// Flat internal contract, mirroring the personal-customer methods above — NOT
+// Anchor's nested JSON:API shape. A retailer is a *business* customer: KYB is
+// verified against the business (BVN of a director + optional CAC RC number),
+// and approval arrives asynchronously as a `kyb.*` webhook.
+
+export interface AnchorCreateBusinessCustomerRequest {
+  businessName: string;
+  bvn: string;
+  rcNumber?: string;
+  email?: string;
+}
+
+export interface AnchorCreateBusinessCustomerResponse {
+  id: string;
+  businessName: string;
+  kybStatus: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
 // ── Digital VAS (bill payment) ──────────────────────────────────────────────
@@ -185,5 +206,14 @@ export interface AnchorKycApprovedData {
 
 export interface AnchorKycRejectedData {
   customerId: string;
+  reason: string;
+}
+
+export interface AnchorKybApprovedData {
+  businessCustomerId: string;
+}
+
+export interface AnchorKybRejectedData {
+  businessCustomerId: string;
   reason: string;
 }

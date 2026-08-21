@@ -56,6 +56,24 @@ export class AnchorAdapter {
     );
   }
 
+  /**
+   * Business KYB for a marketplace retailer. Mirrors `createCustomer` (flat contract,
+   * idempotency-cached) but under its own scope so a key reused across the personal and
+   * business surfaces can never return the other's cached response.
+   */
+  async createBusinessCustomer(
+    input: import('./types').AnchorCreateBusinessCustomerRequest,
+    idempotencyKey: string,
+  ): Promise<import('./types').AnchorCreateBusinessCustomerResponse> {
+    return this.execIdempotent('anchor.business_customer', idempotencyKey, () =>
+      this.client.post<import('./types').AnchorCreateBusinessCustomerResponse>(
+        '/business-customers',
+        input,
+        { idempotencyKey },
+      ),
+    );
+  }
+
   async requestKycUpgrade(
     input: import('./types').AnchorKycUpgradeRequest,
     idempotencyKey: string,

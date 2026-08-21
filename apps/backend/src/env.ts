@@ -11,6 +11,9 @@ const EnvSchema = z.object({
   SENTRY_DSN: z.string().url().optional(),
   ANCHOR_API_KEY: z.string().min(1).optional(),
   ANCHOR_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // Shared ops secret for the admin-only retailer onboarding surface (x-admin-api-key).
+  // Min 32 chars: it is a bearer-equivalent static credential with no rotation story yet.
+  ADMIN_API_KEY: z.string().min(32, 'ADMIN_API_KEY must be at least 32 chars').optional(),
   API_BASE_URL: z.string().url().default('http://localhost:3000'),
   ANCHOR_API_BASE_URL: z.string().url().default('https://api.sandbox.getanchor.co'),
   EXPO_ACCESS_TOKEN: z.string().optional(),
@@ -93,6 +96,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       ANCHOR_API_KEY: parsed.data.ANCHOR_API_KEY,
       ANCHOR_WEBHOOK_SECRET: parsed.data.ANCHOR_WEBHOOK_SECRET,
       TERMII_API_KEY: parsed.data.TERMII_API_KEY,
+      ADMIN_API_KEY: parsed.data.ADMIN_API_KEY,
     };
     const missing = Object.entries(required)
       .filter(([, v]) => !v)

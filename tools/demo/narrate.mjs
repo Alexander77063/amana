@@ -13,11 +13,33 @@
 // VOICE_DIR pointing at your clips.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import ffmpegPath from 'ffmpeg-static';
 
 const OUT = process.env.OUT_DIR ?? 'tools/demo/out';
-const VIDEO = process.env.VIDEO ?? `${OUT}/amana-walkthrough.webm`;
+/**
+ * The recording to narrate: newest first, because Playwright names each take `page@<hash>.webm`
+ * and never overwrites the last one.
+ *
+ * This used to default to a fixed `amana-walkthrough.webm`, which nothing in record.mjs writes —
+ * it only ever existed because it had been copied there by hand once. Every later run therefore
+ * muxed that same stale take, silently: the audio was current, the pictures were from hours
+ * earlier, and since captions are paced to whichever narration was current when they were
+ * recorded, the voice slowly drifted away from what was on screen. Nothing errored. Picking the
+ * newest file makes the default correct instead of merely quiet.
+ */
+function newestRecording() {
+  if (process.env.VIDEO) return process.env.VIDEO;
+  const dir = `${OUT}/video`;
+  const takes = existsSync(dir)
+    ? readdirSync(dir)
+        .filter((f) => f.endsWith('.webm'))
+        .map((f) => ({ f: `${dir}/${f}`, at: statSync(`${dir}/${f}`).mtimeMs }))
+        .sort((a, b) => b.at - a.at)
+    : [];
+  return takes.length ? takes[0].f : `${OUT}/amana-walkthrough.webm`;
+}
+const VIDEO = newestRecording();
 const CLIPS = `${OUT}/vo`;
 const VOICE = process.env.VOICE ?? 'Microsoft Zira Desktop';
 const RATE = Number(process.env.RATE ?? -1); // SAPI rate, -10..10; slightly slow reads better
@@ -88,6 +110,7 @@ clip durations → ${OUT}/vo-durations.json`);
   process.exit(0);
 }
 
+console.log(`video      : ${VIDEO}`);
 const manifest = JSON.parse(readFileSync(`${OUT}/timings.json`, 'utf8'));
 if (!existsSync(VIDEO)) throw new Error(`no video at ${VIDEO} — run record.mjs first`);
 
@@ -150,6 +173,11 @@ execFileSync(
     '20',
     '-pix_fmt',
     'yuv420p',
+    // Pad the narration out to the length of the picture. The voice track ends at the last line,
+    // several seconds before the closing frame, and `-shortest` alone would cut the video there —
+    // truncating the ending rather than letting it play out in silence, as intended.
+    '-af',
+    'apad',
     '-c:a',
     'aac',
     '-b:a',

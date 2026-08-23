@@ -20,7 +20,37 @@ const OUT = process.env.OUT_DIR ?? 'tools/demo/out';
 const CLIPS = `${OUT}/vo`;
 const SILENCE_DB = Number(process.env.SILENCE_DB ?? -35);
 const SILENCE_SEC = Number(process.env.SILENCE_SEC ?? 1.2);
+// No narration line is under five seconds, so anything this short is a breath, a throat clear,
+// or a false split inside a pause — never a line. Dropping them is safe and keeps the segment
+// count honest.
+const MIN_SEG_SEC = Number(process.env.MIN_SEG_SEC ?? 1.5);
 const DRY = process.argv.includes('--dry');
+
+/**
+ * Patch mode: `--only=7,12,15` splits a short second take containing just those lines, in that
+ * order, and overwrites only their clips. Everything else is left as it is.
+ *
+ * This is the escape hatch for a re-read that did not separate cleanly in the main take — when
+ * a reader restarts a line without a full pause, the fluff and the keeper fuse into one
+ * segment, and no amount of silence tuning can pull them apart.
+ */
+const ONLY = (process.argv.find((a) => a.startsWith('--only='))?.split('=')[1] ?? '')
+  .split(',')
+  .map((n) => Number(n.trim()))
+  .filter((n) => Number.isInteger(n) && n > 0);
+
+/**
+ * Lines the reader fluffed and read again, 1-based, as `--doubled=7,12,15`.
+ *
+ * A re-read leaves two segments where the script expects one. The SECOND is the good take —
+ * the reader stopped, paused, and started that line over — so the first is dropped.
+ */
+const DOUBLED = new Set(
+  (process.argv.find((a) => a.startsWith('--doubled='))?.split('=')[1] ?? '')
+    .split(',')
+    .map((n) => Number(n.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0),
+);
 
 const take = process.argv[2];
 if (!take || take.startsWith('--')) {
@@ -93,14 +123,38 @@ for (const s of silences) {
 }
 if (duration > cursor + 0.25) segments.push({ start: cursor, end: duration });
 
+const dropped = segments.filter((s) => s.end - s.start < MIN_SEG_SEC);
+const spoken = segments.filter((s) => s.end - s.start >= MIN_SEG_SEC);
+
 const keys = orderedKeys();
+
+// One entry per segment the take should contain. In patch mode that is just the requested
+// lines; otherwise every line, with a doubled one appearing twice.
+const expected = [];
+if (ONLY.length > 0) {
+  for (const n of ONLY) {
+    const key = keys[n - 1];
+    if (!key) throw new Error(`--only=${n}: there is no line ${n} (${keys.length} lines)`);
+    expected.push(key);
+  }
+} else {
+  keys.forEach((key, i) => {
+    expected.push(key);
+    if (DOUBLED.has(i + 1)) expected.push(key);
+  });
+}
 console.log(`take       : ${take} (${duration.toFixed(1)}s)`);
 console.log(`silences   : ${silences.length} at ${SILENCE_DB}dB / ${SILENCE_SEC}s`);
-console.log(`segments   : ${segments.length}`);
-console.log(`lines      : ${keys.length}\n`);
+console.log(`segments   : ${segments.length} (${dropped.length} under ${MIN_SEG_SEC}s dropped)`);
+console.log(`spoken     : ${spoken.length}`);
+console.log(
+  ONLY.length > 0
+    ? `expected   : ${expected.length} (patching lines ${ONLY.join(', ')})\n`
+    : `expected   : ${expected.length} (${keys.length} lines + ${DOUBLED.size} re-reads)\n`,
+);
 
-segments.forEach((seg, i) => {
-  const key = keys[i];
+spoken.forEach((seg, i) => {
+  const key = expected[i];
   const len = (seg.end - seg.start).toFixed(1);
   console.log(
     `${String(i + 1).padStart(2)}. ${seg.start.toFixed(1).padStart(6)}s +${len.padStart(5)}s  ${
@@ -109,13 +163,13 @@ segments.forEach((seg, i) => {
   );
 });
 
-if (segments.length !== keys.length) {
+if (spoken.length !== expected.length) {
   const hint =
-    segments.length > keys.length
+    spoken.length > expected.length
       ? '  Likely a re-read, or a pause inside a line. Re-run with SILENCE_SEC=1.8 to ignore shorter gaps.'
       : '  Likely two lines ran together. Re-run with SILENCE_SEC=0.8, or re-record with longer pauses.';
   console.log(
-    `\n✗ ${segments.length} spoken segments but ${keys.length} lines.
+    `\n✗ ${spoken.length} spoken segments but ${expected.length} expected.
   Nothing written — mapping the wrong audio to the wrong caption is worse than not splitting.
 ${hint}\n`,
   );
@@ -129,8 +183,9 @@ if (DRY) {
 
 // Trim a touch of the silence back in at each end so lines do not start clipped.
 const PAD = 0.15;
-segments.forEach((seg, i) => {
-  const key = keys[i];
+// A doubled line writes twice; the later write wins, which is the keeper take.
+spoken.forEach((seg, i) => {
+  const key = expected[i];
   const file = `${CLIPS}/${slug(key)}.wav`;
   const start = Math.max(0, seg.start - PAD);
   const len = seg.end - seg.start + PAD * 2;

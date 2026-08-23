@@ -12,6 +12,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, View } from 'react-native';
+import { ruleKindLabel, summariseRule } from '../lib/rule-summary';
 import { type SnoozePreset, presetToExpiresAt } from '../lib/snooze-presets';
 import type { MainStackParamList } from '../nav/MainStack';
 import { useSubWalletsStore } from '../state/subwallets.store';
@@ -163,9 +164,9 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
         )}
         {rules && rules.rules.length === 0 && <Body muted>(empty rule set)</Body>}
         {rules?.rules.map((r) => (
-          <View key={r.id} style={{ gap: 4, paddingVertical: 6 }}>
-            <Body strong>{`${r.kind} (priority ${r.priority})`}</Body>
-            <Caption>{JSON.stringify(r.configJson)}</Caption>
+          <View key={r.id} style={{ gap: 2, paddingVertical: 6 }}>
+            <Body strong>{summariseRule(r.kind, r.configJson)}</Body>
+            <Caption>{ruleKindLabel(r.kind)}</Caption>
           </View>
         ))}
       </Card>

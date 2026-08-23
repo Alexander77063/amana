@@ -120,6 +120,18 @@ execFileSync(ffmpegPath, [...inputs, '-filter_complex', filter, '-map', '[out]',
 });
 console.log(`\nnarration track → ${voTrack}`);
 
+// A phone recording lands quiet — the first human take peaked at -15 dBFS, which sounds thin
+// played into a room, and a demo that the audience strains to hear undoes the work. Normalise to
+// the EBU R128 broadcast target. Its loudness measurement gates out silence, so the long gaps
+// between lines do not drag the average down and cause the speech to be over-boosted.
+const voNormalised = `${OUT}/narration-normalised.wav`;
+execFileSync(
+  ffmpegPath,
+  ['-i', voTrack, '-af', 'loudnorm=I=-16:TP=-1.5:LRA=11', '-ar', '22050', '-y', voNormalised],
+  { stdio: 'pipe' },
+);
+console.log(`normalised      → ${voNormalised}`);
+
 // Mux. Re-encode to H.264/AAC mp4 so it plays in Keynote/PowerPoint/QuickTime, and also
 // keep a .webm with audio for the browser.
 const mp4 = `${OUT}/amana-walkthrough-narrated.mp4`;
@@ -129,7 +141,7 @@ execFileSync(
     '-i',
     VIDEO,
     '-i',
-    voTrack,
+    voNormalised,
     '-c:v',
     'libx264',
     '-preset',

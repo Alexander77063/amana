@@ -114,9 +114,20 @@ console.log('screenshot → tools/demo/out/rules-editor.png');
 await page.getByRole('button', { name: /PUBLISH RULES/i }).click();
 await page.waitForTimeout(5000);
 const detail = (await page.locator('#root').textContent()) ?? '';
+// Assert what the parent reads, not the engine's storage shape. Checking for "category" and
+// "time_window" passed for as long as the screen printed raw JSON at them, and would have gone
+// on passing however unreadable it got.
+const shows = [
+  ['limit in naira', /₦[\d,]+\.\d\d per (day|month)/],
+  ['categories in words', /Only .*(transport|school)|Cannot spend on /],
+  ['hours in words', /\d(am|pm)|midnight|noon/],
+];
 console.log(
-  `after publish, detail shows: ${detail.includes('category') ? 'category ✓' : 'category ✗'} ${detail.includes('time_window') ? 'time_window ✓' : 'time_window ✗'}`,
+  `after publish, detail shows: ${shows.map(([n, re]) => `${n} ${re.test(detail) ? '✓' : '✗'}`).join('  ')}`,
 );
+if (/\{"|maxKobo|windowKind|daysOfWeek/.test(detail)) {
+  console.log('  !! raw rule config is leaking into the screen');
+}
 await page.screenshot({ path: 'tools/demo/out/rules-published.png', fullPage: true });
 
 await browser.close();

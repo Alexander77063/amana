@@ -65,9 +65,39 @@ SPEED=4 node tools/demo/record.mjs   # fast, for iterating on the script
 Output lands in `tools/demo/out/`: the `.webm` video, plus screenshots at each chapter and a
 `record-FAIL-*.png` for any step that breaks.
 
-**There is no audio** — Playwright records video only. `NARRATION.md` has a voiceover script
-and the `ffmpeg` command to mux it (and to get an `.mp4`, which you want for Keynote/PowerPoint;
-`.webm` will not play there).
+Playwright records **video only**, so narration is muxed on afterwards by `narrate.mjs`, which
+also emits the `.mp4` you want for Keynote/PowerPoint (`.webm` will not play there).
+
+### Narration
+
+`narrate.mjs` speaks the script with Windows SAPI by default, which is fine for a working cut.
+For the investor cut you want a human voice, and the pipeline prefers a real clip over a
+synthetic one automatically: **if `out/vo/<slug>.wav` exists, it is used as-is.** So the whole
+job is cutting one continuous take into those per-line clips.
+
+```bash
+node tools/demo/read-script.mjs                    # the 29 lines, numbered, in caption order
+node tools/demo/split-vo.mjs take.m4a              # try the automatic cut first
+node tools/demo/audition.mjs take.m4a              # …and this when it will not split
+node tools/demo/split-vo.mjs take.m4a --plan=kkdk… # apply what you marked
+node tools/demo/record.mjs && node tools/demo/narrate.mjs
+```
+
+`record.mjs` is re-run **after** the clips exist because it paces the video to the length of the
+narration it finds — a human read is slower than SAPI, and re-recording is what keeps the
+captions under the voice.
+
+**When the automatic split fails, do not tune it — audition it.** `split-vo.mjs` assumes the gaps
+between lines are longer than the pauses inside them. If a reader pauses mid-sentence for as long
+as they pause between lines, no threshold separates the two: on the first real take, sweeping
+-30..-40dB across 0.6..1.6s moved the segment count 152 → 8 without ever settling near the script
+length, and scoring re-read hypotheses against clip durations and word counts put the best guess
+only ~5% ahead of the runner-up, which is noise. `audition.mjs` instead over-segments on purpose
+and builds a self-contained page that plays each segment beside the line it is expected to be.
+Mark each one (`1` next line, `2` continues the one above, `3` drop, `4` contains two lines), copy
+the plan string, and hand it to `--plan=`. Every mismatch — wrong plan length, a leftover `4`, a
+line count that does not reconcile — refuses to write, because putting one line on the wrong
+caption shifts every line after it.
 
 ---
 
@@ -79,6 +109,11 @@ and the `ffmpeg` command to mux it (and to get an `.mp4`, which you want for Key
 | `stage.html` | The two-phone stage: bezels, brand header, provenance badge, caption bar. |
 | `drive.mjs` | Walks the whole product through the **API** — signup → household → funding → pairing → sub-wallet → rules → spend → settle → bump. The engine segment, and the fastest way to check the backend end to end. |
 | `lib.mjs` | Shared HTTP + logging helpers for the API scripts. |
+| `narrate.mjs` | Speaks any line that has no human clip, places every line at its caption's timestamp, muxes to `.mp4`. |
+| `narration-lines.mjs` | The script itself — one entry per caption. The single source the other three read. |
+| `read-script.mjs` | Prints the lines numbered in caption order, for reading aloud. |
+| `split-vo.mjs` | Cuts a continuous take into per-line clips: automatically, or exactly as marked with `--plan=`. |
+| `audition.mjs` | Builds a self-contained page to mark a take by ear when it will not split automatically. |
 | `smoke.mjs` | Do both web apps actually render in a browser, with no console errors? |
 | `probe-*.mjs` | Focused probes kept from debugging: malformed ids, agent signup, the spend path, resume-after-bump. |
 | `debug-*.mjs` | Throwaway diagnostics (DOM shape, network trace, the render-loop crash). Kept because they are how the bugs were found. |

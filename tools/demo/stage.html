@@ -66,6 +66,33 @@
         display: block;
       }
 
+      /* Full-bleed statement slides for the intro, before the phones appear. */
+      #slide {
+        position: absolute; inset: 0; z-index: 20;
+        display: none; flex-direction: column; justify-content: center;
+        padding: 0 180px; gap: 30px;
+        background: radial-gradient(1200px 700px at 50% 30%, #16293d 0%, var(--ink) 62%, #08111c 100%);
+      }
+      #slide.on { display: flex; }
+      #slide .kicker {
+        font-size: 16px; letter-spacing: 0.3em; text-transform: uppercase;
+        color: var(--gold); font-weight: 700;
+      }
+      #slide h2 { font-size: 66px; line-height: 1.12; font-weight: 800; max-width: 1400px; }
+      #slide p { font-size: 27px; line-height: 1.5; color: #c7d3e0; max-width: 1180px; }
+      #slide ul { list-style: none; display: flex; flex-direction: column; gap: 16px; margin-top: 8px; }
+      #slide li {
+        font-size: 26px; color: #e8edf3; padding-left: 34px; position: relative;
+      }
+      #slide li::before {
+        content: ''; position: absolute; left: 0; top: 12px;
+        width: 14px; height: 14px; border-radius: 3px; background: var(--gold);
+      }
+      #slide .quote {
+        font-size: 40px; line-height: 1.35; font-style: italic; color: var(--paper);
+        border-left: 5px solid var(--gold); padding-left: 32px; max-width: 1250px;
+      }
+
       footer {
         flex: 0 0 168px; padding: 0 80px;
         display: flex; flex-direction: column; justify-content: center; gap: 12px;
@@ -90,6 +117,12 @@
         <span>Dev build</span> · <b id="envnote">Anchor sandbox stubbed locally</b>
       </div>
     </header>
+
+    <div id="slide">
+      <div class="kicker" id="slide-kicker"></div>
+      <h2 id="slide-title"></h2>
+      <div id="slide-body"></div>
+    </div>
 
     <main>
       <div class="device">
@@ -126,6 +159,40 @@
         },
         env(text) {
           document.getElementById('envnote').textContent = text;
+        },
+        /**
+         * Show a full-bleed statement slide. `body` items are rendered in order:
+         *   {p: '…'} paragraph · {quote: '…'} pull-quote · {bullets: [...]} list
+         */
+        slide(kicker, title, body = []) {
+          document.getElementById('slide-kicker').textContent = kicker;
+          document.getElementById('slide-title').textContent = title;
+          const host = document.getElementById('slide-body');
+          host.innerHTML = '';
+          for (const part of body) {
+            if (part.quote) {
+              const q = document.createElement('div');
+              q.className = 'quote';
+              q.textContent = part.quote;
+              host.appendChild(q);
+            } else if (part.bullets) {
+              const ul = document.createElement('ul');
+              for (const b of part.bullets) {
+                const li = document.createElement('li');
+                li.textContent = b;
+                ul.appendChild(li);
+              }
+              host.appendChild(ul);
+            } else if (part.p) {
+              const p = document.createElement('p');
+              p.textContent = part.p;
+              host.appendChild(p);
+            }
+          }
+          document.getElementById('slide').classList.add('on');
+        },
+        showPhones() {
+          document.getElementById('slide').classList.remove('on');
         },
       };
     </script>

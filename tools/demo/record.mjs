@@ -7,7 +7,7 @@
 // Prereqs (see tools/demo/README.md): backend :3100 (CORS allowlisted, pointed at the
 // Anchor stub), stub :3200, principal web :19006, agent web :19007.
 
-import { mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join } from 'node:path';
 import { chromium } from 'playwright';
@@ -48,13 +48,51 @@ const context = await browser.newContext({
   recordVideo: { dir: `${OUT}/video`, size: { width: 1920, height: 1080 } },
 });
 const page = await context.newPage();
+// Playwright starts recording when the page is created, so this is the video's t=0.
+const t0 = Date.now();
+const timings = [];
 
 const failures = [];
 const wait = (ms) => page.waitForTimeout(Math.round(ms / SPEED));
 
+// Narration clip lengths, if `narrate.mjs --clips` has been run. The video is paced by the
+// audio: a chapter is held until its line has finished, otherwise long lines talk over the
+// next chapter. Skipped when SPEED > 1, which is for iterating on the script, not for a take.
+const VO = existsSync(`${OUT}/vo-durations.json`)
+  ? JSON.parse(readFileSync(`${OUT}/vo-durations.json`, 'utf8'))
+  : {};
+let lastBeatAt = 0;
+let lastBeatMs = 0;
+
+async function holdForNarration() {
+  if (SPEED > 1) return;
+  const until = lastBeatAt + lastBeatMs + 900;
+  const now = Date.now();
+  if (now < until) await page.waitForTimeout(until - now);
+}
+
+function markBeat(chapter, text, sub) {
+  timings.push({ atMs: Date.now() - t0, chapter, text, sub });
+  lastBeatAt = Date.now();
+  lastBeatMs = VO[text] ?? 0;
+}
+
 async function cap(chapter, text, sub = '') {
+  await holdForNarration();
   await page.evaluate(([c, t, s]) => window.stage.caption(c, t, s), [chapter, text, sub]);
+  markBeat(chapter, text, sub);
   console.log(`  [${chapter}] ${text}`);
+}
+
+/** A full-bleed statement slide in the intro, before the phones appear. */
+async function slide(kicker, title, body) {
+  await holdForNarration();
+  await page.evaluate(
+    ([k, t, b]) => window.stage.slide(k, t, b),
+    [kicker, title, body],
+  );
+  markBeat(kicker, title, '');
+  console.log(`  [${kicker}] ${title}`);
 }
 const focus = (which) => page.evaluate((w) => window.stage.focus(w), which);
 const P = () => page.frameLocator('#principal');
@@ -133,12 +171,79 @@ for (const f of [P(), A()]) {
 }
 await wait(4000);
 
+// ── Intro: problem → gap → why now → solution → benefit ────────────────────
+// Positioning is taken from docs/business/2026-05-03-business-plan.md rather than invented.
+// Deliberately no financial projections: forecasts belong in the deck, not in a demo video.
+
+await slide('The problem', 'Every Nigerian household has this conversation.', [
+  { quote: '“What did you do with the ₦15,000 I gave you yesterday?”' },
+  {
+    p: 'Parents, spouses and business owners hand cash or open bank transfers to the people who spend on their behalf — children, domestic staff, drivers, kitchen staff, dispatch riders.',
+  },
+]);
+await wait(1000);
+
+await slide('Why it persists', 'Every existing option gives the money away completely.', [
+  {
+    bullets: [
+      'Cash — no control, no record, and an argument at the end of it.',
+      'Debit card — a PIN is not a rule.',
+      'Bank transfer — instant, and instantly out of your hands.',
+      'WhatsApp and screenshots — reconciliation by memory.',
+    ],
+  },
+]);
+await wait(1000);
+
+await slide('The gap', 'The big wallets all sell the same wallet to everyone.', [
+  {
+    p: 'OPay, PalmPay, Moniepoint and Kuda are built on a single-user thesis. The banks are locked to one customer, one account. Nobody has segmented around delegated control — a daily, multi-billion-naira behaviour with no product built for it.',
+  },
+]);
+await wait(1000);
+
+await slide('Why now', 'The infrastructure that made this impossible is now standard.', [
+  {
+    bullets: [
+      'Instant NIP transfer reaches almost every bank account in Nigeria.',
+      'NIN enrolment covers most of the adult population.',
+      'Banking-as-a-service turned a two-year build into a few months.',
+    ],
+  },
+]);
+await wait(1000);
+
+await slide('The solution', 'Delegated authority, not delegated access.', [
+  {
+    bullets: [
+      'One funded master wallet.',
+      'A sub-wallet per person — a spending envelope, not another bank account.',
+      'Limits, category locks and time windows, enforced on every single spend.',
+      'A one-tap request when someone needs an exception — and instant suspend when they do not.',
+    ],
+  },
+]);
+await wait(1000);
+
+await slide('The benefit', 'Control without the conversation.', [
+  {
+    bullets: [
+      'The parent stops policing and starts setting rules.',
+      'The agent stops justifying every naira.',
+      'Every spend is auditable the moment it happens.',
+      'Vendors need no app — they are paid over ordinary bank rails.',
+    ],
+  },
+]);
+await wait(1200);
+
+await page.evaluate(() => window.stage.showPhones());
 await cap(
   'Amana',
   'A parent funds one wallet. Every agent spends under their own limits.',
   'Recorded end to end through the real app against a live API. Nothing here is a mockup.',
 );
-await wait(5000);
+await wait(3000);
 
 // ── 1. Sign up ─────────────────────────────────────────────────────────────
 await focus('principal');
@@ -344,7 +449,11 @@ await context.close();
 await browser.close();
 stageServer.close();
 
-console.log(`\nvideo written under ${OUT}/video/`);
+writeFileSync(
+  `${OUT}/timings.json`,
+  JSON.stringify({ totalMs: Date.now() - t0, timings }, null, 2),
+);
+console.log(`\nvideo written under ${OUT}/video/  (timings → ${OUT}/timings.json)`);
 if (failures.length) {
   console.log(`\n${failures.length} step(s) failed:`);
   for (const f of failures) console.log(`  ✗ ${f}`);

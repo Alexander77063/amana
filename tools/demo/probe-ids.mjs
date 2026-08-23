@@ -20,7 +20,11 @@ const probes = [
   ['POST', `/transactions/${BAD}/attach-media`, { mediaKey: 'k' }],
   ['POST', `/bumps/${BAD}/decision`, { decision: 'approve_once' }],
   ['GET', `/households/${BAD}/sub-wallets`],
-  ['POST', `/households/${BAD}/sub-wallets`, { agentUserId: '00000000-0000-0000-0000-000000000000', name: 'x' }],
+  [
+    'POST',
+    `/households/${BAD}/sub-wallets`,
+    { agentUserId: '00000000-0000-0000-0000-000000000000', name: 'x' },
+  ],
 ];
 
 let bad500 = 0;

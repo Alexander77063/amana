@@ -87,10 +87,7 @@ async function cap(chapter, text, sub = '') {
 /** A full-bleed statement slide in the intro, before the phones appear. */
 async function slide(kicker, title, body) {
   await holdForNarration();
-  await page.evaluate(
-    ([k, t, b]) => window.stage.slide(k, t, b),
-    [kicker, title, body],
-  );
+  await page.evaluate(([k, t, b]) => window.stage.slide(k, t, b), [kicker, title, body]);
   markBeat(kicker, title, '');
   console.log(`  [${kicker}] ${title}`);
 }
@@ -263,56 +260,93 @@ await wait(3000);
 
 // ── 1. Sign up ─────────────────────────────────────────────────────────────
 await focus('principal');
-await cap('1 · Sign up', 'The principal signs in with a phone number.', 'One-time SMS code — no passwords anywhere in the product.');
+await cap(
+  '1 · Sign up',
+  'The principal signs in with a phone number.',
+  'One-time SMS code — no passwords anywhere in the product.',
+);
 await step('principal phone', async () => {
   await P().getByLabel('MOBILE NUMBER').fill(PRINCIPAL_PHONE);
   await wait(900);
-  await P().getByRole('button', { name: /SEND CODE/i }).click();
+  await P()
+    .getByRole('button', { name: /SEND CODE/i })
+    .click();
 });
 await wait(2600);
 
-await cap('1 · Sign up', 'First-time signup also captures NIN and BVN.', 'Nigerian identity numbers — required before the wallet can hold money.');
+await cap(
+  '1 · Sign up',
+  'First-time signup also captures NIN and BVN.',
+  'Nigerian identity numbers — required before the wallet can hold money.',
+);
 await step('principal verify', async () => {
   await P().getByLabel('6-DIGIT CODE').fill('123456');
   await wait(600);
   await P().getByLabel('NIN').fill(NIN_P);
   await P().getByLabel('BVN').fill(BVN_P);
   await wait(900);
-  await P().getByRole('button', { name: /^VERIFY/i }).first().click();
+  await P()
+    .getByRole('button', { name: /^VERIFY/i })
+    .first()
+    .click();
 });
 await wait(4200);
 
 // ── 2. Household + master wallet ───────────────────────────────────────────
-await cap('2 · The wallet', 'Creating the household provisions a real bank account.', 'A customer record and a fundable NUBAN at the banking partner.');
+await cap(
+  '2 · The wallet',
+  'Creating the household provisions a real bank account.',
+  'A customer record and a fundable NUBAN at the banking partner.',
+);
 await step('create household', async () => {
   await P().getByLabel('HOUSEHOLD NAME').fill('Adebayo Family');
   await wait(900);
-  await P().getByRole('button', { name: /CREATE HOUSEHOLD/i }).click();
+  await P()
+    .getByRole('button', { name: /CREATE HOUSEHOLD/i })
+    .click();
 });
 await wait(5200);
 
 // ── 3. Funding ─────────────────────────────────────────────────────────────
-await cap('3 · Funding', 'Money arrives by bank transfer into that account.', 'The credit lands as a signed webhook and posts to a double-entry ledger.');
+await cap(
+  '3 · Funding',
+  'Money arrives by bank transfer into that account.',
+  'The credit lands as a signed webhook and posts to a double-entry ledger.',
+);
 await step('fund wallet', async () => {
   await stub('/_control/fund', { amountKobo: '50000000' });
 });
 await wait(3000);
 
 // ── 4. Pairing ─────────────────────────────────────────────────────────────
-await cap('4 · Pairing', 'The principal issues a one-time pairing code.', 'Phone to phone: scan the QR, tap NFC on Android, or send the link by SMS.');
+await cap(
+  '4 · Pairing',
+  'The principal issues a one-time pairing code.',
+  'Phone to phone: scan the QR, tap NFC on Android, or send the link by SMS.',
+);
 await step('open pairing', async () => {
-  await P().getByRole('button', { name: /Pair an agent/i }).click();
+  await P()
+    .getByRole('button', { name: /Pair an agent/i })
+    .click();
   await wait(1500);
-  await P().getByRole('button', { name: /GENERATE CODE/i }).click();
+  await P()
+    .getByRole('button', { name: /GENERATE CODE/i })
+    .click();
 });
 await wait(4000);
 
 await focus('agent');
-await cap('4 · Pairing', 'The agent signs in on their own phone.', 'A separate device and a separate login — the agent never sees the master wallet.');
+await cap(
+  '4 · Pairing',
+  'The agent signs in on their own phone.',
+  'A separate device and a separate login — the agent never sees the master wallet.',
+);
 await step('agent phone', async () => {
   await A().getByLabel('MOBILE NUMBER').fill(AGENT_PHONE);
   await wait(900);
-  await A().getByRole('button', { name: /SEND CODE/i }).click();
+  await A()
+    .getByRole('button', { name: /SEND CODE/i })
+    .click();
 });
 await wait(2600);
 
@@ -329,13 +363,20 @@ await step('agent verify + pair', async () => {
   await wait(700);
   await A().getByLabel('NIN').fill(NIN_A);
   await wait(900);
-  await A().getByRole('button', { name: /^VERIFY/i }).first().click();
+  await A()
+    .getByRole('button', { name: /^VERIFY/i })
+    .first()
+    .click();
 });
 await wait(6000);
 
 // ── 5. Sub-wallet ──────────────────────────────────────────────────────────
 await focus('principal');
-await cap('5 · Sub-wallet', 'The principal issues a sub-wallet to that agent.', 'Not a bank account — a spending envelope drawn against the master wallet.');
+await cap(
+  '5 · Sub-wallet',
+  'The principal issues a sub-wallet to that agent.',
+  'Not a bank account — a spending envelope drawn against the master wallet.',
+);
 // The principal has no visible back affordance (MainStack sets headerShown:false, so on a
 // real phone this is the OS back gesture). Reloading the frame is the browser equivalent.
 // Retried once: under concurrent two-app load this occasionally boots into the app's
@@ -356,7 +397,10 @@ await step('go to sub-wallets', async () => {
 await wait(3000);
 
 await step('create sub-wallet', async () => {
-  await pf.getByRole('button', { name: /^Agent \+/i }).first().click();
+  await pf
+    .getByRole('button', { name: /^Agent \+/i })
+    .first()
+    .click();
   await wait(1200);
   await pf.getByLabel('SUB-WALLET NAME').fill('Tunde — school run');
   await wait(1000);
@@ -365,7 +409,11 @@ await step('create sub-wallet', async () => {
 await wait(4500);
 
 // ── 6. Limits ──────────────────────────────────────────────────────────────
-await cap('6 · The control', 'The parent caps what can be spent in a day…', 'The agent app cannot override any of this — it is checked on the server.');
+await cap(
+  '6 · The control',
+  'The parent caps what can be spent in a day…',
+  'The agent app cannot override any of this — it is checked on the server.',
+);
 // Sub-wallet rows and the "Edit" affordance are plain Pressables with no accessibilityRole,
 // so these are text selectors rather than getByRole. (Worth adding roles — see README.)
 await step('open sub-wallet', async () => {
@@ -414,7 +462,11 @@ await step('agent picks up the sub-wallet', async () => {
 });
 await wait(3000);
 
-await cap('7 · Spending', 'Paying a vendor is a normal bank transfer out.', 'The vendor needs no app and no Amana account — just an account number.');
+await cap(
+  '7 · Spending',
+  'Paying a vendor is a normal bank transfer out.',
+  'The vendor needs no app and no Amana account — just an account number.',
+);
 await step('agent opens pay', async () => {
   await af.getByText('Pay', { exact: true }).first().click();
 });
@@ -453,7 +505,11 @@ await step('confirm and send', async () => {
 await wait(5000);
 await page.screenshot({ path: `${OUT}/record-agent-sending.png` });
 
-await cap('8 · Settlement', 'The bank confirms the transfer and the ledger settles.', 'Double-entry postings — every naira is accounted for on both sides.');
+await cap(
+  '8 · Settlement',
+  'The bank confirms the transfer and the ledger settles.',
+  'Double-entry postings — every naira is accounted for on both sides.',
+);
 await step('settle at the bank', async () => {
   // Settle THIS spend by reference. The stub keeps every transfer of the session, so
   // "settle the last one" can pick up a transfer from an earlier run.
@@ -579,9 +635,7 @@ await cap(
   'One tap in the same editor — and it applies everywhere the money can go.',
 );
 await step('parent allows airtime', async () => {
-  pf = await reboot('principal', PRINCIPAL, (f) =>
-    f.getByRole('button', { name: 'Sub-wallets' }),
-  );
+  pf = await reboot('principal', PRINCIPAL, (f) => f.getByRole('button', { name: 'Sub-wallets' }));
   await pf.getByRole('button', { name: 'Sub-wallets' }).click();
   await wait(2200);
   await pf.getByText('Tunde — school run').first().click();
@@ -611,7 +665,11 @@ await wait(4000);
 await page.screenshot({ path: `${OUT}/record-vas-receipt.png` });
 
 // ── outro ──────────────────────────────────────────────────────────────────
-await cap('Amana', 'One wallet. Many agents. Every naira under control.', 'Controlled-spend wallet for Nigeria');
+await cap(
+  'Amana',
+  'One wallet. Many agents. Every naira under control.',
+  'Controlled-spend wallet for Nigeria',
+);
 await wait(5000);
 
 await page.screenshot({ path: `${OUT}/record-final.png` });

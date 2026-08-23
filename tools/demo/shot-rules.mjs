@@ -10,7 +10,10 @@ const AGENT_PHONE = `+2348${tag}56`;
 const NIN_A = String(44444444444n + BigInt(tag)).slice(-11);
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 390, height: 1100 }, deviceScaleFactor: 2 });
+const page = await browser.newPage({
+  viewport: { width: 390, height: 1100 },
+  deviceScaleFactor: 2,
+});
 page.on('pageerror', (e) => console.log(`!! ${e.message.slice(0, 200)}`));
 
 let pairingCode = null;
@@ -38,7 +41,10 @@ await page.getByLabel('6-DIGIT CODE').waitFor({ timeout: 30_000 });
 await page.getByLabel('6-DIGIT CODE').fill('123456');
 await page.getByLabel('NIN').fill(NIN);
 await page.getByLabel('BVN').fill(BVN);
-await page.getByRole('button', { name: /^VERIFY/i }).first().click();
+await page
+  .getByRole('button', { name: /^VERIFY/i })
+  .first()
+  .click();
 
 await page.getByLabel('HOUSEHOLD NAME').waitFor({ timeout: 45_000 });
 await page.getByLabel('HOUSEHOLD NAME').fill('Adebayo Family');
@@ -63,7 +69,10 @@ await agent.getByLabel('VERIFICATION CODE').waitFor({ timeout: 30_000 });
 await agent.getByLabel('VERIFICATION CODE').fill('123456');
 await agent.getByLabel('PAIRING CODE').fill(pairingCode);
 await agent.getByLabel('NIN').fill(NIN_A);
-await agent.getByRole('button', { name: /^VERIFY/i }).first().click();
+await agent
+  .getByRole('button', { name: /^VERIFY/i })
+  .first()
+  .click();
 await agent.waitForTimeout(6000);
 
 // Back on the principal: issue a sub-wallet, then open the rules editor.
@@ -72,7 +81,10 @@ await ready();
 await page.getByRole('button', { name: 'Sub-wallets' }).waitFor({ timeout: 60_000 });
 await page.getByRole('button', { name: 'Sub-wallets' }).click();
 await page.getByRole('button', { name: /NEW SUB-WALLET/i }).click();
-await page.getByRole('button', { name: /^Agent \+/i }).first().click();
+await page
+  .getByRole('button', { name: /^Agent \+/i })
+  .first()
+  .click();
 await page.getByLabel('SUB-WALLET NAME').fill('Tunde — school run');
 await page.getByRole('button', { name: /CREATE SUB-WALLET/i }).click();
 await page.waitForTimeout(4000);
@@ -102,7 +114,9 @@ console.log('screenshot → tools/demo/out/rules-editor.png');
 await page.getByRole('button', { name: /PUBLISH RULES/i }).click();
 await page.waitForTimeout(5000);
 const detail = (await page.locator('#root').textContent()) ?? '';
-console.log(`after publish, detail shows: ${detail.includes('category') ? 'category ✓' : 'category ✗'} ${detail.includes('time_window') ? 'time_window ✓' : 'time_window ✗'}`);
+console.log(
+  `after publish, detail shows: ${detail.includes('category') ? 'category ✓' : 'category ✗'} ${detail.includes('time_window') ? 'time_window ✓' : 'time_window ✗'}`,
+);
 await page.screenshot({ path: 'tools/demo/out/rules-published.png', fullPage: true });
 
 await browser.close();

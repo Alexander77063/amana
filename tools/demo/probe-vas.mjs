@@ -81,7 +81,9 @@ const vas = await call('/vas/purchase', {
     idempotencyKey: idem('vas'),
   },
 });
-console.log(`VAS airtime purchase          → ${vas.status} ${JSON.stringify(vas.body).slice(0, 160)}`);
+console.log(
+  `VAS airtime purchase          → ${vas.status} ${JSON.stringify(vas.body).slice(0, 160)}`,
+);
 
 const bypassed = vas.status === 201;
 console.log(

@@ -29,7 +29,10 @@ await page.getByLabel('6-DIGIT CODE').waitFor({ timeout: 30_000 });
 await page.getByLabel('6-DIGIT CODE').fill('123456');
 await page.getByLabel('NIN').fill(NIN);
 await page.getByLabel('BVN').fill(BVN);
-await page.getByRole('button', { name: /^VERIFY/i }).first().click();
+await page
+  .getByRole('button', { name: /^VERIFY/i })
+  .first()
+  .click();
 
 await page.getByLabel('HOUSEHOLD NAME').waitFor({ timeout: 40_000 });
 await page.getByLabel('HOUSEHOLD NAME').fill('Adebayo Family');

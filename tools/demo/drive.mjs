@@ -46,11 +46,16 @@ await step('Principal session resolves', '/me', { token: world.principalToken })
 // ── 2. Household + master wallet (real Anchor calls) ───────────────────────
 phase('2. Household + master wallet');
 
-const hh = await step('Create household (Anchor customer + virtual account)', '/households', {
-  method: 'POST',
-  token: world.principalToken,
-  body: { name: 'Adebayo Family' },
-}, [201, 200]);
+const hh = await step(
+  'Create household (Anchor customer + virtual account)',
+  '/households',
+  {
+    method: 'POST',
+    token: world.principalToken,
+    body: { name: 'Adebayo Family' },
+  },
+  [201, 200],
+);
 
 world.householdId = hh?.household?.id ?? hh?.id;
 world.masterWalletId = hh?.masterWallet?.id ?? hh?.wallet?.id;
@@ -82,11 +87,16 @@ note(`balance payload: ${JSON.stringify(bal?.balance ?? bal?.masterWallet ?? {})
 // ── 4. Pair an agent ───────────────────────────────────────────────────────
 phase('4. Phone-to-phone pairing');
 
-const pair = await step('Principal issues a pairing code', '/pairing', {
-  method: 'POST',
-  token: world.principalToken,
-  body: { householdId: world.householdId },
-}, [200, 201]);
+const pair = await step(
+  'Principal issues a pairing code',
+  '/pairing',
+  {
+    method: 'POST',
+    token: world.principalToken,
+    body: { householdId: world.householdId },
+  },
+  [200, 201],
+);
 world.pairingCode = pair?.code ?? pair?.token ?? pair?.pairingCode;
 note(`pairing code: ${world.pairingCode}`);
 
@@ -107,24 +117,38 @@ await step('Household now lists the agent as a member', '/me/household/members',
 // ── 5. Sub-wallet + spending rules ─────────────────────────────────────────
 phase('5. Sub-wallet with real-time controls');
 
-const sw = await step('Principal issues a sub-wallet to the agent', `/households/${world.householdId}/sub-wallets`, {
-  method: 'POST',
-  token: world.principalToken,
-  body: { agentUserId: world.agentId, name: 'Tunde — school run' },
-}, [201]);
+const sw = await step(
+  'Principal issues a sub-wallet to the agent',
+  `/households/${world.householdId}/sub-wallets`,
+  {
+    method: 'POST',
+    token: world.principalToken,
+    body: { agentUserId: world.agentId, name: 'Tunde — school run' },
+  },
+  [201],
+);
 world.subWalletId = sw?.subWallet?.id;
 note(`sub-wallet: ${world.subWalletId}`);
 
-await step('Principal sets a daily limit + category lock', `/sub-wallets/${world.subWalletId}/rules`, {
-  method: 'POST',
-  token: world.principalToken,
-  body: {
-    rules: [
-      { kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo: '2000000' } },
-      { kind: 'category', priority: 20, config: { mode: 'allowlist', categories: ['transport', 'food', 'school'] } },
-    ],
+await step(
+  'Principal sets a daily limit + category lock',
+  `/sub-wallets/${world.subWalletId}/rules`,
+  {
+    method: 'POST',
+    token: world.principalToken,
+    body: {
+      rules: [
+        { kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo: '2000000' } },
+        {
+          kind: 'category',
+          priority: 20,
+          config: { mode: 'allowlist', categories: ['transport', 'food', 'school'] },
+        },
+      ],
+    },
   },
-}, [201]);
+  [201],
+);
 
 await step('Rules read back as the active version', `/sub-wallets/${world.subWalletId}/rules`, {
   token: world.principalToken,
@@ -133,21 +157,26 @@ await step('Rules read back as the active version', `/sub-wallets/${world.subWal
 // ── 6. A within-limit spend ────────────────────────────────────────────────
 phase('6. Agent spends within limits');
 
-const intent = await step('Agent creates a spend intent', '/transactions/intent', {
-  method: 'POST',
-  token: world.agentToken,
-  body: {
-    masterWalletId: world.masterWalletId,
-    subWalletId: world.subWalletId,
-    amountKobo: '750000',
-    idempotencyKey: idem('spend'),
-    vendorBankCode: '000014',
-    vendorAccountNumber: '0123456789',
-    vendorResolvedName: 'ADEBAYO STORES LTD',
-    category: 'transport',
-    agentNote: 'Bus fare + lunch',
+const intent = await step(
+  'Agent creates a spend intent',
+  '/transactions/intent',
+  {
+    method: 'POST',
+    token: world.agentToken,
+    body: {
+      masterWalletId: world.masterWalletId,
+      subWalletId: world.subWalletId,
+      amountKobo: '750000',
+      idempotencyKey: idem('spend'),
+      vendorBankCode: '000014',
+      vendorAccountNumber: '0123456789',
+      vendorResolvedName: 'ADEBAYO STORES LTD',
+      category: 'transport',
+      agentNote: 'Bus fare + lunch',
+    },
   },
-}, [201]);
+  [201],
+);
 world.txnId = intent?.transactionId;
 note(`txn ${world.txnId} — ${naira('750000')} to ADEBAYO STORES LTD`);
 
@@ -168,7 +197,10 @@ const sendRes = await call(`/transactions/${world.txnId}/send`, {
 if (sendRes.status === 202) {
   ok('Payout sent to the bank rail', `status ${JSON.stringify(sendRes.body).slice(0, 120)}`);
 } else {
-  bad('Payout sent to the bank rail', `${sendRes.status} ${JSON.stringify(sendRes.body).slice(0, 200)}`);
+  bad(
+    'Payout sent to the bank rail',
+    `${sendRes.status} ${JSON.stringify(sendRes.body).slice(0, 200)}`,
+  );
 }
 
 const settle = await stub('/_control/settle', {});
@@ -185,21 +217,26 @@ await step('Agent sees the settled receipt', `/transactions/${world.txnId}`, {
 // ── 7. Over-limit spend → bump → approval ──────────────────────────────────
 phase('7. Over-limit spend needs the principal (bump)');
 
-const bigIntent = await step('Agent tries a spend over the daily limit', '/transactions/intent', {
-  method: 'POST',
-  token: world.agentToken,
-  body: {
-    masterWalletId: world.masterWalletId,
-    subWalletId: world.subWalletId,
-    amountKobo: '1800000',
-    idempotencyKey: idem('bump'),
-    vendorBankCode: '000014',
-    vendorAccountNumber: '0123456789',
-    vendorResolvedName: 'ADEBAYO STORES LTD',
-    category: 'school',
-    agentNote: 'School books',
+const bigIntent = await step(
+  'Agent tries a spend over the daily limit',
+  '/transactions/intent',
+  {
+    method: 'POST',
+    token: world.agentToken,
+    body: {
+      masterWalletId: world.masterWalletId,
+      subWalletId: world.subWalletId,
+      amountKobo: '1800000',
+      idempotencyKey: idem('bump'),
+      vendorBankCode: '000014',
+      vendorAccountNumber: '0123456789',
+      vendorResolvedName: 'ADEBAYO STORES LTD',
+      category: 'school',
+      agentNote: 'School books',
+    },
   },
-}, [201]);
+  [201],
+);
 world.bumpTxnId = bigIntent?.transactionId;
 
 const bumpEval = await call(`/transactions/${world.bumpTxnId}/evaluate`, {
@@ -210,7 +247,10 @@ if (bumpEval.status === 202 && bumpEval.body?.kind === 'bump_pending') {
   world.bumpId = bumpEval.body.bumpRequestId;
   ok('Rules engine holds it for approval', `bump ${world.bumpId}`);
 } else {
-  bad('Rules engine holds it for approval', `${bumpEval.status} ${JSON.stringify(bumpEval.body).slice(0, 200)}`);
+  bad(
+    'Rules engine holds it for approval',
+    `${bumpEval.status} ${JSON.stringify(bumpEval.body).slice(0, 200)}`,
+  );
 }
 
 await step("Principal's bump inbox shows the request", '/me/bumps', {
@@ -226,12 +266,21 @@ if (world.bumpId) {
   if ([200, 201].includes(decision.status)) {
     world.resumeToken = decision.body?.oneShotToken;
     if (world.resumeToken) {
-      ok('Principal approves from their phone', `one-shot token ${String(world.resumeToken).slice(0, 12)}…`);
+      ok(
+        'Principal approves from their phone',
+        `one-shot token ${String(world.resumeToken).slice(0, 12)}…`,
+      );
     } else {
-      bad('Principal approves from their phone', `approved but no oneShotToken: ${JSON.stringify(decision.body)}`);
+      bad(
+        'Principal approves from their phone',
+        `approved but no oneShotToken: ${JSON.stringify(decision.body)}`,
+      );
     }
   } else {
-    bad('Principal approves the bump', `${decision.status} ${JSON.stringify(decision.body).slice(0, 200)}`);
+    bad(
+      'Principal approves the bump',
+      `${decision.status} ${JSON.stringify(decision.body).slice(0, 200)}`,
+    );
   }
 }
 
@@ -244,7 +293,10 @@ if (world.resumeToken) {
   if (resumed.status === 200) {
     ok('Agent resumes the spend', `status ${resumed.body?.status}`);
   } else {
-    bad('Agent resumes the spend', `${resumed.status} ${JSON.stringify(resumed.body).slice(0, 200)}`);
+    bad(
+      'Agent resumes the spend',
+      `${resumed.status} ${JSON.stringify(resumed.body).slice(0, 200)}`,
+    );
   }
 }
 

@@ -6,7 +6,11 @@ const token = a.body.accessToken;
 
 const good = '00000000-0000-0000-0000-000000000000';
 for (const [label, path, body] of [
-  ['unknown one-shot token', `/transactions/${good}/resume-after-bump`, { token: 'does-not-exist' }],
+  [
+    'unknown one-shot token',
+    `/transactions/${good}/resume-after-bump`,
+    { token: 'does-not-exist' },
+  ],
   ['empty token', `/transactions/${good}/resume-after-bump`, { token: '' }],
   ['malformed txn id', '/transactions/not-a-uuid/resume-after-bump', { token: 'does-not-exist' }],
 ]) {

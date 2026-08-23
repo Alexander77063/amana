@@ -19,7 +19,9 @@ let stepNo = 0;
 export const failures = [];
 
 export function phase(title) {
-  console.log(`\n${C.bold}${C.cyan}━━ ${title} ${'━'.repeat(Math.max(0, 60 - title.length))}${C.reset}`);
+  console.log(
+    `\n${C.bold}${C.cyan}━━ ${title} ${'━'.repeat(Math.max(0, 60 - title.length))}${C.reset}`,
+  );
 }
 
 export function note(msg) {
@@ -27,12 +29,16 @@ export function note(msg) {
 }
 
 export function ok(label, detail = '') {
-  console.log(`${C.green}  ✓${C.reset} ${String(++stepNo).padStart(2)}. ${label} ${C.dim}${detail}${C.reset}`);
+  console.log(
+    `${C.green}  ✓${C.reset} ${String(++stepNo).padStart(2)}. ${label} ${C.dim}${detail}${C.reset}`,
+  );
 }
 
 export function bad(label, detail = '') {
   failures.push({ label, detail });
-  console.log(`${C.red}  ✗${C.reset} ${String(++stepNo).padStart(2)}. ${label} ${C.red}${detail}${C.reset}`);
+  console.log(
+    `${C.red}  ✗${C.reset} ${String(++stepNo).padStart(2)}. ${label} ${C.red}${detail}${C.reset}`,
+  );
 }
 
 /** One HTTP call. Never throws — returns {status, body} so the driver can report every step. */
@@ -61,7 +67,10 @@ export async function step(label, path, opts = {}, expect = [200, 201, 202]) {
   if (expect.includes(r.status)) {
     ok(label, `${opts.method ?? 'GET'} ${path} → ${r.status}`);
   } else {
-    bad(label, `${opts.method ?? 'GET'} ${path} → ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`);
+    bad(
+      label,
+      `${opts.method ?? 'GET'} ${path} → ${r.status} ${JSON.stringify(r.body).slice(0, 200)}`,
+    );
   }
   return r.body;
 }
@@ -74,16 +83,27 @@ export const naira = (koboStr) =>
 let phoneSeq = 0;
 const runTag = String(Date.now()).slice(-7);
 export const newPhone = () => `+2348${runTag}${String(++phoneSeq).padStart(2, '0')}`.slice(0, 15);
-export const newNin = () => String(22222222222n + BigInt(Date.now() % 100000) + BigInt(++phoneSeq)).slice(-11);
-export const newBvn = () => String(33333333333n + BigInt(Date.now() % 100000) + BigInt(++phoneSeq)).slice(-11);
+export const newNin = () =>
+  String(22222222222n + BigInt(Date.now() % 100000) + BigInt(++phoneSeq)).slice(-11);
+export const newBvn = () =>
+  String(33333333333n + BigInt(Date.now() % 100000) + BigInt(++phoneSeq)).slice(-11);
 export const idem = (p) => `${p}-${runTag}-${++phoneSeq}`;
 
 /** Sign up (or log in) a user through the real OTP flow, using the dev bypass code. */
 export async function login(phone, { nin, bvn, pairingCode } = {}) {
-  await call('/auth/otp/request', { method: 'POST', body: { phone, purpose: pairingCode ? 'pair' : 'login' } });
+  await call('/auth/otp/request', {
+    method: 'POST',
+    body: { phone, purpose: pairingCode ? 'pair' : 'login' },
+  });
   const r = await call('/auth/otp/verify', {
     method: 'POST',
-    body: { phone, code: OTP, ...(nin && { nin }), ...(bvn && { bvn }), ...(pairingCode && { pairingCode }) },
+    body: {
+      phone,
+      code: OTP,
+      ...(nin && { nin }),
+      ...(bvn && { bvn }),
+      ...(pairingCode && { pairingCode }),
+    },
   });
   return r;
 }

@@ -3,7 +3,11 @@
 import { call, idem, login, newBvn, newNin, newPhone } from './lib.mjs';
 
 const pTok = (await login(newPhone(), { nin: newNin(), bvn: newBvn() })).body.accessToken;
-const hh = await call('/households', { method: 'POST', token: pTok, body: { name: 'Rules Probe' } });
+const hh = await call('/households', {
+  method: 'POST',
+  token: pTok,
+  body: { name: 'Rules Probe' },
+});
 const householdId = hh.body?.household?.id ?? hh.body?.id;
 const masterWalletId = hh.body?.masterWallet?.id;
 
@@ -63,13 +67,19 @@ const checks = [];
 const expect = (label, actual, want) => {
   const ok = actual === want;
   checks.push(ok);
-  console.log(`${ok ? '  ✓' : '  ✗'} ${label.padEnd(52)} → ${actual}${ok ? '' : `  (want ${want})`}`);
+  console.log(
+    `${ok ? '  ✓' : '  ✗'} ${label.padEnd(52)} → ${actual}${ok ? '' : `  (want ${want})`}`,
+  );
 };
 
 console.log('\n── category allowlist: only transport + school ──');
 await publish([
   { kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo: '2000000' } },
-  { kind: 'category', priority: 20, config: { mode: 'allowlist', categories: ['transport', 'school'] } },
+  {
+    kind: 'category',
+    priority: 20,
+    config: { mode: 'allowlist', categories: ['transport', 'school'] },
+  },
 ]);
 expect('transport (on the allowlist)', await spend('transport'), 'allow');
 expect('food (not on the allowlist)', await spend('food'), 'bump_pending');
@@ -85,20 +95,25 @@ expect('airtime_data (blocked)', await spend('airtime_data'), 'bump_pending');
 console.log('\n── time window: a window that cannot contain now ──');
 // Pick a one-hour window on the opposite side of the clock from the current Lagos hour, so
 // this is deterministic whenever it runs.
-const lagosHour = Number(
-  new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Africa/Lagos',
-    hour: '2-digit',
-    hour12: false,
-  }).format(new Date()),
-) % 24;
+const lagosHour =
+  Number(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Africa/Lagos',
+      hour: '2-digit',
+      hour12: false,
+    }).format(new Date()),
+  ) % 24;
 const farStart = (lagosHour + 6) % 24;
 await publish([
   { kind: 'limit', priority: 10, config: { windowKind: 'daily', maxKobo: '2000000' } },
   {
     kind: 'time_window',
     priority: 30,
-    config: { startHour: farStart, endHour: (farStart + 1) % 24, daysOfWeek: [0, 1, 2, 3, 4, 5, 6] },
+    config: {
+      startHour: farStart,
+      endHour: (farStart + 1) % 24,
+      daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
+    },
   },
 ]);
 console.log(`     (Lagos hour now ${lagosHour}; window ${farStart}–${(farStart + 1) % 24})`);

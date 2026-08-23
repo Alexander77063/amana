@@ -20,7 +20,10 @@ await page.getByLabel('6-DIGIT CODE').waitFor({ timeout: 30_000 });
 await page.getByLabel('6-DIGIT CODE').fill('123456');
 await page.getByLabel('NIN').fill(NIN);
 await page.getByLabel('BVN').fill(BVN);
-await page.getByRole('button', { name: /^VERIFY/i }).first().click();
+await page
+  .getByRole('button', { name: /^VERIFY/i })
+  .first()
+  .click();
 await page.getByLabel('HOUSEHOLD NAME').waitFor({ timeout: 40_000 });
 await page.getByLabel('HOUSEHOLD NAME').fill('Adebayo Family');
 await page.getByRole('button', { name: /CREATE HOUSEHOLD/i }).click();
@@ -28,7 +31,9 @@ await page.waitForTimeout(8000);
 
 await page.getByRole('button', { name: 'Sub-wallets' }).click();
 await page.waitForTimeout(5000);
-console.log(`\nafter Sub-wallets click: ${(await page.locator('#root').textContent())?.slice(-260)}`);
+console.log(
+  `\nafter Sub-wallets click: ${(await page.locator('#root').textContent())?.slice(-260)}`,
+);
 await page.screenshot({ path: 'tools/demo/out/debug-subwallets.png' });
 
 const info = await page.evaluate(() => {

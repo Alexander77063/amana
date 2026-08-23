@@ -25,7 +25,10 @@ const subWalletId = sw.body?.subWallet?.id;
 console.log(`seeded agent ${agentPhone}, sub-wallet ${subWalletId}`);
 
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 390, height: 1200 }, deviceScaleFactor: 2 });
+const page = await browser.newPage({
+  viewport: { width: 390, height: 1200 },
+  deviceScaleFactor: 2,
+});
 page.on('pageerror', (e) => console.log(`!! ${e.message.slice(0, 200)}`));
 
 await page.goto('http://localhost:19007', { waitUntil: 'load', timeout: 180_000 });
@@ -37,7 +40,10 @@ await page.getByLabel('MOBILE NUMBER').fill(agentPhone);
 await page.getByRole('button', { name: /SEND CODE/i }).click();
 await page.getByLabel('VERIFICATION CODE').waitFor({ timeout: 30_000 });
 await page.getByLabel('VERIFICATION CODE').fill('123456');
-await page.getByRole('button', { name: /^VERIFY/i }).first().click();
+await page
+  .getByRole('button', { name: /^VERIFY/i })
+  .first()
+  .click();
 await page.waitForTimeout(7000);
 
 await page.getByText('Pay', { exact: true }).first().click();
@@ -46,7 +52,9 @@ await page.getByRole('button', { name: /Buy airtime, data or pay a bill/i }).cli
 await page.waitForTimeout(4000);
 
 await page.screenshot({ path: 'tools/demo/out/vas-open.png', fullPage: true });
-console.log(`topup screen: ${((await page.locator('#root').textContent()) ?? '').replace(/\s+/g,' ').slice(-260)}`);
+console.log(
+  `topup screen: ${((await page.locator('#root').textContent()) ?? '').replace(/\s+/g, ' ').slice(-260)}`,
+);
 
 // Airtime to the agent's own number — always permitted by the cash-out gate.
 await page.getByRole('button', { name: 'MTN Nigeria' }).click();

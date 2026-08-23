@@ -2,8 +2,8 @@
 // Bundling clean is not the same as running clean — this catches runtime failures
 // (missing native modules, null hooks dispatcher, blank #root) that Metro never sees.
 
-import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
+import { chromium } from 'playwright';
 
 const OUT = process.env.OUT_DIR ?? 'tools/demo/out';
 mkdirSync(OUT, { recursive: true });
@@ -43,7 +43,7 @@ for (const [name, url] of targets) {
     const text = (await page.locator('#root').textContent())?.trim() ?? '';
     await page.screenshot({ path: `${OUT}/smoke-${name}.png`, fullPage: false });
     if (text.length === 0) {
-      console.log(`  ✗ rendered but #root has no text`);
+      console.log('  ✗ rendered but #root has no text');
       failed++;
     } else {
       console.log(`  ✓ rendered — first text: ${JSON.stringify(text.slice(0, 120))}`);

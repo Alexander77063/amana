@@ -1,8 +1,8 @@
 // Walk the principal app in a browser and dump what is actually on screen at each step,
 // so the recorder's selectors are written against reality rather than guessed.
 
-import { chromium } from 'playwright';
 import { mkdirSync } from 'node:fs';
+import { chromium } from 'playwright';
 
 const OUT = 'tools/demo/out';
 mkdirSync(OUT, { recursive: true });
@@ -27,7 +27,9 @@ async function dump(tag) {
       (b.textContent ?? '').trim().slice(0, 40),
     ),
     labels: [...document.querySelectorAll('[aria-label]')].map((b) => b.getAttribute('aria-label')),
-    inputs: [...document.querySelectorAll('input')].map((i) => i.getAttribute('aria-label') ?? i.placeholder),
+    inputs: [...document.querySelectorAll('input')].map(
+      (i) => i.getAttribute('aria-label') ?? i.placeholder,
+    ),
   }));
   console.log(`\n=== ${tag} ===`);
   console.log(`text    : ${info.text.replace(/\s+/g, ' ').slice(0, 260)}`);

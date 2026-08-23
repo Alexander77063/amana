@@ -14,11 +14,21 @@ import { subWalletsRepo } from '../modules/wallet/sub-wallets.repo';
 
 type DbType = typeof db;
 
+/**
+ * A malformed id must never reach Postgres — an invalid uuid literal raises a driver error
+ * that surfaces as a 500 (and as Sentry noise) instead of the 400 the caller deserves.
+ */
+const UuidSchema = z.string().uuid();
+const isUuid = (v: string): boolean => UuidSchema.safeParse(v).success;
+
 async function ownerCheck(
   database: DbType,
   subWalletId: string,
   actorUserId: string,
-): Promise<{ ok: true; subWalletId: string } | { ok: false; status: 403 | 404; code: string }> {
+): Promise<
+  { ok: true; subWalletId: string } | { ok: false; status: 400 | 403 | 404; code: string }
+> {
+  if (!isUuid(subWalletId)) return { ok: false, status: 400, code: 'invalid_sub_wallet_id' };
   const sw = await subWalletsRepo.findById(database, subWalletId);
   if (!sw) return { ok: false, status: 404, code: 'sub_wallet_not_found' };
   const mw = await masterWalletsRepo.findById(database, sw.masterWalletId);
@@ -118,6 +128,7 @@ export const subWalletsRoute = new Hono<{ Variables: ActorVariables }>()
     if (a.role !== 'agent') return c.json({ error: 'agent_only' }, 403);
 
     const subWalletId = c.req.param('id');
+    if (!isUuid(subWalletId)) return c.json({ error: 'invalid_sub_wallet_id' }, 400);
     const sw = await subWalletsRepo.findById(db, subWalletId);
     if (!sw) return c.json({ error: 'not_found' }, 404);
     if (sw.agentUserId !== a.userId) return c.json({ error: 'forbidden' }, 403);

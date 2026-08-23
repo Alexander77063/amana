@@ -277,7 +277,20 @@
       "Bash(echo \"exit=$?\")",
       "Bash(sed -n '8,12p' apps/backend/README.md)",
       "Bash(sed -n '43,47p' apps/backend/README.md)",
-      "Bash(sed -n '7,11p' apps/principal/README.md)"
+      "Bash(sed -n '7,11p' apps/principal/README.md)",
+      "PowerShell($paths = @\\(\"$env:ProgramFiles\\\\Docker\\\\Docker\\\\Docker Desktop.exe\", \"$env:ProgramW6432\\\\Docker\\\\Docker\\\\Docker Desktop.exe\"\\); $exe = $paths | Where-Object { Test-Path $_ } | Select-Object -First 1; if \\($exe\\) { Start-Process $exe; \"Started: $exe\" } else { \"Docker Desktop.exe not found in Program Files\" })",
+      "Bash(echo \"=== DONE ===\")",
+      "Skill(deep-research)",
+      "Workflow(deep-research)",
+      "WebSearch",
+      "WebFetch(domain:docs.getanchor.co)",
+      "Bash(grep -rln \"transfer\\\\|/transfers\\\\|amountKobo\" apps/backend/tests/integrations)",
+      "Bash(ls apps/backend/tests/sandbox/)",
+      "Bash(echo \"TC_EXIT:$?\")",
+      "Bash(df -h /c)",
+      "Bash(wmic logicaldisk *)",
+      "Bash(sed -n '10,14p' apps/backend/src/routes/vas.ts)",
+      "Bash(npm cache *)"
     ]
   },
   "dangerouslySkipPermissions": true

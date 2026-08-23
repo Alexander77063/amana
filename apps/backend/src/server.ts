@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { env } from './env';
+import { logger } from './lib/logger';
 import { errorHandler } from './middleware/error-handler';
 import { bodyFieldKey, clientIp, rateLimit } from './middleware/rate-limit';
 import { requestId } from './middleware/request-id';
@@ -101,9 +103,37 @@ function attachRateLimiters(app: Hono): void {
   }
 }
 
+/**
+ * CORS for browser clients (the web demo harness today; the SP4b retailer portal later).
+ *
+ * Mounted ONLY when `CORS_ALLOWED_ORIGINS` names explicit origins — unset means no CORS
+ * headers at all, which is exactly right for the native apps (they send no Origin) and keeps
+ * production unchanged. The allowlist is exact-match and there is no wildcard branch: for a
+ * money API, `*` alongside a bearer token is how a hostile page drains a wallet.
+ *
+ * `credentials` stays false: auth here is a bearer token, not a cookie, so the browser never
+ * needs to attach ambient credentials.
+ */
+function attachCors(app: Hono): void {
+  const allowed = env.CORS_ALLOWED_ORIGINS;
+  if (allowed.length === 0) return;
+  app.use(
+    '*',
+    cors({
+      origin: (origin) => (allowed.includes(origin) ? origin : null),
+      allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+      allowHeaders: ['Content-Type', 'Authorization', 'x-admin-api-key'],
+      credentials: false,
+      maxAge: 600,
+    }),
+  );
+  logger.info({ allowed }, 'CORS enabled for browser origins');
+}
+
 export function createServer(): Hono {
   const app = new Hono();
   app.use(requestId());
+  attachCors(app);
   attachRateLimiters(app);
   app.route('/health', healthRoute);
   app.route('/webhooks', webhooksRoute);

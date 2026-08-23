@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Amana — product walkthrough</title>
+    <style>
+      :root {
+        --ink: #0d1b2a;
+        --paper: #f4f1ea;
+        --gold: #c9a227;
+        --muted: #8fa3b8;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { width: 1920px; height: 1080px; overflow: hidden; }
+      body {
+        background: radial-gradient(1200px 700px at 50% 8%, #16293d 0%, var(--ink) 60%, #08111c 100%);
+        color: var(--paper);
+        font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, sans-serif;
+        display: flex; flex-direction: column;
+      }
+
+      header {
+        height: 104px; flex: 0 0 104px;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 56px;
+        border-bottom: 1px solid rgba(244, 241, 234, 0.08);
+      }
+      .brand { display: flex; align-items: baseline; gap: 16px; }
+      .brand h1 { font-size: 34px; letter-spacing: 0.14em; font-weight: 800; }
+      .brand span { color: var(--muted); font-size: 17px; letter-spacing: 0.06em; }
+
+      /* Provenance, stated on every frame — this is a dev build against a stubbed bank. */
+      .env {
+        display: flex; align-items: center; gap: 10px;
+        font-size: 14px; letter-spacing: 0.1em; text-transform: uppercase;
+        color: var(--muted);
+        border: 1px solid rgba(244, 241, 234, 0.16);
+        border-radius: 999px; padding: 9px 18px;
+      }
+      .env b { color: var(--gold); font-weight: 700; }
+
+      main { flex: 1; display: flex; align-items: center; justify-content: center; gap: 120px; }
+
+      .device { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+      .label {
+        font-size: 15px; letter-spacing: 0.22em; text-transform: uppercase;
+        color: var(--muted); font-weight: 700;
+      }
+      .label em { font-style: normal; color: var(--paper); }
+
+      .bezel {
+        width: 414px; height: 868px;
+        border-radius: 46px; padding: 12px;
+        background: linear-gradient(160deg, #2a3a4d, #101d2b);
+        box-shadow: 0 40px 90px rgba(0,0,0,0.55), 0 0 0 1px rgba(244,241,234,0.08);
+        position: relative;
+        transition: box-shadow 240ms ease, transform 240ms ease;
+      }
+      /* The device currently being driven gets a subtle lift, so the eye follows the action. */
+      .bezel.active {
+        box-shadow: 0 40px 110px rgba(0,0,0,0.6), 0 0 0 2px var(--gold);
+        transform: translateY(-6px);
+      }
+      .bezel iframe {
+        width: 390px; height: 844px; border: 0; border-radius: 34px; background: var(--paper);
+        display: block;
+      }
+
+      footer {
+        flex: 0 0 168px; padding: 0 80px;
+        display: flex; flex-direction: column; justify-content: center; gap: 12px;
+        border-top: 1px solid rgba(244, 241, 234, 0.08);
+        background: rgba(8, 17, 28, 0.6);
+      }
+      #chapter {
+        font-size: 15px; letter-spacing: 0.24em; text-transform: uppercase;
+        color: var(--gold); font-weight: 700;
+      }
+      #caption { font-size: 32px; line-height: 1.28; font-weight: 600; max-width: 1500px; }
+      #sub { font-size: 19px; color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">
+        <h1>AMANA</h1>
+        <span>Controlled-spend wallet for Nigeria</span>
+      </div>
+      <div class="env">
+        <span>Dev build</span> · <b id="envnote">Anchor sandbox stubbed locally</b>
+      </div>
+    </header>
+
+    <main>
+      <div class="device">
+        <div class="label">Principal — <em id="plabel">the parent</em></div>
+        <div class="bezel" id="pbezel"><iframe id="principal" title="Amana Principal"></iframe></div>
+      </div>
+      <div class="device">
+        <div class="label">Agent — <em id="alabel">the child</em></div>
+        <div class="bezel" id="abezel"><iframe id="agent" title="Amana Agent"></iframe></div>
+      </div>
+    </main>
+
+    <footer>
+      <div id="chapter">Loading</div>
+      <div id="caption">Starting the walkthrough…</div>
+      <div id="sub"></div>
+    </footer>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      document.getElementById('principal').src = params.get('principal') || 'http://localhost:19006';
+      document.getElementById('agent').src = params.get('agent') || 'http://localhost:19007';
+
+      // Driven from Playwright via page.evaluate.
+      window.stage = {
+        caption(chapter, text, sub = '') {
+          document.getElementById('chapter').textContent = chapter;
+          document.getElementById('caption').textContent = text;
+          document.getElementById('sub').textContent = sub;
+        },
+        focus(which) {
+          document.getElementById('pbezel').classList.toggle('active', which === 'principal');
+          document.getElementById('abezel').classList.toggle('active', which === 'agent');
+        },
+        env(text) {
+          document.getElementById('envnote').textContent = text;
+        },
+      };
+    </script>
+  </body>
+</html>

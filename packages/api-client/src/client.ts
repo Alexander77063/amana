@@ -46,7 +46,14 @@ export class AmanaApiClient {
 
   constructor(config: ClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
-    this.fetchImpl = config.fetchImpl ?? globalThis.fetch;
+    // Bind to globalThis. Stored on `this`, `this.fetchImpl(...)` would invoke the browser's
+    // `fetch` with the client as its receiver, and the DOM binding rejects that with
+    // "TypeError: Failed to execute 'fetch' on 'Window': Illegal invocation". React Native and
+    // Node tolerate it (their fetch is an ordinary function), which is why this only bites in a
+    // browser — and why it stayed hidden until the app was run on web. Auth calls were
+    // unaffected because AuthApi holds the reference in a local and calls it unbound.
+    const rawFetch = config.fetchImpl ?? globalThis.fetch;
+    this.fetchImpl = rawFetch.bind(globalThis);
     this.tokenStore = config.tokenStore;
     this.auth = new AuthApi(this.baseUrl, this.fetchImpl);
     this.household = new HouseholdApi(this);

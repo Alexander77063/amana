@@ -263,7 +263,22 @@ function render() {
       a.innerHTML = '<span style="color:var(--join)">&hellip;continues line ' + li + '</span>';
       return;
     }
-    if (m === 's') splits++;
+    // A segment holding two lines has to advance the pointer by two. Advancing by one made every
+    // label after the first such mark drift onto the wrong line, so the rest of the pass was
+    // marked against text that no longer matched the audio.
+    if (m === 's') {
+      splits++;
+      const a1 = li + 1;
+      const a2 = li + 2;
+      li += 2;
+      a.innerHTML = '<b>' + a1 + '+' + a2 + '.</b> ';
+      a.append(
+        document.createTextNode(
+          (LINES[a1 - 1] ?? '?').slice(0, 46) + '  //  ' + (LINES[a2 - 1] ?? '?').slice(0, 46),
+        ),
+      );
+      return;
+    }
     li++;
     if (li > LINES.length) {
       a.innerHTML = '<span class="warn">no line ' + li + ' &mdash; too many kept</span>';
@@ -278,8 +293,10 @@ function render() {
   const st = document.getElementById('status');
   const ok = li === LINES.length && !splits;
   st.className = ok ? 'sub' : 'sub warn';
-  st.textContent = li + ' / ' + LINES.length + ' lines' +
-    (splits ? ' &middot; ' + splits + ' need splitting' : '');
+  // textContent, so this needs the character itself rather than an HTML entity.
+  st.textContent =
+    li + ' / ' + LINES.length + ' lines' +
+    (splits ? ' \\u00b7 ' + splits + (splits === 1 ? ' needs' : ' need') + ' splitting' : '');
 }
 // This page is opened straight off the filesystem, and Chrome refuses navigator.clipboard on a
 // file:// origin (NotAllowedError). So select the field and try the old execCommand path first,
@@ -297,7 +314,14 @@ async function copyPlan() {
   if (!ok) {
     try { await navigator.clipboard.writeText(el.value); ok = true; } catch (e) { ok = false; }
   }
-  btn.textContent = ok ? 'Copied \\u2713' : 'Selected \\u2014 press Ctrl+C';
+  // Copying a plan that does not reconcile wastes the whole pass, so say so on the button
+  // rather than letting it read like a success.
+  const bad = !document.getElementById('status').textContent.startsWith(String(LINES.length) + ' /');
+  btn.textContent = bad
+    ? 'Copied, but it does not add up \\u2014 see the counter'
+    : ok
+      ? 'Copied \\u2713'
+      : 'Selected \\u2014 press Ctrl+C';
   setTimeout(() => { btn.textContent = 'Copy plan'; }, 2200);
 }
 render(); focusRow(0);

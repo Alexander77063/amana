@@ -25,6 +25,19 @@ export const oneShotTokensRepo = {
     return row;
   },
 
+  /** The still-usable token for a decided bump, if one exists. */
+  async findUnconsumedForBump(
+    db: DbOrTx,
+    bumpRequestId: string,
+  ): Promise<OneShotTokenRow | undefined> {
+    const [row] = await db
+      .select()
+      .from(oneShotTokens)
+      .where(and(eq(oneShotTokens.bumpRequestId, bumpRequestId), isNull(oneShotTokens.consumedAt)))
+      .limit(1);
+    return row;
+  },
+
   /** Atomic consume: only succeeds (returns the row) if not yet consumed. */
   async tryConsume(db: DbOrTx, token: string, now: Date): Promise<OneShotTokenRow | undefined> {
     const [row] = await db

@@ -143,6 +143,27 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     await transactionsRepo.attachMedia(db, id, body.mediaKey, new Date());
     return c.json({ ok: true }, 200);
   })
+  /**
+   * The agent's view of the bump on their own transaction, and — once the principal has
+   * approved — the one-shot token that lets them continue.
+   *
+   * Without this the token had no way to reach the device that needs it: it is minted for the
+   * principal's response, and the push to the agent omits it on purpose (a capability does not
+   * belong in a push payload). The agent's wait screen polls this, which also means a dropped
+   * push no longer strands the payment until the bump expires.
+   */
+  .get('/:id/bump', async (c) => {
+    const a = c.get('actor') as Actor;
+    const id = c.req.param('id');
+    if (!isUuid(id)) return c.json({ error: 'invalid_transaction_id' }, 400);
+    if (a.role !== 'agent') return c.json({ error: 'agent_only' }, 403);
+    const result = await bumpWorkflowService.statusForAgent(db, {
+      transactionId: id,
+      agentUserId: a.userId,
+    });
+    if (!result) return c.json({ error: 'not_found' }, 404);
+    return c.json(result, 200);
+  })
   .delete('/:id/bump', async (c) => {
     const a = c.get('actor') as Actor;
     const id = c.req.param('id');

@@ -43,6 +43,25 @@ export const bumpRequestsRepo = {
     return row;
   },
 
+  /**
+   * The most recent bump request for a transaction.
+   *
+   * A transaction can accumulate more than one over its life (a cancelled request followed by
+   * a fresh attempt), so this deliberately takes the newest rather than asserting uniqueness.
+   */
+  async findLatestByTransactionId(
+    db: DbOrTx,
+    transactionId: string,
+  ): Promise<BumpRequestRow | undefined> {
+    const [row] = await db
+      .select()
+      .from(bumpRequests)
+      .where(eq(bumpRequests.transactionId, transactionId))
+      .orderBy(desc(bumpRequests.createdAt))
+      .limit(1);
+    return row;
+  },
+
   async findById(db: DbOrTx, id: string): Promise<BumpRequestRow | undefined> {
     const [row] = await db.select().from(bumpRequests).where(eq(bumpRequests.id, id)).limit(1);
     return row;

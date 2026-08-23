@@ -76,8 +76,8 @@ const LINES = {
     'So watch what happens when the agent tries something outside the rules. Airtime was never on the list.',
   'It is not refused — it is held, and the parent is asked.':
     'It is not refused. It is held, and the parent is asked. That distinction is the whole product: nobody gets stranded at the counter, and nobody has to hand over blanket access to avoid it.',
-  'One tap from the parent, and it is released.':
-    'One tap from the parent, and it is released. The rule held. The parent decided. And there is nothing to argue about afterwards.',
+  'One tap from the parent, and the payment goes through.':
+    'One tap from the parent, and the payment goes through. The rule held. The parent decided. And there is nothing to argue about afterwards.',
   'The agent’s phone now shows the sub-wallet it was given.':
     'The agent now sees the sub-wallet they were given. Until the parent issues one, there is nothing to spend from.',
   'Paying a vendor is a normal bank transfer out.':

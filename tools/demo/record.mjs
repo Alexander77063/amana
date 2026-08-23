@@ -519,11 +519,19 @@ await step('principal approves from their phone', async () => {
 await wait(5000);
 await page.screenshot({ path: `${OUT}/record-approved.png` });
 
+await focus('agent');
 await cap(
   '9 · The exception',
-  'One tap from the parent, and it is released.',
+  'One tap from the parent, and the payment goes through.',
   'The rule held. The parent decided. Nothing to argue about afterwards.',
 );
+await step('the released payment settles', async () => {
+  await settleWhenReady(spendReference, 40);
+  await af
+    .getByText(/Receipt|Sent|Paid/i)
+    .first()
+    .waitFor({ state: 'visible', timeout: 90_000 });
+});
 await wait(4000);
 await page.screenshot({ path: `${OUT}/record-exception-receipt.png` });
 

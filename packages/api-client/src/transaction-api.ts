@@ -18,6 +18,13 @@ export type CreateIntentResult = { transactionId: string; status: string };
 
 export type SendResult = { anchorTransferId: string; status: string };
 
+export type BumpStatusResult = {
+  status: 'pending' | 'approved_once' | 'raise_limit' | 'denied' | 'expired' | 'cancelled';
+  expiresAt: string;
+  /** Present only once approved — this is what `resumeAfterBump` consumes. */
+  resumeToken: string | null;
+};
+
 export type EvaluateResult =
   | { kind: 'allow'; status: string }
   | { kind: 'bump_pending'; bumpRequestId: string; status: string; expiresAt: string };
@@ -60,6 +67,19 @@ export class TransactionApi {
     return this.client.request<SendResult>(
       `/transactions/${encodeURIComponent(transactionId)}/send`,
       { method: 'POST' },
+    );
+  }
+
+  /**
+   * GET /transactions/:id/bump — the agent's view of the bump on their own transaction.
+   *
+   * `resumeToken` is non-null only once the principal has approved. It is fetched over the
+   * agent's own authenticated connection rather than carried in the push, so polling this is
+   * what keeps a dropped notification from stranding the payment.
+   */
+  bumpStatus(transactionId: string): Promise<BumpStatusResult> {
+    return this.client.request<BumpStatusResult>(
+      `/transactions/${encodeURIComponent(transactionId)}/bump`,
     );
   }
 

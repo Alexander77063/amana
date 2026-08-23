@@ -67,7 +67,7 @@ const A = () => page.frameLocator('#agent');
  * document, so a locator can report "visible" and then time out on click. Driving the Frame
  * handle directly makes the navigation something Playwright tracks.
  */
-async function reboot(which, url, readyName) {
+async function reboot(which, url, ready) {
   const frameEl = await page.$(`#${which}`);
   const frame = await frameEl.contentFrame();
   await frame.goto(url, { waitUntil: 'load', timeout: 120_000 });
@@ -76,10 +76,7 @@ async function reboot(which, url, readyName) {
     () => (document.querySelector('#root')?.textContent ?? '').trim().length > 0,
     { timeout: 120_000 },
   );
-  await live.getByRole('button', { name: readyName }).first().waitFor({
-    state: 'visible',
-    timeout: 60_000,
-  });
+  await ready(live).first().waitFor({ state: 'visible', timeout: 60_000 });
   return live;
 }
 
@@ -103,6 +100,18 @@ const stub = (path, body) =>
 
 // The pairing code is displayed on the principal's screen; we also capture it off the wire
 // so the script can drive the agent's deep link deterministically.
+let spendReference = null;
+page.on('request', (req) => {
+  if (req.url().endsWith('/transactions/intent') && req.method() === 'POST') {
+    try {
+      const body = JSON.parse(req.postData() ?? '{}');
+      if (body.idempotencyKey) spendReference = body.idempotencyKey;
+    } catch {
+      /* ignore */
+    }
+  }
+});
+
 let pairingCode = null;
 page.on('response', async (res) => {
   if (res.url().endsWith('/pairing') && res.request().method() === 'POST') {
@@ -214,7 +223,7 @@ let pf = null;
 await step('principal returns home', async () => {
   // No visible back affordance on the Pairing screen (MainStack sets headerShown:false — on a
   // real phone this is the OS back gesture), so the browser equivalent is a re-navigation.
-  pf = await reboot('principal', PRINCIPAL, 'Sub-wallets');
+  pf = await reboot('principal', PRINCIPAL, (f) => f.getByRole('button', { name: 'Sub-wallets' }));
 });
 await wait(2500);
 
@@ -267,17 +276,64 @@ await cap(
 );
 let af = null;
 await step('agent picks up the sub-wallet', async () => {
-  af = await reboot('agent', AGENT, /Pay/i);
+  // react-navigation bottom-tabs on web does not expose a tab/button role here, so match
+  // the visible label instead.
+  af = await reboot('agent', AGENT, (f) => f.getByText('Pay', { exact: true }));
 });
 await wait(3000);
 
 await cap('7 · Spending', 'Paying a vendor is a normal bank transfer out.', 'The vendor needs no app and no Amana account — just an account number.');
 await step('agent opens pay', async () => {
-  await af.getByRole('button', { name: /Pay/i }).first().click();
+  await af.getByText('Pay', { exact: true }).first().click();
 });
 await wait(3500);
 
 await page.screenshot({ path: `${OUT}/record-agent-pay.png` });
+
+await step('enter vendor account', async () => {
+  await af.getByText('Enter details', { exact: true }).click();
+  await wait(2200);
+  await af.getByRole('button', { name: /Select bank/i }).click();
+  await wait(1600);
+  await af.getByRole('button', { name: 'Guaranty Trust Bank' }).click();
+  await wait(1400);
+  await af.getByLabel('ACCOUNT NUMBER').fill('0123456789');
+  await wait(1200);
+  await af.getByRole('button', { name: /CONFIRM NAME/i }).click();
+});
+await wait(4000);
+
+await cap(
+  '7 · Spending',
+  'The bank confirms who owns that account before anything moves.',
+  'NIP name enquiry — the agent sees the real account name, not a guess.',
+);
+await wait(3500);
+
+await step('confirm and send', async () => {
+  await af.getByLabel('AMOUNT (₦)').fill('7500');
+  await wait(1400);
+  await af.getByRole('button', { name: 'CONFIRM PAYMENT' }).click();
+});
+await wait(5000);
+await page.screenshot({ path: `${OUT}/record-agent-sending.png` });
+
+await cap('8 · Settlement', 'The bank confirms the transfer and the ledger settles.', 'Double-entry postings — every naira is accounted for on both sides.');
+await step('settle at the bank', async () => {
+  // Settle THIS spend by reference. The stub keeps every transfer of the session, so
+  // "settle the last one" can pick up a transfer from an earlier run.
+  if (!spendReference) throw new Error('never saw the spend idempotency key');
+  const r = await stub('/_control/settle', { reference: spendReference });
+  if (r?.error) throw new Error(`stub settle failed: ${JSON.stringify(r)}`);
+  // The Sending screen resolves either on a push (a no-op on web) or by polling the txn
+  // every 3s, so wait for the receipt itself rather than a fixed sleep.
+  await af
+    .getByText(/Receipt|Sent|Paid/i)
+    .first()
+    .waitFor({ state: 'visible', timeout: 45_000 });
+});
+await wait(4000);
+await page.screenshot({ path: `${OUT}/record-receipt.png` });
 
 // ── outro ──────────────────────────────────────────────────────────────────
 await cap('Amana', 'One wallet. Many agents. Every naira under control.', 'Controlled-spend wallet for Nigeria');

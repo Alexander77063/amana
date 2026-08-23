@@ -16,6 +16,8 @@ export type CreateIntentInput = {
 
 export type CreateIntentResult = { transactionId: string; status: string };
 
+export type SendResult = { anchorTransferId: string; status: string };
+
 export type EvaluateResult =
   | { kind: 'allow'; status: string }
   | { kind: 'bump_pending'; bumpRequestId: string; status: string; expiresAt: string };
@@ -41,6 +43,31 @@ export class TransactionApi {
     return this.client.request<EvaluateResult>(
       `/transactions/${encodeURIComponent(transactionId)}/evaluate`,
       { method: 'POST' },
+    );
+  }
+
+  /**
+   * POST /transactions/:id/send — hands the payout to the bank rail.
+   *
+   * This is the step that actually moves money. `evaluate` only clears the rules and marks
+   * the transaction in_flight; without this call the payout is never initiated and the
+   * transaction sits in_flight until the agent's poll gives up.
+   *
+   * Safe to call more than once: the transfer is idempotent at Anchor on the transaction's
+   * idempotency key, so a retry resolves to the same transfer rather than paying twice.
+   */
+  send(transactionId: string): Promise<SendResult> {
+    return this.client.request<SendResult>(
+      `/transactions/${encodeURIComponent(transactionId)}/send`,
+      { method: 'POST' },
+    );
+  }
+
+  /** POST /transactions/:id/resume-after-bump — continue a spend the principal approved. */
+  resumeAfterBump(transactionId: string, token: string): Promise<{ status: string }> {
+    return this.client.request<{ status: string }>(
+      `/transactions/${encodeURIComponent(transactionId)}/resume-after-bump`,
+      { method: 'POST', jsonBody: { token } },
     );
   }
 }

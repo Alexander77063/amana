@@ -26,6 +26,25 @@ export function SendingScreen({ route, navigation }: Props): JSX.Element {
     }
   };
 
+  // Hand the payout to the bank rail. This is the step that actually moves money:
+  // `evaluate` only clears the rules and marks the transaction in_flight. Both routes into
+  // this screen (a clean spend, and a spend the principal bumped) land here, so this is the
+  // one place it belongs. `sent` guards React 18 StrictMode's double-invoked effects; the
+  // call is idempotent server-side anyway, keyed on the transaction's idempotency key.
+  const sent = useRef(false);
+  useEffect(() => {
+    if (sent.current) return;
+    sent.current = true;
+    void (async () => {
+      try {
+        await api.transaction.send(transactionId);
+      } catch {
+        // Leave it to the poll below: the transfer may already be in flight from a retry,
+        // and failing the payment here would be wrong when the money is genuinely moving.
+      }
+    })();
+  }, [transactionId]);
+
   // biome-ignore lint/correctness/useExhaustiveDependencies: navigateResult omitted — done.current guards double-fire
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener((notification) => {

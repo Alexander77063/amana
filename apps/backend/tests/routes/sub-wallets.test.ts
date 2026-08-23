@@ -138,7 +138,16 @@ describe('GET /sub-wallets/:id/balance', () => {
     const app = createServer();
     const res = await app.request(`/sub-wallets/${sw.sub.id}/balance`, { headers });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ balanceKobo: '75000' });
+    // The ledger figure is still reported, and every money value stays a string so nothing is
+    // lost to a JS number. The spend fields are what the screen shows: this top-up is money
+    // arriving, not spending, so it must NOT appear against a limit.
+    expect(await res.json()).toEqual({
+      balanceKobo: '75000',
+      spentLast24hKobo: '0',
+      spentLast30dKobo: '0',
+      dailyLimitKobo: null,
+      monthlyLimitKobo: null,
+    });
   });
 });
 

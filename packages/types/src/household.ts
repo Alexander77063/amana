@@ -53,7 +53,21 @@ export type ProvisionedSubWallet = {
 };
 
 export type SubWalletBalance = {
+  /**
+   * The sub ledger account's balance, in kobo.
+   *
+   * A sub-wallet is a spending envelope, not an account that holds funds: top-ups credit the
+   * master wallet and spends debit it, so this is ~0 by construction. It is here for ledger
+   * reconciliation — do NOT show it to a principal as a balance, because an envelope capped at
+   * ₦20,000 a day displaying ₦0.00 reads as an empty wallet. Use the spend figures below.
+   */
   balanceKobo: string;
+  /** Spent through this sub-wallet in the last 24 hours / 30 days, in kobo. */
+  spentLast24hKobo: string;
+  spentLast30dKobo: string;
+  /** The caps currently published for it. Null means no limit rule of that window is active. */
+  dailyLimitKobo: string | null;
+  monthlyLimitKobo: string | null;
 };
 
 export type RuleKind = 'limit' | 'category' | 'time_window' | 'allowlist' | 'anomaly_threshold';

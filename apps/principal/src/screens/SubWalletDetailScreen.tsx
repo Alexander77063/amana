@@ -12,6 +12,7 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useState } from 'react';
 import { Modal, Pressable, View } from 'react-native';
+import { formatNaira } from '../lib/format-money';
 import { ruleKindLabel, summariseRule } from '../lib/rule-summary';
 import { type SnoozePreset, presetToExpiresAt } from '../lib/snooze-presets';
 import type { MainStackParamList } from '../nav/MainStack';
@@ -19,11 +20,16 @@ import { useSubWalletsStore } from '../state/subwallets.store';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'SubWalletDetail'>;
 
-function formatKobo(koboStr: string | undefined): string {
-  if (!koboStr) return '—';
-  const naira = BigInt(koboStr) / 100n;
-  const remainder = BigInt(koboStr) % 100n;
-  return `₦${naira}.${String(remainder).padStart(2, '0')}`;
+/**
+ * Kobo to naira for display.
+ *
+ * Delegates to the shared formatter rather than doing its own arithmetic — the local version
+ * omitted thousands separators, so this screen rendered "₦20000.00" in the summary directly
+ * above "₦20,000.00" in the rules list, for the same underlying figure.
+ */
+function formatKobo(koboStr: string | null | undefined): string {
+  if (koboStr === null || koboStr === undefined) return '—';
+  return formatNaira(koboStr);
 }
 
 export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element {
@@ -72,8 +78,23 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
       <Body muted>Status: {sw.status}</Body>
 
       <Card>
-        <Label>BALANCE</Label>
-        <AmountText size="xl" value={formatKobo(balance)} sentiment="neutral" />
+        <Label>SPENT TODAY</Label>
+        <AmountText size="xl" value={formatKobo(balance?.spentLast24hKobo)} sentiment="neutral" />
+        {/*
+          A sub-wallet holds no money — it authorises spending from the master wallet — so there
+          is no balance to show, and the ledger figure is always about zero. What the parent needs
+          is how much has gone through it against what they capped it at.
+        */}
+        <Body muted>
+          {balance?.dailyLimitKobo
+            ? `of ${formatKobo(balance.dailyLimitKobo)} allowed per day`
+            : 'No daily limit set — spends from the master wallet'}
+        </Body>
+        {balance?.monthlyLimitKobo ? (
+          <Body muted>
+            {`${formatKobo(balance.spentLast30dKobo)} of ${formatKobo(balance.monthlyLimitKobo)} this month`}
+          </Body>
+        ) : null}
       </Card>
 
       <Card>

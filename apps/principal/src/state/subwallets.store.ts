@@ -1,11 +1,22 @@
-import type { ActiveRuleSet, RuleInput, SubWallet, SubWalletStatus } from '@amana/types';
+import type {
+  ActiveRuleSet,
+  RuleInput,
+  SubWallet,
+  SubWalletBalance,
+  SubWalletStatus,
+} from '@amana/types';
 import { create } from 'zustand';
 import { api } from '../lib/api';
 import { toErrorCode } from '../lib/store-utils';
 
 export type SubWalletsState = {
   byId: Record<string, SubWallet>;
-  balanceById: Record<string, string>;
+  /**
+   * The whole balance payload, not just the ledger figure. The screen needs spend-against-limit
+   * to say anything useful about an envelope, and keeping only `balanceKobo` here is what forced
+   * it to render a structural zero as the headline number.
+   */
+  balanceById: Record<string, SubWalletBalance>;
   rulesById: Record<string, ActiveRuleSet | null>;
   errorCode: string | null;
   busy: boolean;
@@ -66,7 +77,7 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
   async refreshBalance(subWalletId) {
     try {
       const r = await api.subWallet.getBalance(subWalletId);
-      set({ balanceById: { ...get().balanceById, [subWalletId]: r.balanceKobo } });
+      set({ balanceById: { ...get().balanceById, [subWalletId]: r } });
     } catch (e) {
       set({ errorCode: toErrorCode(e) });
     }
@@ -85,7 +96,10 @@ export const useSubWalletsStore = create<SubWalletsState>((set, get) => ({
     set({ busy: true, errorCode: null });
     try {
       await api.subWallet.publishRules(subWalletId, { rules });
-      await get().refreshRules(subWalletId);
+      // The spend summary reports the caps read off the ACTIVE rule set, so publishing changes
+      // it. Refreshing only the rules left the screen contradicting itself — "No daily limit
+      // set" in the summary directly above a rules list showing ₦20,000.00 per day.
+      await Promise.all([get().refreshRules(subWalletId), get().refreshBalance(subWalletId)]);
       set({ busy: false });
     } catch (e) {
       set({ busy: false, errorCode: toErrorCode(e) });

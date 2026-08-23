@@ -67,8 +67,20 @@ export const subWalletsRoute = new Hono<{ Variables: ActorVariables }>()
     if (a.role !== 'principal') return c.json({ error: 'principal_only' }, 403);
     const check = await ownerCheck(db, c.req.param('id'), a.userId);
     if (!check.ok) return c.json({ error: check.code }, check.status);
-    const balance = await balanceService.accountBalanceForSubWallet(db, c.req.param('id'));
-    return c.json({ balanceKobo: balance.toString() }, 200);
+    // `balanceKobo` stays in the response for compatibility, but it is ~0 by construction under
+    // the limits-only funds model. The spend-against-limit figures are what a principal can
+    // actually act on, so they are returned alongside it.
+    const s = await balanceService.spendSummaryForSubWallet(db, c.req.param('id'));
+    return c.json(
+      {
+        balanceKobo: s.balanceKobo.toString(),
+        spentLast24hKobo: s.spentLast24hKobo.toString(),
+        spentLast30dKobo: s.spentLast30dKobo.toString(),
+        dailyLimitKobo: s.dailyLimitKobo === null ? null : s.dailyLimitKobo.toString(),
+        monthlyLimitKobo: s.monthlyLimitKobo === null ? null : s.monthlyLimitKobo.toString(),
+      },
+      200,
+    );
   })
   .get('/:id/rules', async (c) => {
     const a = c.get('actor');

@@ -535,6 +535,81 @@ await step('the released payment settles', async () => {
 await wait(4000);
 await page.screenshot({ path: `${OUT}/record-exception-receipt.png` });
 
+// ── 10. Beyond transfers ───────────────────────────────────────────────────
+// Deliberately framed as the control primitive extending, not as feature breadth. The
+// interesting thing is not that the wallet sells airtime — every wallet does — it is that
+// the parent's lock reaches it.
+await cap(
+  '10 · Beyond transfers',
+  'The same wallet buys airtime, data, electricity and cable.',
+  'Paid straight to the biller — no cash, no top-up card, no middleman.',
+);
+await step('agent opens airtime & bills', async () => {
+  await af.getByRole('button', { name: /^DONE$/i }).click();
+  await wait(2500);
+  await af.getByRole('button', { name: /Buy airtime, data or pay a bill/i }).click();
+  await wait(3000);
+  await af.getByRole('button', { name: 'MTN Nigeria' }).click();
+  await wait(1500);
+  await af.getByLabel('PHONE NUMBER').fill(AGENT_PHONE);
+  await wait(900);
+  await af.getByLabel('AMOUNT (₦)').fill('1000');
+});
+await wait(2500);
+
+await cap(
+  '10 · Beyond transfers',
+  'And the parent’s category lock reaches this too.',
+  'Airtime was never on the allowed list, so it is refused — not quietly permitted.',
+);
+await step('the locked category refuses it', async () => {
+  await af.getByRole('button', { name: 'BUY', exact: true }).click();
+  await af
+    .getByText(/has not allowed this category/i)
+    .first()
+    .waitFor({ state: 'visible', timeout: 30_000 });
+});
+await wait(3500);
+await page.screenshot({ path: `${OUT}/record-vas-blocked.png` });
+
+await focus('principal');
+await cap(
+  '10 · Beyond transfers',
+  'The parent decides to allow it.',
+  'One tap in the same editor — and it applies everywhere the money can go.',
+);
+await step('parent allows airtime', async () => {
+  pf = await reboot('principal', PRINCIPAL, (f) =>
+    f.getByRole('button', { name: 'Sub-wallets' }),
+  );
+  await pf.getByRole('button', { name: 'Sub-wallets' }).click();
+  await wait(2200);
+  await pf.getByText('Tunde — school run').first().click();
+  await wait(2500);
+  await pf.getByText('Edit', { exact: true }).first().click();
+  await wait(2500);
+  await pf.getByRole('button', { name: 'Airtime & data' }).click();
+  await wait(1500);
+  await pf.getByRole('button', { name: /PUBLISH RULES/i }).click();
+});
+await wait(4000);
+
+await focus('agent');
+await cap(
+  '10 · Beyond transfers',
+  'And now it goes through.',
+  'Same purchase, same wallet — the only thing that changed is the parent’s rule.',
+);
+await step('airtime purchase succeeds', async () => {
+  await af.getByRole('button', { name: 'BUY', exact: true }).click();
+  await af
+    .getByText(/Receipt/i)
+    .first()
+    .waitFor({ state: 'visible', timeout: 45_000 });
+});
+await wait(4000);
+await page.screenshot({ path: `${OUT}/record-vas-receipt.png` });
+
 // ── outro ──────────────────────────────────────────────────────────────────
 await cap('Amana', 'One wallet. Many agents. Every naira under control.', 'Controlled-spend wallet for Nigeria');
 await wait(5000);

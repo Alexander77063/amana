@@ -86,6 +86,14 @@ const LINES = {
     'Before anything moves, the bank confirms who owns that account, and the agent sees the real name.',
   'The bank confirms the transfer and the ledger settles.':
     'The bank confirms, and the ledger settles. Double entry postings, both sides accounted for. The agent gets a receipt carrying the N I B S S session I D, the same reference their own bank would show.',
+  'The same wallet buys airtime, data, electricity and cable.':
+    'The same wallet also buys airtime, data, electricity and cable, paid straight to the biller. No cash, no top up card, no middleman.',
+  'And the parent’s category lock reaches this too.':
+    'And this is the part that matters. The parent’s category lock reaches these too. Airtime was never on the allowed list, so it is refused, rather than quietly permitted because it happens to be digital.',
+  'The parent decides to allow it.':
+    'If the parent wants to allow it, that is one tap in the same editor.',
+  'And now it goes through.':
+    'And now it goes through. Same purchase, same wallet. The only thing that changed is the parent’s rule.',
   'One wallet. Many agents. Every naira under control.':
     'One wallet. Many people spending from it. Every naira under control.',
 };

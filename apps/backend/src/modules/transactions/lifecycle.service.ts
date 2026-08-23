@@ -31,7 +31,13 @@ export type EvaluateInput = {
 
 export type EvaluateOutput =
   | { kind: 'allow'; transaction: TransactionRow }
-  | { kind: 'bump_pending'; transaction: TransactionRow; bumpRequestId: string };
+  | {
+      kind: 'bump_pending';
+      transaction: TransactionRow;
+      bumpRequestId: string;
+      /** When the request lapses. The agent's wait screen counts down to this. */
+      bumpExpiresAt: Date;
+    };
 
 export const lifecycleService = {
   async evaluate(db: DbOrTx, input: EvaluateInput): Promise<EvaluateOutput> {
@@ -156,6 +162,7 @@ export const lifecycleService = {
         kind: 'bump_pending' as const,
         transaction: updated,
         bumpRequestId: bump.bumpRequest.id,
+        bumpExpiresAt: bump.bumpRequest.expiresAt,
       };
     });
 

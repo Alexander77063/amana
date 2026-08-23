@@ -68,10 +68,16 @@ const LINES = {
     'The code is what binds this device to that household. Nothing else will.',
   'The principal issues a sub-wallet to that agent.':
     'The parent issues a sub-wallet. It is not a bank account. It is a spending envelope drawn against the master wallet, so there is no float to top up, and nothing stranded.',
-  'The parent sets a daily spending limit.':
-    'And this is the point of the product. The parent sets the rules. A daily limit here, enforced on the server, on every spend. The agent app cannot talk its way past it.',
-  'Category locks and time windows run in the same engine.':
-    'Category locks and time windows run in the same engine today, enforced server side.',
+  'The parent caps what can be spent in a day…':
+    'And this is the point of the product. The parent sets the rules. A daily cap, enforced on the server, on every spend. The agent app cannot talk its way past it.',
+  '…and locks it to the categories they choose.':
+    'Then they lock it down further. Transport, school, market. Anything outside that list is not the agent’s call to make.',
+  'Now the agent tries something the rules do not allow.':
+    'So watch what happens when the agent tries something outside the rules. Airtime was never on the list.',
+  'It is not refused — it is held, and the parent is asked.':
+    'It is not refused. It is held, and the parent is asked. That distinction is the whole product: nobody gets stranded at the counter, and nobody has to hand over blanket access to avoid it.',
+  'One tap from the parent, and it is released.':
+    'One tap from the parent, and it is released. The rule held. The parent decided. And there is nothing to argue about afterwards.',
   'The agent’s phone now shows the sub-wallet it was given.':
     'The agent now sees the sub-wallet they were given. Until the parent issues one, there is nothing to spend from.',
   'Paying a vendor is a normal bank transfer out.':

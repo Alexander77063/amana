@@ -70,11 +70,14 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     if (result.kind === 'allow') {
       return c.json({ kind: 'allow', status: result.transaction.status }, 200);
     }
+    // `expiresAt` is what the agent's wait screen counts down to. It was missing here while
+    // the api-client type declared it, so the countdown rendered "NaN:NaN" on a live screen.
     return c.json(
       {
         kind: 'bump_pending',
         bumpRequestId: result.bumpRequestId,
         status: result.transaction.status,
+        expiresAt: result.bumpExpiresAt.toISOString(),
       },
       202,
     );

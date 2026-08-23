@@ -218,6 +218,13 @@ describe('lifecycleService — bump path', () => {
     expect(evalResult.kind).toBe('bump_pending');
     if (evalResult.kind !== 'bump_pending') return;
 
+    // The agent's wait screen counts down to this. It used to be absent from the evaluate
+    // result while the api-client type declared it, so the countdown rendered "NaN:NaN".
+    expect(evalResult.bumpExpiresAt).toBeInstanceOf(Date);
+    expect(evalResult.bumpExpiresAt.getTime()).toBeGreaterThan(
+      new Date('2026-05-03T12:00:00Z').getTime(),
+    );
+
     const decision = await bumpWorkflowService.decide(testDb, {
       bumpRequestId: evalResult.bumpRequestId,
       decidedByUserId: principalId,

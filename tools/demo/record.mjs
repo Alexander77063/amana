@@ -136,6 +136,22 @@ const stub = (path, body) =>
     body: JSON.stringify(body ?? {}),
   }).then((r) => r.json());
 
+/**
+ * Settle a specific transfer, waiting for it to exist first.
+ *
+ * The app reaches the bank a beat after the screen changes — on the bump path the agent's
+ * wait screen has to notice the approval, navigate, and only then initiate the transfer — so
+ * firing settlement the instant we click is a race the stub loses with `no_such_transfer`.
+ */
+async function settleWhenReady(reference, attempts = 20) {
+  for (let i = 0; i < attempts; i++) {
+    const r = await stub('/_control/settle', { reference });
+    if (!r?.error) return r;
+    await page.waitForTimeout(1500);
+  }
+  throw new Error(`transfer ${reference} never reached the bank`);
+}
+
 // The pairing code is displayed on the principal's screen; we also capture it off the wire
 // so the script can drive the agent's deep link deterministically.
 let spendReference = null;
@@ -349,27 +365,38 @@ await step('create sub-wallet', async () => {
 await wait(4500);
 
 // ── 6. Limits ──────────────────────────────────────────────────────────────
-await cap('6 · The control', 'The parent sets a daily spending limit.', 'Enforced server-side on every spend — the agent app cannot override it.');
+await cap('6 · The control', 'The parent caps what can be spent in a day…', 'The agent app cannot override any of this — it is checked on the server.');
 // Sub-wallet rows and the "Edit" affordance are plain Pressables with no accessibilityRole,
 // so these are text selectors rather than getByRole. (Worth adding roles — see README.)
 await step('open sub-wallet', async () => {
   await pf.getByText('Tunde — school run').first().click();
 });
 await wait(2800);
-await step('set daily limit', async () => {
+await step('open the rules editor', async () => {
   await pf.getByText('Edit', { exact: true }).first().click();
-  await wait(2000);
+  await wait(2200);
   await pf.getByLabel('AMOUNT (₦)').fill('20000');
-  await wait(1200);
-  await pf.getByRole('button', { name: /PUBLISH RULES/i }).click();
 });
-await wait(4500);
+await wait(2500);
 
 await cap(
   '6 · The control',
-  'Category locks and time windows run in the same engine.',
-  'Those two are enforced server-side today; the in-app editor for them is still to come.',
+  '…and locks it to the categories they choose.',
+  'Set here by the parent, enforced on the server for every payment.',
 );
+await step('set the category lock', async () => {
+  await pf.getByRole('button', { name: 'Only these', exact: true }).click();
+  await wait(1500);
+  for (const c of ['Transport', 'School', 'Food & market']) {
+    await pf.getByRole('button', { name: c }).click();
+    await wait(700);
+  }
+});
+await wait(2000);
+
+await step('publish the rules', async () => {
+  await pf.getByRole('button', { name: /PUBLISH RULES/i }).click();
+});
 await wait(4500);
 
 // ── 7. Agent spends ────────────────────────────────────────────────────────
@@ -417,7 +444,10 @@ await wait(3500);
 
 await step('confirm and send', async () => {
   await af.getByLabel('AMOUNT (₦)').fill('7500');
-  await wait(1400);
+  await wait(1200);
+  // Tagging the payment is what the parent's category lock is checked against.
+  await af.getByRole('button', { name: 'Transport' }).click();
+  await wait(1200);
   await af.getByRole('button', { name: 'CONFIRM PAYMENT' }).click();
 });
 await wait(5000);
@@ -428,8 +458,7 @@ await step('settle at the bank', async () => {
   // Settle THIS spend by reference. The stub keeps every transfer of the session, so
   // "settle the last one" can pick up a transfer from an earlier run.
   if (!spendReference) throw new Error('never saw the spend idempotency key');
-  const r = await stub('/_control/settle', { reference: spendReference });
-  if (r?.error) throw new Error(`stub settle failed: ${JSON.stringify(r)}`);
+  await settleWhenReady(spendReference);
   // The Sending screen resolves either on a push (a no-op on web) or by polling the txn
   // every 3s, so wait for the receipt itself rather than a fixed sleep.
   await af
@@ -439,6 +468,64 @@ await step('settle at the bank', async () => {
 });
 await wait(4000);
 await page.screenshot({ path: `${OUT}/record-receipt.png` });
+
+// ── 9. The exception ───────────────────────────────────────────────────────
+// The most important beat: a spend the rules do NOT allow is held, not silently blocked,
+// and the parent releases it from their own phone.
+await cap(
+  '9 · The exception',
+  'Now the agent tries something the rules do not allow.',
+  'Airtime was never on the parent’s list of allowed categories.',
+);
+await step('agent starts a blocked spend', async () => {
+  await af.getByText('Pay', { exact: true }).first().click();
+  await wait(2500);
+  await af.getByText('Enter details', { exact: true }).click();
+  await wait(2200);
+  await af.getByRole('button', { name: /Select bank/i }).click();
+  await wait(1600);
+  await af.getByRole('button', { name: 'Guaranty Trust Bank' }).click();
+  await wait(1400);
+  await af.getByLabel('ACCOUNT NUMBER').fill('0123456789');
+  await wait(1200);
+  await af.getByRole('button', { name: /CONFIRM NAME/i }).click();
+  await wait(3500);
+  await af.getByLabel('AMOUNT (₦)').fill('3000');
+  await wait(1200);
+  await af.getByRole('button', { name: 'Airtime & data' }).click();
+  await wait(1400);
+  await af.getByRole('button', { name: 'CONFIRM PAYMENT' }).click();
+});
+await wait(4000);
+
+await cap(
+  '9 · The exception',
+  'It is not refused — it is held, and the parent is asked.',
+  'A blocked spend becomes a request, so nobody is stranded at the counter.',
+);
+await wait(3000);
+await page.screenshot({ path: `${OUT}/record-held.png` });
+
+await focus('principal');
+await step('principal approves from their phone', async () => {
+  pf = await reboot('principal', PRINCIPAL, (f) =>
+    f.getByRole('button', { name: /Pending requests/i }),
+  );
+  await wait(2000);
+  await pf.getByRole('button', { name: /Pending requests/i }).click();
+  await wait(3000);
+  await pf.getByRole('button', { name: 'APPROVE' }).first().click();
+});
+await wait(5000);
+await page.screenshot({ path: `${OUT}/record-approved.png` });
+
+await cap(
+  '9 · The exception',
+  'One tap from the parent, and it is released.',
+  'The rule held. The parent decided. Nothing to argue about afterwards.',
+);
+await wait(4000);
+await page.screenshot({ path: `${OUT}/record-exception-receipt.png` });
 
 // ── outro ──────────────────────────────────────────────────────────────────
 await cap('Amana', 'One wallet. Many agents. Every naira under control.', 'Controlled-spend wallet for Nigeria');

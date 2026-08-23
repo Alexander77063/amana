@@ -162,8 +162,9 @@ const html = `<!doctype html>
   footer { position:fixed; left:0; right:0; bottom:0; background:#141926;
            border-top:1px solid var(--line); padding:14px 24px; display:flex; gap:14px;
            align-items:center }
-  code { background:#0b0e14; border:1px solid var(--line); border-radius:6px; padding:8px 11px;
-         flex:1; overflow:auto; white-space:nowrap; font-size:13px }
+  #plan { background:#0b0e14; border:1px solid var(--line); border-radius:6px; padding:9px 11px;
+          flex:1; font:13px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace; color:var(--fg) }
+  #plan:focus { outline:2px solid var(--keep); outline-offset:1px }
   .cp { background:var(--keep); border:0; color:#fff; border-radius:7px; padding:10px 16px;
         cursor:pointer; font-size:14px }
   .warn { color:#f0b849 }
@@ -183,7 +184,7 @@ const html = `<!doctype html>
 </header>
 <div class="wrap" id="rows"></div>
 <footer>
-  <code id="plan">—</code>
+  <input id="plan" readonly value="" aria-label="plan string">
   <span id="status" class="sub"></span>
   <button class="cp" onclick="copyPlan()">Copy plan</button>
 </footer>
@@ -242,6 +243,8 @@ rows.addEventListener('click', (e) => {
   setMark(+b.dataset.i, b.dataset.m);
 });
 document.addEventListener('keydown', (e) => {
+  // After Copy the plan field holds focus; Ctrl+C and friends belong to it, not to marking.
+  if (e.target === document.getElementById('plan')) return;
   if (e.key === ' ') { e.preventDefault(); return play(cur); }
   const m = { '1':'k', '2':'j', '3':'d', '4':'s' }[e.key];
   if (m) { e.preventDefault(); setMark(cur, m); }
@@ -271,17 +274,31 @@ function render() {
     a.innerHTML = '<b>' + li + '.</b> ';
     a.append(document.createTextNode(LINES[li - 1].slice(0, 104)));
   });
-  document.getElementById('plan').textContent = marks.join('');
+  document.getElementById('plan').value = marks.join('');
   const st = document.getElementById('status');
   const ok = li === LINES.length && !splits;
   st.className = ok ? 'sub' : 'sub warn';
   st.textContent = li + ' / ' + LINES.length + ' lines' +
     (splits ? ' &middot; ' + splits + ' need splitting' : '');
 }
-function copyPlan() {
-  navigator.clipboard.writeText(document.getElementById('plan').textContent);
-  document.querySelector('.cp').textContent = 'Copied \\u2713';
-  setTimeout(() => { document.querySelector('.cp').textContent = 'Copy plan'; }, 1400);
+// This page is opened straight off the filesystem, and Chrome refuses navigator.clipboard on a
+// file:// origin (NotAllowedError). So select the field and try the old execCommand path first,
+// which still works from a click; only then fall back to the async API. If both are blocked the
+// text is already selected, so Ctrl+C finishes the job — the button says so rather than
+// pretending it copied.
+async function copyPlan() {
+  const el = document.getElementById('plan');
+  const btn = document.querySelector('.cp');
+  el.focus();
+  el.select();
+  el.setSelectionRange(0, 99999);
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  if (!ok) {
+    try { await navigator.clipboard.writeText(el.value); ok = true; } catch (e) { ok = false; }
+  }
+  btn.textContent = ok ? 'Copied \\u2713' : 'Selected \\u2014 press Ctrl+C';
+  setTimeout(() => { btn.textContent = 'Copy plan'; }, 2200);
 }
 render(); focusRow(0);
 </script>

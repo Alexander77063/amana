@@ -11,6 +11,7 @@ import { PairingApi } from './pairing-api';
 import { PreferenceApi } from './preference-api';
 import { SubWalletApi } from './sub-wallet-api';
 import type { StoredAuth, TokenStore } from './token-store';
+import { VasApi } from './vas-api';
 import { TransactionApi } from './transaction-api';
 import { VendorApi } from './vendor-api';
 
@@ -40,6 +41,7 @@ export class AmanaApiClient {
   public readonly pairing: PairingApi;
   public readonly transaction: TransactionApi;
   public readonly vendor: VendorApi;
+  public readonly vas: VasApi;
   private readonly fetchImpl: typeof fetch;
   private readonly tokenStore?: TokenStore;
   private inflightRefresh: Promise<StoredAuth> | null = null;
@@ -67,6 +69,7 @@ export class AmanaApiClient {
     this.vendor = new VendorApi(this);
     this.media = new MediaApi(this);
     this.me = new MeApi(this);
+    this.vas = new VasApi(this);
   }
 
   async health(): Promise<{ status: 'ok'; version: string }> {

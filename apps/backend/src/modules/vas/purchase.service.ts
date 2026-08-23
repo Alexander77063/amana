@@ -1,13 +1,17 @@
+import { VAS_SPEND_CATEGORY } from '@amana/types';
 import { eq, sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { masterWallets } from '../../db/schema';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
 import { AnchorHttpError } from '../../integrations/anchor/client';
 import type { AnchorBillResponse } from '../../integrations/anchor/types';
-import { ConflictError, LimitExceededError } from '../../lib/errors';
+import { ConflictError, LimitExceededError, RuleDeniedError } from '../../lib/errors';
 import { kobo } from '../../lib/kobo';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
+import { evaluate } from '../rules/engine';
+import { fetchActiveRuleSet } from '../rules/rule-set.fetcher';
+import type { Decision } from '../rules/types';
 import { reversalService } from '../transactions/reversal.service';
 import { wouldExceedSpendLimit } from '../transactions/spend-limit';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
@@ -47,6 +51,55 @@ export type VasCreateOutput = {
   vasPurchaseId: string;
   status: 'in_flight' | 'settled' | 'failed';
 };
+
+/**
+ * Apply the principal's spending rules to a digital purchase.
+ *
+ * Only the intent-shaped rules are meaningful here — category and time window. The limit rule
+ * needs a ledger snapshot and is enforced later under the per-sub-wallet advisory lock, where
+ * it is race-safe; running it here as well would report a figure that is stale by the time it
+ * matters, so it is deliberately filtered out.
+ *
+ * A denial is refused outright rather than raised as a bump, matching how VAS already treats
+ * an over-limit purchase (decision #7). Turning either into a bump is a separate feature.
+ */
+async function assertVasRulesAllow(
+  db: DbOrTx,
+  input: { subWalletId: string; category: VasCategory; amountKobo: bigint; now: Date },
+): Promise<void> {
+  const ruleSet = await fetchActiveRuleSet(db, input.subWalletId);
+  if (!ruleSet) return;
+  const relevant = {
+    ...ruleSet,
+    rules: ruleSet.rules.filter((r) => r.kind === 'category' || r.kind === 'time_window'),
+  };
+  if (relevant.rules.length === 0) return;
+
+  const decision: Decision = evaluate(
+    {
+      amountKobo: kobo(input.amountKobo),
+      category: VAS_SPEND_CATEGORY[input.category] ?? null,
+      vendorBankCode: null,
+      vendorAccountNumber: null,
+      vendorResolvedName: null,
+      confirmedAt: input.now,
+    },
+    relevant,
+    {
+      // Zeroes are safe here precisely because the limit rule was filtered out above — nothing
+      // remaining reads the ledger snapshot, and an anomaly score of 0 cannot trip a threshold.
+      ledger: {
+        subWalletAvailableKobo: kobo(0n),
+        spentLast24hKobo: kobo(0n),
+        spentLast30dKobo: kobo(0n),
+      },
+      anomalyScore: 0,
+    },
+  );
+  if (decision.kind !== 'allow') {
+    throw new RuleDeniedError(decision.allReasons.map((r) => r.code));
+  }
+}
 
 export const vasPurchaseService = {
   /**
@@ -108,6 +161,20 @@ export const vasPurchaseService = {
       category: input.category,
       recipient,
     });
+
+    // 2b. The principal's spending rules. Without this a category lock is bypassable: the
+    // parent allows transport and school only, and the agent buys airtime with the same money
+    // out of the same wallet. The limit is enforced later, under the advisory lock at the
+    // reserve seam, where it can see the ledger — this pass covers the rules that depend only
+    // on the intent (category, time window).
+    if (input.subWalletId) {
+      await assertVasRulesAllow(db, {
+        subWalletId: input.subWalletId,
+        category: input.category,
+        amountKobo: input.amountKobo,
+        now: input.now ?? new Date(),
+      });
+    }
 
     // 3. Validate the customer for electricity/cable BEFORE reserving (throws if invalid).
     let customerName: string | null = null;

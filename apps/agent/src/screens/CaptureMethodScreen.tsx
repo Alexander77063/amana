@@ -65,6 +65,18 @@ export function CaptureMethodScreen({ navigation }: Props): JSX.Element {
               </Pressable>
             </Card>
 
+            <Card style={{ gap: 4 }}>
+              <Heading size="md">Airtime, data & bills</Heading>
+              <Body muted>Top up a phone, or pay electricity or cable</Body>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Buy airtime, data or pay a bill"
+                onPress={() => navigation.navigate('TopUp')}
+              >
+                <Body style={{ color: theme.colors.accent }}>Buy now</Body>
+              </Pressable>
+            </Card>
+
             {loading && <ActivityIndicator style={{ marginTop: 8 }} />}
 
             {recents.length > 0 && <SectionHeader title="RECENTS" />}

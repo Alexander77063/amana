@@ -1,3 +1,4 @@
+import { SPEND_CATEGORIES } from '@amana/types';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/client';
@@ -28,6 +29,9 @@ import { retailersRepo } from '../modules/marketplace/retailers.repo';
  * 2. **The `actor` claim authorises nothing.** `jwtAuth` establishes who the caller is; a forged
  *    `actor: 'retailer'` still resolves to no owned retailer and is refused.
  */
+/** Zod needs a non-empty tuple; SPEND_CATEGORIES is the single source of the vocabulary. */
+const SPEND_CATEGORY_VALUES = SPEND_CATEGORIES.map((c) => c.value) as [string, ...string[]];
+
 const UUID = z.object({ id: z.string().uuid() });
 
 const PageSchema = z.object({
@@ -60,7 +64,14 @@ const PayoutSchema = z.object({
 const ItemSchema = z.object({
   name: z.string().min(1).max(120),
   priceNaira: NairaSchema,
+  /** The retailer's own merchandising label — their words, free text. */
   section: z.string().min(1).max(60),
+  /**
+   * The spend category a parent's lock is matched against. Constrained to the closed shared
+   * vocabulary on purpose: if a retailer could type anything here, they would be deciding whether
+   * someone else's spending lock applies to their item.
+   */
+  category: z.enum(SPEND_CATEGORY_VALUES),
   description: z.string().max(2000).nullish(),
   photoUrl: z.string().url().nullish(),
   durationMinutes: z
@@ -110,6 +121,7 @@ const itemView = (i: Awaited<ReturnType<typeof catalogItemsRepo.findById>> & obj
   name: i.name,
   priceKobo: (i.priceKobo as bigint).toString(),
   section: i.section,
+  category: i.category,
   description: i.description,
   photoUrl: i.photoUrl,
   durationMinutes: i.durationMinutes,
@@ -186,6 +198,7 @@ export const retailerPortalRoute = new Hono<{ Variables: ActorVariables }>()
       name: body.name,
       priceKobo: kobo(body.priceNaira),
       section: body.section,
+      category: body.category,
       description: body.description ?? null,
       photoUrl: body.photoUrl ?? null,
       durationMinutes: body.durationMinutes ?? null,

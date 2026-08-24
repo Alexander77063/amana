@@ -192,6 +192,18 @@ export function SubWalletDetailScreen({ navigation, route }: Props): JSX.Element
         ))}
       </Card>
 
+      <Card>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+          <Label>MARKETPLACE</Label>
+          <Pressable onPress={() => navigation.navigate('Marketplace', { subWalletId })}>
+            <Body style={{ color: theme.colors.accent }}>Choose shops</Body>
+          </Pressable>
+        </View>
+        {/* Approving a shop writes a rule into the set above — the marketplace and the rule
+            engine are one system, so this belongs next to the rules, not in a separate world. */}
+        <Body muted>Pick which shops this wallet may buy from.</Body>
+      </Card>
+
       <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap', marginTop: 16 }}>
         {sw.status !== 'suspended' && (
           <Button

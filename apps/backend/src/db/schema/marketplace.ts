@@ -70,7 +70,19 @@ export const catalogItems = pgTable('catalog_items', {
   name: text('name').notNull(),
   // Gross list price (bigint kobo). Deals mark this down; effective price resolved in SP2 Task 4.
   priceKobo: bigint('price_kobo', { mode: 'bigint' }).notNull(),
+  // The retailer's own merchandising grouping — free text, their words ("hair", "nails").
   section: text('section').notNull(),
+  // The SPEND CATEGORY this item counts as, from the closed vocabulary in @amana/types.
+  //
+  // Deliberately NOT the same field as `section`. A parent's category lock is expressed in that
+  // closed vocabulary, so comparing it against retailer-chosen free text is exactly the drift
+  // categories.ts warns about: a lock would silently deny legitimate items, or silently permit
+  // ones it meant to block, depending on what a retailer happened to type.
+  //
+  // `text` rather than a pgEnum, matching `transactions.category`, so adding a category stays a
+  // one-line change in @amana/types instead of a migration. Existing rows default to 'other',
+  // which an allowlist denies — the safe direction for a column added under a live lock.
+  category: text('category').notNull().default('other'),
   description: text('description'),
   photoUrl: text('photo_url'),
   durationMinutes: integer('duration_minutes'),

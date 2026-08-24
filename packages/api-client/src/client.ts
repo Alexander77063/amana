@@ -4,6 +4,7 @@ import { BumpApi } from './bump-api';
 import { DeviceApi } from './device-api';
 import { ApiError } from './errors';
 import { HouseholdApi } from './household-api';
+import { MarketplaceApi } from './marketplace-api';
 import { MeApi } from './me-api';
 import { MediaApi } from './media-api';
 import { NotificationApi } from './notification-api';
@@ -43,6 +44,7 @@ export class AmanaApiClient {
   public readonly transaction: TransactionApi;
   public readonly vendor: VendorApi;
   public readonly vas: VasApi;
+  public readonly marketplace: MarketplaceApi;
   public readonly retailer: RetailerApi;
   public readonly retailerAuth: RetailerAuthApi;
   private readonly fetchImpl: typeof fetch;
@@ -73,6 +75,7 @@ export class AmanaApiClient {
     this.media = new MediaApi(this);
     this.me = new MeApi(this);
     this.vas = new VasApi(this);
+    this.marketplace = new MarketplaceApi(this);
     this.retailer = new RetailerApi(this);
     this.retailerAuth = new RetailerAuthApi(this.baseUrl, this.fetchImpl);
   }

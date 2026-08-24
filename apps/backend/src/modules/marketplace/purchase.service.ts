@@ -1,8 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { ConflictError, LimitExceededError, NotFoundError } from '../../lib/errors';
+import {
+  ConflictError,
+  LimitExceededError,
+  NotFoundError,
+  RuleDeniedError,
+} from '../../lib/errors';
 import { type Kobo, kobo } from '../../lib/kobo';
+import { evaluate } from '../rules/engine';
+import { fetchActiveRuleSet } from '../rules/rule-set.fetcher';
+import type { Decision } from '../rules/types';
 import { wouldExceedSpendLimit } from '../transactions/spend-limit';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
@@ -16,6 +24,84 @@ import { type RedemptionRow, redemptionsRepo } from './redemptions.repo';
 import { retailersRepo } from './retailers.repo';
 
 type DbOrTx = PostgresJsDatabase;
+
+/**
+ * Do the parent's rules allow this purchase at all?
+ *
+ * `reserve` enforces the spend LIMIT and nothing else, so until this existed a category lock did
+ * not apply to the marketplace: a sub-wallet locked to transport and school could buy a voucher
+ * for anything in the catalogue, while the identical spend as a bank transfer was held for
+ * approval. Proved by tools/demo/probe-marketplace.mjs.
+ *
+ * Also where the control fusion binds: `merchant` rules are evaluated here and nowhere else,
+ * because this is the only path with a retailer to match against.
+ *
+ * Mirrors `assertVasRulesAllow` in modules/vas, including what it deliberately leaves out.
+ * `limit` is filtered away because it is already enforced inside `pg_advisory_xact_lock` in
+ * `reserve`; evaluating it a second time OUTSIDE that lock would reintroduce the
+ * evaluate-then-reserve race the lock exists to close.
+ */
+async function assertMarketplaceRulesAllow(
+  db: DbOrTx,
+  input: {
+    subWalletId: string;
+    category: string | null;
+    retailerId: string;
+    amountKobo: bigint;
+    now: Date;
+  },
+): Promise<void> {
+  const ruleSet = await fetchActiveRuleSet(db, input.subWalletId);
+  if (!ruleSet) return;
+  const relevant = {
+    ...ruleSet,
+    rules: ruleSet.rules.filter(
+      (r) => r.kind === 'category' || r.kind === 'time_window' || r.kind === 'merchant',
+    ),
+  };
+  if (relevant.rules.length === 0) return;
+
+  const decision: Decision = evaluate(
+    {
+      amountKobo: kobo(input.amountKobo),
+      category: input.category,
+      // A marketplace purchase pays a retailer through the voucher, not a vendor account the
+      // buyer typed, so there is no bank destination for an allowlist rule to match — and
+      // allowlist is filtered out above in any case.
+      vendorBankCode: null,
+      vendorAccountNumber: null,
+      vendorResolvedName: null,
+      // The control fusion: this is what a merchant rule matches on, and the only path that
+      // supplies it. Everywhere else passes null, so a merchant rule denies there — correctly,
+      // since "only these merchants" cannot permit a payment to someone who is not one.
+      retailerId: input.retailerId,
+      confirmedAt: input.now,
+    },
+    relevant,
+    {
+      // Zeroes are safe precisely because `limit` was filtered out: nothing remaining reads the
+      // ledger snapshot, and an anomaly score of 0 cannot trip a threshold.
+      ledger: {
+        subWalletAvailableKobo: kobo(0n),
+        spentLast24hKobo: kobo(0n),
+        spentLast30dKobo: kobo(0n),
+      },
+      anomalyScore: 0,
+    },
+  );
+
+  if (decision.kind !== 'allow') {
+    // Reject rather than hold for a bump. `bump_pending` is produced by lifecycle.service, which
+    // this path does not go through, and `resumeAfterBump` has no way back into a catalogue
+    // purchase — so a "pending" voucher would be one nothing could ever release. Spec §8 wants
+    // the bump flow here eventually; that needs marketplace wired into the bump workflow, and is
+    // recorded as deferred in the SP5b plan rather than faked.
+    throw new RuleDeniedError(
+      decision.allReasons.map((r) => r.code),
+      'marketplace purchase denied by rules',
+    );
+  }
+}
 
 export type PurchaseInput = {
   /** The buyer initiating the purchase; authorized against the source wallet before any hold. */
@@ -90,6 +176,19 @@ export const purchaseService = {
       throw new ConflictError(
         `retailer ${item.retailerId} is not approved (status=${retailer.onboardingStatus})`,
       );
+    }
+
+    // Rules before money. Only an agent buy is rule-gated: a principal-direct purchase spends
+    // the master wallet they own (decision #17), and a principal is not bound by rules they set
+    // for someone else.
+    if (input.subWalletId) {
+      await assertMarketplaceRulesAllow(db, {
+        subWalletId: input.subWalletId,
+        category: item.category,
+        retailerId: item.retailerId,
+        amountKobo: item.priceKobo as bigint,
+        now,
+      });
     }
 
     // Price server-side: gross list price marked down by the best active deal at `now`.

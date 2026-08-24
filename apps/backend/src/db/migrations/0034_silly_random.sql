@@ -1,0 +1,1 @@
+ALTER TYPE "rule_kind" ADD VALUE 'merchant';

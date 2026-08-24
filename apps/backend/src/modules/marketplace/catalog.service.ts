@@ -12,6 +12,8 @@ export type CreateCatalogItemInput = {
   /** Gross list price in bigint kobo — must be strictly positive. */
   priceKobo: Kobo;
   section: string;
+  /** Spend category from the closed @amana/types vocabulary — what a parent's lock matches. */
+  category?: string;
   description?: string | null;
   photoUrl?: string | null;
   durationMinutes?: number | null;
@@ -40,6 +42,7 @@ export const catalogService = {
       name: input.name,
       priceKobo: input.priceKobo,
       section: input.section,
+      ...(input.category !== undefined && { category: input.category }),
       description: input.description ?? null,
       photoUrl: input.photoUrl ?? null,
       durationMinutes: input.durationMinutes ?? null,

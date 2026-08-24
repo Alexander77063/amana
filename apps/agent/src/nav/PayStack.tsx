@@ -4,6 +4,8 @@ import { BumpWaitScreen } from '../screens/BumpWaitScreen';
 import { CaptureMethodScreen } from '../screens/CaptureMethodScreen';
 import { ConfirmScreen } from '../screens/ConfirmScreen';
 import { FailedScreen } from '../screens/FailedScreen';
+import { MarketplaceItemScreen } from '../screens/MarketplaceItemScreen';
+import { MarketplaceScreen } from '../screens/MarketplaceScreen';
 import { NQRScanScreen } from '../screens/NQRScanScreen';
 import { PhoneLookupScreen } from '../screens/PhoneLookupScreen';
 import { PhotoAttachScreen } from '../screens/PhotoAttachScreen';
@@ -12,6 +14,7 @@ import { SendingScreen } from '../screens/SendingScreen';
 import { ShowRecipientScreen } from '../screens/ShowRecipientScreen';
 import { TopUpReceiptScreen } from '../screens/TopUpReceiptScreen';
 import { TopUpScreen } from '../screens/TopUpScreen';
+import { VoucherScreen } from '../screens/VoucherScreen';
 
 export type PayStackParamList = {
   CaptureMethod: undefined;
@@ -36,6 +39,9 @@ export type PayStackParamList = {
   PhotoAttach: { transactionId: string };
   TopUp: undefined;
   TopUpReceipt: { purchaseId: string };
+  Marketplace: undefined;
+  MarketplaceItem: { itemId: string };
+  Voucher: { voucherId: string };
   Failed: { transactionId: string; errorMessage: string | null };
 };
 
@@ -48,6 +54,9 @@ export function PayStack(): JSX.Element {
       <Stack.Screen name="NQRScan" component={NQRScanScreen} />
       <Stack.Screen name="PhoneLookup" component={PhoneLookupScreen} />
       <Stack.Screen name="AccountEntry" component={AccountEntryScreen} />
+      <Stack.Screen name="Marketplace" component={MarketplaceScreen} />
+      <Stack.Screen name="MarketplaceItem" component={MarketplaceItemScreen} />
+      <Stack.Screen name="Voucher" component={VoucherScreen} />
       <Stack.Screen name="Confirm" component={ConfirmScreen} />
       <Stack.Screen name="BumpWait" component={BumpWaitScreen} />
       <Stack.Screen name="Sending" component={SendingScreen} />

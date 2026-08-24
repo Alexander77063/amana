@@ -344,6 +344,9 @@ importers:
       '@amana/api-client':
         specifier: workspace:*
         version: link:../../packages/api-client
+      '@amana/types':
+        specifier: workspace:*
+        version: link:../../packages/types
       next:
         specifier: 14.2.15
         version: 14.2.15(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(react-dom@18.2.0(react@18.2.0))(react@18.2.0)

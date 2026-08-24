@@ -7,6 +7,7 @@ import { EnableNotificationsScreen } from '../screens/EnableNotificationsScreen'
 import { FeeCoverInfoScreen } from '../screens/FeeCoverInfoScreen';
 import { HomeDashboardScreen } from '../screens/HomeDashboardScreen';
 import { HouseholdSetupScreen } from '../screens/HouseholdSetupScreen';
+import { MarketplaceScreen } from '../screens/MarketplaceScreen';
 import { MembersScreen } from '../screens/MembersScreen';
 import { NotificationKindDetailScreen } from '../screens/NotificationKindDetailScreen';
 import { NotificationPreferencesScreen } from '../screens/NotificationPreferencesScreen';
@@ -27,6 +28,7 @@ export type MainStackParamList = {
   CreateSubWallet: undefined;
   SubWalletDetail: { subWalletId: string };
   EditRules: { subWalletId: string };
+  Marketplace: { subWalletId: string };
   BumpsInbox: undefined;
   NotificationsInbox: undefined;
   EnableNotifications: undefined;
@@ -51,6 +53,7 @@ export function MainStack(): JSX.Element {
       <Stack.Screen name="CreateSubWallet" component={CreateSubWalletScreen} />
       <Stack.Screen name="SubWalletDetail" component={SubWalletDetailScreen} />
       <Stack.Screen name="EditRules" component={EditRulesScreen} />
+      <Stack.Screen name="Marketplace" component={MarketplaceScreen} />
       <Stack.Screen name="BumpsInbox" component={BumpsInboxScreen} />
       <Stack.Screen name="NotificationsInbox" component={NotificationsInboxScreen} />
       <Stack.Screen

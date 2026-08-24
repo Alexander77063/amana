@@ -2,6 +2,7 @@ import { evaluateAllowlist } from './evaluators/allowlist';
 import { evaluateAnomalyThreshold } from './evaluators/anomaly-threshold';
 import { evaluateCategory } from './evaluators/category';
 import { evaluateLimit } from './evaluators/limit';
+import { evaluateMerchant } from './evaluators/merchant';
 import { evaluateTimeWindow } from './evaluators/time-window';
 import type {
   Decision,
@@ -24,6 +25,8 @@ function evalRule(rule: Rule, intent: TxnIntent, ctx: RuleEvaluationContext): De
       return evaluateAllowlist(rule.config, intent);
     case 'anomaly_threshold':
       return evaluateAnomalyThreshold(rule.config, ctx.anomalyScore);
+    case 'merchant':
+      return evaluateMerchant(rule.config, intent);
   }
 }
 

@@ -184,7 +184,12 @@ describe('retailer portal: profile and storefront', () => {
     const res = await app.request('/retailer/items', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ name: 'Wash and set', priceNaira: '4820.50', section: 'hair' }),
+      body: JSON.stringify({
+        name: 'Wash and set',
+        priceNaira: '4820.50',
+        section: 'hair',
+        category: 'health',
+      }),
     });
     expect(res.status).toBe(201);
     const body = (await res.json()) as { item: { priceKobo: string } };
@@ -197,7 +202,7 @@ describe('retailer portal: profile and storefront', () => {
       const res = await app.request('/retailer/items', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ name: 'x', priceNaira, section: 'hair' }),
+        body: JSON.stringify({ name: 'x', priceNaira, section: 'hair', category: 'health' }),
       });
       expect(res.status).toBe(400);
     }
@@ -211,7 +216,12 @@ describe('retailer portal: profile and storefront', () => {
     const created = await app.request('/retailer/items', {
       method: 'POST',
       headers: a.headers,
-      body: JSON.stringify({ name: 'A only', priceNaira: '100', section: 'hair' }),
+      body: JSON.stringify({
+        name: 'A only',
+        priceNaira: '100',
+        section: 'hair',
+        category: 'health',
+      }),
     });
     const { item } = (await created.json()) as { item: { id: string } };
 
@@ -259,7 +269,7 @@ describe('retailer portal: suspension is asymmetric', () => {
     const res = await app.request('/retailer/items', {
       method: 'POST',
       headers,
-      body: JSON.stringify({ name: 'new', priceNaira: '100', section: 'hair' }),
+      body: JSON.stringify({ name: 'new', priceNaira: '100', section: 'hair', category: 'health' }),
     });
     expect(res.status).toBe(403);
   });
@@ -270,7 +280,7 @@ describe('retailer portal: suspension is asymmetric', () => {
     const created = await app.request('/retailer/items', {
       method: 'POST',
       headers: ctx.headers,
-      body: JSON.stringify({ name: 'x', priceNaira: '100', section: 'hair' }),
+      body: JSON.stringify({ name: 'x', priceNaira: '100', section: 'hair', category: 'health' }),
     });
     const { item } = (await created.json()) as { item: { id: string } };
     await retailersRepo.updateOnboardingStatus(testDb, ctx.retailer.id, 'suspended');
@@ -347,7 +357,12 @@ describe('retailer portal: deals', () => {
     const created = await app.request('/retailer/items', {
       method: 'POST',
       headers: a.headers,
-      body: JSON.stringify({ name: 'A only', priceNaira: '100', section: 'hair' }),
+      body: JSON.stringify({
+        name: 'A only',
+        priceNaira: '100',
+        section: 'hair',
+        category: 'health',
+      }),
     });
     const { item } = (await created.json()) as { item: { id: string } };
 

@@ -4,6 +4,7 @@ import {
   Badge,
   BalanceCard,
   Body,
+  Button,
   Screen,
   TransactionRow,
   formatNaira,
@@ -47,6 +48,15 @@ export function HomeScreen({ navigation }: Props): JSX.Element {
     <Screen title="Amana" noPadding>
       <View style={{ paddingHorizontal: 20, paddingTop: 16, gap: 12 }}>
         <BalanceCard label="SUB-WALLET" amount={sw?.name ?? '—'} />
+
+        {/* The way into the marketplace. Everything behind it is already permitted — the
+            catalogue is filtered by the same rules that enforce at purchase — so this is not an
+            upsell, it is a shorter route to something the agent may already buy. */}
+        <Button
+          label="SHOP WITH THIS WALLET"
+          variant="secondary"
+          onPress={() => navigation.navigate('Pay', { screen: 'Marketplace' })}
+        />
 
         {pendingBumps.length > 0 && (
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

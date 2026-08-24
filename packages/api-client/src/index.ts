@@ -48,3 +48,4 @@ export { MediaApi } from './media-api';
 export { MeApi } from './me-api';
 export * from './vas-api';
 export * from './retailer-api';
+export * from './marketplace-api';

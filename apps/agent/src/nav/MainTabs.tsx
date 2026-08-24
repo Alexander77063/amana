@@ -1,13 +1,16 @@
 import { useTheme } from '@amana/ui';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import { HomeScreen } from '../screens/HomeScreen';
 import { HistoryStack } from './HistoryStack';
-import { PayStack } from './PayStack';
+import { PayStack, type PayStackParamList } from './PayStack';
 import { SettingsStack } from './SettingsStack';
 
 export type MainTabParamList = {
   Home: undefined;
-  Pay: undefined;
+  // Typed as nested params so a screen elsewhere can send someone to a specific Pay screen —
+  // Home links straight into the marketplace this way.
+  Pay: NavigatorScreenParams<PayStackParamList>;
   History: undefined;
   Settings: undefined;
 };

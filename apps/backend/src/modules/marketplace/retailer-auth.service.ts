@@ -74,6 +74,12 @@ export const retailerAuthService = {
       // First sign-in: there must be an unclaimed retailer ops recorded this number against.
       const claimable = await retailersRepo.findClaimableByContactPhone(txDb, input.phone);
       if (!claimable) return { kind: 'no_retailer_for_phone' as const };
+      // NOTE: the code has already been consumed by `verifyCode` above, so this outcome costs
+      // the caller their OTP and they must request a new one. That ordering is deliberate.
+      // Checking "is a NIN needed?" first would answer it for anyone who asks, with no code at
+      // all — turning this endpoint into an oracle for which phone numbers have a retailer
+      // waiting to be claimed. The portal avoids the round trip by offering the NIN field up
+      // front on first sign-in rather than discovering the requirement here.
       if (!input.nin) return { kind: 'nin_required' as const };
 
       user = await usersRepo.insert(txDb, {

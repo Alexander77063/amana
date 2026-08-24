@@ -103,7 +103,7 @@ export function errorMessage(e: unknown): string {
     case 'too_many_attempts':
       return 'Too many attempts. Wait a few minutes and request a new code.';
     case 'nin_required':
-      return 'First sign-in needs your NIN.';
+      return 'First sign-in needs your NIN. Enter it, then request a new code.';
     case 'no_retailer_for_phone':
       return 'No business is registered to this number. Contact Amana to get set up.';
     case 'rate_limited':

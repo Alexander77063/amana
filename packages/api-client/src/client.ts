@@ -11,8 +11,8 @@ import { PairingApi } from './pairing-api';
 import { PreferenceApi } from './preference-api';
 import { SubWalletApi } from './sub-wallet-api';
 import type { StoredAuth, TokenStore } from './token-store';
-import { VasApi } from './vas-api';
 import { TransactionApi } from './transaction-api';
+import { VasApi } from './vas-api';
 import { VendorApi } from './vendor-api';
 
 export interface ClientConfig {

@@ -12,7 +12,7 @@ import {
 } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { api } from '../lib/api';
 import type { PayStackParamList } from '../nav/PayStack';
@@ -51,7 +51,7 @@ export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
    * token, which the agent pulls over its own authenticated connection. Consuming it moves the
    * transaction out of bump_pending, which is what lets the Sending screen hand it to the bank.
    */
-  const resumeApproved = async () => {
+  const resumeApproved = useCallback(async () => {
     if (navigated.current) return;
     try {
       const { resumeToken } = await api.transaction.bumpStatus(transactionId);
@@ -63,7 +63,10 @@ export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
       // Leave it to the poll below rather than failing a payment the principal approved.
       navigated.current = false;
     }
-  };
+    // Memoised on purpose. The countdown re-renders this screen once a second, so an unmemoised
+    // callback in the dependency lists below would tear down and recreate the poll timer every
+    // second — and since the timer is longer than a second, the poll would never fire at all.
+  }, [transactionId, navigation]);
 
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener((notification) => {
@@ -85,7 +88,7 @@ export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
       }
     });
     return () => sub.remove();
-  }, [navigation, transactionId]);
+  }, [navigation, transactionId, resumeApproved]);
 
   /**
    * Poll the bump as well as listening for the push.
@@ -116,7 +119,7 @@ export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
       alive = false;
       clearTimeout(id);
     };
-  }, [navigation, transactionId]);
+  }, [navigation, transactionId, resumeApproved]);
 
   const cancel = async () => {
     setCancelling(true);

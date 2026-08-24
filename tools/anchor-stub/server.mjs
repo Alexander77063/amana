@@ -75,245 +75,343 @@ async function emit(type, data, createdAt = new Date().toISOString()) {
 
 const routes = [
   // Personal customer (household onboarding).
-  ['POST', (p) => p === '/customers', async (req, res, _u, body) => {
-    const id = nextId('cust');
-    const customer = {
-      id,
-      fullName: body.fullName ?? 'Demo Customer',
-      phoneNumber: body.phoneNumber ?? '+2348000000000',
-      kycLevel: 'TIER_1',
-    };
-    state.customers.set(id, { ...customer, nin: body.nin, bvn: body.bvn });
-    log(`createCustomer -> ${id}`);
-    send(res, 201, customer);
-  }],
+  [
+    'POST',
+    (p) => p === '/customers',
+    async (req, res, _u, body) => {
+      const id = nextId('cust');
+      const customer = {
+        id,
+        fullName: body.fullName ?? 'Demo Customer',
+        phoneNumber: body.phoneNumber ?? '+2348000000000',
+        kycLevel: 'TIER_1',
+      };
+      state.customers.set(id, { ...customer, nin: body.nin, bvn: body.bvn });
+      log(`createCustomer -> ${id}`);
+      send(res, 201, customer);
+    },
+  ],
 
   // Virtual account (the household's fundable NUBAN).
-  ['POST', (p) => p === '/virtual-accounts', async (req, res, _u, body) => {
-    const id = nextId('va');
-    const va = {
-      id,
-      bankCode: '000014',
-      // Deterministic 10-digit NUBAN so the demo shows a stable account number.
-      accountNumber: String(9000000000 + state.virtualAccounts.size + 1),
-      accountName: body.label ?? 'AMANA/DEMO',
-      customerId: body.customerId,
-      status: 'ACTIVE',
-    };
-    state.virtualAccounts.set(id, va);
-    log(`provisionVirtualAccount -> ${id} ${va.accountNumber}`);
-    send(res, 201, va);
-  }],
+  [
+    'POST',
+    (p) => p === '/virtual-accounts',
+    async (req, res, _u, body) => {
+      const id = nextId('va');
+      const va = {
+        id,
+        bankCode: '000014',
+        // Deterministic 10-digit NUBAN so the demo shows a stable account number.
+        accountNumber: String(9000000000 + state.virtualAccounts.size + 1),
+        accountName: body.label ?? 'AMANA/DEMO',
+        customerId: body.customerId,
+        status: 'ACTIVE',
+      };
+      state.virtualAccounts.set(id, va);
+      log(`provisionVirtualAccount -> ${id} ${va.accountNumber}`);
+      send(res, 201, va);
+    },
+  ],
 
   // Business customer (marketplace retailer KYB, SP4a).
-  ['POST', (p) => p === '/business-customers', async (req, res, _u, body) => {
-    const id = nextId('biz');
-    const biz = { id, businessName: body.businessName ?? 'Demo Retailer', kybStatus: 'PENDING' };
-    state.businessCustomers.set(id, { ...biz, bvn: body.bvn, rcNumber: body.rcNumber });
-    log(`createBusinessCustomer -> ${id} (${biz.businessName})`);
-    send(res, 201, biz);
-  }],
+  [
+    'POST',
+    (p) => p === '/business-customers',
+    async (req, res, _u, body) => {
+      const id = nextId('biz');
+      const biz = { id, businessName: body.businessName ?? 'Demo Retailer', kybStatus: 'PENDING' };
+      state.businessCustomers.set(id, { ...biz, bvn: body.bvn, rcNumber: body.rcNumber });
+      log(`createBusinessCustomer -> ${id} (${biz.businessName})`);
+      send(res, 201, biz);
+    },
+  ],
 
-  ['POST', (p) => p === '/kyc-verifications', async (req, res, _u, body) => {
-    send(res, 202, { customerId: body.customerId, status: 'PENDING' });
-  }],
+  [
+    'POST',
+    (p) => p === '/kyc-verifications',
+    async (req, res, _u, body) => {
+      send(res, 202, { customerId: body.customerId, status: 'PENDING' });
+    },
+  ],
 
   // NIP name enquiry — used before an outbound transfer.
-  ['GET', (p) => p === '/nibss/name-enquiry', async (req, res, u) => {
-    send(res, 200, {
-      bankCode: u.searchParams.get('bankCode') ?? '000014',
-      accountNumber: u.searchParams.get('accountNumber') ?? '0000000000',
-      accountName: 'ADEBAYO STORES LTD',
-    });
-  }],
+  [
+    'GET',
+    (p) => p === '/nibss/name-enquiry',
+    async (req, res, u) => {
+      send(res, 200, {
+        bankCode: u.searchParams.get('bankCode') ?? '000014',
+        accountNumber: u.searchParams.get('accountNumber') ?? '0000000000',
+        accountName: 'ADEBAYO STORES LTD',
+      });
+    },
+  ],
 
-  ['GET', (p) => p === '/nibss/phone-lookup', async (req, res, u) => {
-    send(res, 200, {
-      bankCode: '000014',
-      accountNumber: '0123456789',
-      accountName: 'CHIOMA OKAFOR',
-      phoneNumber: u.searchParams.get('phoneNumber') ?? '+2348000000000',
-    });
-  }],
+  [
+    'GET',
+    (p) => p === '/nibss/phone-lookup',
+    async (req, res, u) => {
+      send(res, 200, {
+        bankCode: '000014',
+        accountNumber: '0123456789',
+        accountName: 'CHIOMA OKAFOR',
+        phoneNumber: u.searchParams.get('phoneNumber') ?? '+2348000000000',
+      });
+    },
+  ],
 
   // Reconciliation sweep looks transfers up by our reference.
-  ['GET', (p) => p === '/transfers/by-reference', async (req, res, u) => {
-    const ref = u.searchParams.get('reference') ?? '';
-    const t = state.transfersByReference.get(ref);
-    if (!t) return send(res, 404, { error: 'not_found' });
-    send(res, 200, t);
-  }],
+  [
+    'GET',
+    (p) => p === '/transfers/by-reference',
+    async (req, res, u) => {
+      const ref = u.searchParams.get('reference') ?? '';
+      const t = state.transfersByReference.get(ref);
+      if (!t) return send(res, 404, { error: 'not_found' });
+      send(res, 200, t);
+    },
+  ],
 
   // Outbound NIP transfer. Returns PENDING; the demo completes it via /_control/settle
   // so the settlement webhook lands exactly when the script wants it to.
-  ['POST', (p) => p === '/transfers', async (req, res, _u, body) => {
-    const id = nextId('tr');
-    const transfer = { id, status: 'PENDING', reference: body.reference };
-    state.transfers.set(id, { ...transfer, amountKobo: String(body.amountKobo ?? '0') });
-    state.transfersByReference.set(body.reference, transfer);
-    log(`transfer -> ${id} ref=${body.reference} amountKobo=${body.amountKobo}`);
-    send(res, 202, transfer);
-  }],
+  [
+    'POST',
+    (p) => p === '/transfers',
+    async (req, res, _u, body) => {
+      const id = nextId('tr');
+      const transfer = { id, status: 'PENDING', reference: body.reference };
+      state.transfers.set(id, { ...transfer, amountKobo: String(body.amountKobo ?? '0') });
+      state.transfersByReference.set(body.reference, transfer);
+      log(`transfer -> ${id} ref=${body.reference} amountKobo=${body.amountKobo}`);
+      send(res, 202, transfer);
+    },
+  ],
 
   // ── Digital VAS (airtime / data / electricity / cable) ────────────────────
-  ['GET', (p) => p === '/bills/billers', async (req, res, u) => {
-    const category = u.searchParams.get('category') ?? 'Airtime';
-    const catalogue = {
-      Airtime: [
-        { id: 'blr_mtn', name: 'MTN Nigeria', slug: 'mtn' },
-        { id: 'blr_airtel', name: 'Airtel Nigeria', slug: 'airtel' },
-        { id: 'blr_glo', name: 'Glo Nigeria', slug: 'glo' },
-      ],
-      Data: [{ id: 'blr_mtn_data', name: 'MTN Data', slug: 'mtn-data' }],
-      Electricity: [{ id: 'blr_ekedc', name: 'Eko Electricity (EKEDC)', slug: 'ekedc' }],
-      CableTV: [{ id: 'blr_dstv', name: 'DStv', slug: 'dstv' }],
-    };
-    send(res, 200, { data: catalogue[category] ?? [] });
-  }],
+  [
+    'GET',
+    (p) => p === '/bills/billers',
+    async (req, res, u) => {
+      const category = u.searchParams.get('category') ?? 'Airtime';
+      const catalogue = {
+        Airtime: [
+          { id: 'blr_mtn', name: 'MTN Nigeria', slug: 'mtn' },
+          { id: 'blr_airtel', name: 'Airtel Nigeria', slug: 'airtel' },
+          { id: 'blr_glo', name: 'Glo Nigeria', slug: 'glo' },
+        ],
+        Data: [{ id: 'blr_mtn_data', name: 'MTN Data', slug: 'mtn-data' }],
+        Electricity: [{ id: 'blr_ekedc', name: 'Eko Electricity (EKEDC)', slug: 'ekedc' }],
+        CableTV: [{ id: 'blr_dstv', name: 'DStv', slug: 'dstv' }],
+      };
+      send(res, 200, { data: catalogue[category] ?? [] });
+    },
+  ],
 
-  ['GET', (p) => /^\/bills\/billers\/[^/]+\/products$/.test(p), async (req, res, u) => {
-    const billerId = u.pathname.split('/')[3];
-    const products = billerId.includes('data')
-      ? [
-          { id: 'prd_1gb', name: '1GB • 30 days', slug: '1gb-30', amountKobo: '30000' },
-          { id: 'prd_5gb', name: '5GB • 30 days', slug: '5gb-30', amountKobo: '150000' },
-        ]
-      : [{ id: 'prd_topup', name: 'Airtime top-up', slug: 'topup', amountKobo: null }];
-    send(res, 200, { data: products });
-  }],
+  [
+    'GET',
+    (p) => /^\/bills\/billers\/[^/]+\/products$/.test(p),
+    async (req, res, u) => {
+      const billerId = u.pathname.split('/')[3];
+      const products = billerId.includes('data')
+        ? [
+            { id: 'prd_1gb', name: '1GB • 30 days', slug: '1gb-30', amountKobo: '30000' },
+            { id: 'prd_5gb', name: '5GB • 30 days', slug: '5gb-30', amountKobo: '150000' },
+          ]
+        : [{ id: 'prd_topup', name: 'Airtime top-up', slug: 'topup', amountKobo: null }];
+      send(res, 200, { data: products });
+    },
+  ],
 
-  ['GET', (p) => p.startsWith('/bills/customer-validation/'), async (req, res, u) => {
-    const [, , , , accountNumber] = u.pathname.split('/');
-    send(res, 200, { valid: true, customerName: 'CHIOMA OKAFOR', accountNumber });
-  }],
+  [
+    'GET',
+    (p) => p.startsWith('/bills/customer-validation/'),
+    async (req, res, u) => {
+      const [, , , , accountNumber] = u.pathname.split('/');
+      send(res, 200, { valid: true, customerName: 'CHIOMA OKAFOR', accountNumber });
+    },
+  ],
 
   // Bill payment. Returns PENDING; completed via /_control/bill-success.
-  ['POST', (p) => p === '/bills', async (req, res, _u, body) => {
-    const id = nextId('bill');
-    const bill = { id, status: 'PENDING', commissionKobo: null, token: null, failureReason: null };
-    state.bills.set(id, { ...bill, reference: body.reference, amountKobo: String(body.amountKobo) });
-    log(`payBill -> ${id} ref=${body.reference}`);
-    send(res, 202, bill);
-  }],
+  [
+    'POST',
+    (p) => p === '/bills',
+    async (req, res, _u, body) => {
+      const id = nextId('bill');
+      const bill = {
+        id,
+        status: 'PENDING',
+        commissionKobo: null,
+        token: null,
+        failureReason: null,
+      };
+      state.bills.set(id, {
+        ...bill,
+        reference: body.reference,
+        amountKobo: String(body.amountKobo),
+      });
+      log(`payBill -> ${id} ref=${body.reference}`);
+      send(res, 202, bill);
+    },
+  ],
 ];
 
 // ── Control plane (demo driver) ────────────────────────────────────────────
 
 const controlRoutes = [
-  ['GET', '/_control/health', async (req, res) => {
-    send(res, 200, {
-      status: 'ok',
-      backend: BACKEND_URL,
-      customers: state.customers.size,
-      virtualAccounts: state.virtualAccounts.size,
-      transfers: state.transfers.size,
-      eventsEmitted: state.events.length,
-    });
-  }],
+  [
+    'GET',
+    '/_control/health',
+    async (req, res) => {
+      send(res, 200, {
+        status: 'ok',
+        backend: BACKEND_URL,
+        customers: state.customers.size,
+        virtualAccounts: state.virtualAccounts.size,
+        transfers: state.transfers.size,
+        eventsEmitted: state.events.length,
+      });
+    },
+  ],
 
-  ['GET', '/_control/state', async (req, res) => {
-    send(res, 200, {
-      virtualAccounts: [...state.virtualAccounts.values()],
-      businessCustomers: [...state.businessCustomers.values()],
-      transfers: [...state.transfers.values()],
-      events: state.events,
-    });
-  }],
+  [
+    'GET',
+    '/_control/state',
+    async (req, res) => {
+      send(res, 200, {
+        virtualAccounts: [...state.virtualAccounts.values()],
+        businessCustomers: [...state.businessCustomers.values()],
+        transfers: [...state.transfers.values()],
+        events: state.events,
+      });
+    },
+  ],
 
   // Money lands in the household's virtual account (a bank transfer in).
-  ['POST', '/_control/fund', async (req, res, _u, body) => {
-    const va =
-      state.virtualAccounts.get(body.virtualAccountId) ??
-      [...state.virtualAccounts.values()].at(-1);
-    if (!va) return send(res, 400, { error: 'no_virtual_account_provisioned' });
-    const out = await emit('virtual_account.credited', {
-      virtualAccountId: va.id,
-      amountKobo: String(body.amountKobo ?? '50000000'),
-      senderBankCode: '000013',
-      senderAccountNumber: '0987654321',
-      senderAccountName: body.senderName ?? 'ADEOLA ADEBAYO',
-      nibssSessionId: `1000${Date.now()}`.slice(0, 30),
-    });
-    send(res, 200, out);
-  }],
+  [
+    'POST',
+    '/_control/fund',
+    async (req, res, _u, body) => {
+      const va =
+        state.virtualAccounts.get(body.virtualAccountId) ??
+        [...state.virtualAccounts.values()].at(-1);
+      if (!va) return send(res, 400, { error: 'no_virtual_account_provisioned' });
+      const out = await emit('virtual_account.credited', {
+        virtualAccountId: va.id,
+        amountKobo: String(body.amountKobo ?? '50000000'),
+        senderBankCode: '000013',
+        senderAccountNumber: '0987654321',
+        senderAccountName: body.senderName ?? 'ADEOLA ADEBAYO',
+        nibssSessionId: `1000${Date.now()}`.slice(0, 30),
+      });
+      send(res, 200, out);
+    },
+  ],
 
   // An outbound transfer settles at the bank.
-  ['POST', '/_control/settle', async (req, res, _u, body) => {
-    const t = body.reference
-      ? state.transfersByReference.get(body.reference)
-      : [...state.transfers.values()].at(-1);
-    if (!t) return send(res, 400, { error: 'no_such_transfer', reference: body.reference });
-    t.status = 'COMPLETED';
-    const out = await emit('transfer.completed', {
-      transferId: t.id,
-      reference: t.reference,
-      status: 'COMPLETED',
-      nibssSessionId: `1000${Date.now()}`.slice(0, 30),
-    });
-    send(res, 200, out);
-  }],
+  [
+    'POST',
+    '/_control/settle',
+    async (req, res, _u, body) => {
+      const t = body.reference
+        ? state.transfersByReference.get(body.reference)
+        : [...state.transfers.values()].at(-1);
+      if (!t) return send(res, 400, { error: 'no_such_transfer', reference: body.reference });
+      t.status = 'COMPLETED';
+      const out = await emit('transfer.completed', {
+        transferId: t.id,
+        reference: t.reference,
+        status: 'COMPLETED',
+        nibssSessionId: `1000${Date.now()}`.slice(0, 30),
+      });
+      send(res, 200, out);
+    },
+  ],
 
-  ['POST', '/_control/fail-transfer', async (req, res, _u, body) => {
-    const t = body.reference
-      ? state.transfersByReference.get(body.reference)
-      : [...state.transfers.values()].at(-1);
-    if (!t) return send(res, 400, { error: 'no_such_transfer' });
-    t.status = 'FAILED';
-    const out = await emit('transfer.failed', {
-      transferId: t.id,
-      reference: t.reference,
-      status: 'FAILED',
-      failureReason: body.reason ?? 'Beneficiary account inactive',
-    });
-    send(res, 200, out);
-  }],
+  [
+    'POST',
+    '/_control/fail-transfer',
+    async (req, res, _u, body) => {
+      const t = body.reference
+        ? state.transfersByReference.get(body.reference)
+        : [...state.transfers.values()].at(-1);
+      if (!t) return send(res, 400, { error: 'no_such_transfer' });
+      t.status = 'FAILED';
+      const out = await emit('transfer.failed', {
+        transferId: t.id,
+        reference: t.reference,
+        status: 'FAILED',
+        failureReason: body.reason ?? 'Beneficiary account inactive',
+      });
+      send(res, 200, out);
+    },
+  ],
 
-  ['POST', '/_control/bill-success', async (req, res, _u, body) => {
-    const out = await emit('bills.successful', {
-      reference: body.reference,
-      commissionKobo: String(body.commissionKobo ?? '0'),
-      token: body.token ?? null,
-    });
-    send(res, 200, out);
-  }],
+  [
+    'POST',
+    '/_control/bill-success',
+    async (req, res, _u, body) => {
+      const out = await emit('bills.successful', {
+        reference: body.reference,
+        commissionKobo: String(body.commissionKobo ?? '0'),
+        token: body.token ?? null,
+      });
+      send(res, 200, out);
+    },
+  ],
 
-  ['POST', '/_control/bill-failed', async (req, res, _u, body) => {
-    const out = await emit('bills.failed', {
-      reference: body.reference,
-      failureReason: body.reason ?? 'Biller unavailable',
-    });
-    send(res, 200, out);
-  }],
+  [
+    'POST',
+    '/_control/bill-failed',
+    async (req, res, _u, body) => {
+      const out = await emit('bills.failed', {
+        reference: body.reference,
+        failureReason: body.reason ?? 'Biller unavailable',
+      });
+      send(res, 200, out);
+    },
+  ],
 
   // Retailer Business KYB verdict (SP4a).
-  ['POST', '/_control/kyb', async (req, res, _u, body) => {
-    const businessCustomerId =
-      body.businessCustomerId ?? [...state.businessCustomers.keys()].at(-1);
-    if (!businessCustomerId) return send(res, 400, { error: 'no_business_customer' });
-    const approved = body.approved !== false;
-    const out = approved
-      ? await emit('kyb.approved', { businessCustomerId })
-      : await emit('kyb.rejected', { businessCustomerId, reason: body.reason ?? 'RC mismatch' });
-    send(res, 200, out);
-  }],
+  [
+    'POST',
+    '/_control/kyb',
+    async (req, res, _u, body) => {
+      const businessCustomerId =
+        body.businessCustomerId ?? [...state.businessCustomers.keys()].at(-1);
+      if (!businessCustomerId) return send(res, 400, { error: 'no_business_customer' });
+      const approved = body.approved !== false;
+      const out = approved
+        ? await emit('kyb.approved', { businessCustomerId })
+        : await emit('kyb.rejected', { businessCustomerId, reason: body.reason ?? 'RC mismatch' });
+      send(res, 200, out);
+    },
+  ],
 
   // Personal KYC upgrade verdict.
-  ['POST', '/_control/kyc', async (req, res, _u, body) => {
-    const customerId = body.customerId ?? [...state.customers.keys()].at(-1);
-    if (!customerId) return send(res, 400, { error: 'no_customer' });
-    const out = await emit('kyc.approved', {
-      customerId,
-      newKycLevel: body.newKycLevel ?? 'TIER_2',
-    });
-    send(res, 200, out);
-  }],
+  [
+    'POST',
+    '/_control/kyc',
+    async (req, res, _u, body) => {
+      const customerId = body.customerId ?? [...state.customers.keys()].at(-1);
+      if (!customerId) return send(res, 400, { error: 'no_customer' });
+      const out = await emit('kyc.approved', {
+        customerId,
+        newKycLevel: body.newKycLevel ?? 'TIER_2',
+      });
+      send(res, 200, out);
+    },
+  ],
 
   // Raw escape hatch: emit any event verbatim.
-  ['POST', '/_control/emit', async (req, res, _u, body) => {
-    if (!body.type) return send(res, 400, { error: 'type_required' });
-    const out = await emit(body.type, body.data ?? {});
-    send(res, 200, out);
-  }],
+  [
+    'POST',
+    '/_control/emit',
+    async (req, res, _u, body) => {
+      if (!body.type) return send(res, 400, { error: 'type_required' });
+      const out = await emit(body.type, body.data ?? {});
+      send(res, 200, out);
+    },
+  ],
 ];
 
 // ── Server ─────────────────────────────────────────────────────────────────

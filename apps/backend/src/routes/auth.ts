@@ -48,6 +48,14 @@ export const authRoute = new Hono()
 
     let user = await usersRepo.findByPhone(db, body.phone);
 
+    // A retailer owner signs in at the portal, not here. Two front doors that mint different
+    // actor kinds must stay separate: this route creates households and issues pairing-based
+    // agent signups, neither of which means anything for a retailer, and silently accepting one
+    // would hand a marketplace login a household session's shape.
+    if (user?.role === 'retailer') {
+      return c.json({ error: 'use_retailer_portal' }, 403);
+    }
+
     if (!user && body.pairingCode) {
       if (!body.nin) return c.json({ error: 'nin_required_for_signup' }, 400);
       user = await usersRepo.insert(db, {

@@ -43,6 +43,22 @@ export const retailers = pgTable('retailers', {
   payoutAccountNumber: text('payout_account_number').notNull(),
   // SP2 creates retailers directly live-approved; the apply→review→KYB flow is SP4.
   onboardingStatus: retailerOnboardingStatusEnum('onboarding_status').notNull().default('approved'),
+  // The owner login (SP4b). Nullable on purpose: SP2 and SP4a rows predate the portal, and ops
+  // can still create a retailer before its owner has ever signed in. A retailer with no owner
+  // simply has no portal access — it is administered by the ops admin key, exactly as before.
+  // Unique: one owner login per retailer in v1 (multi-staff roles are deferred by spec §7).
+  // Postgres treats NULLs as distinct, so the many owner-less legacy rows are unaffected.
+  ownerUserId: uuid('owner_user_id')
+    .unique()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  // Where the business is reached — distinct from the owner's login phone, which may be personal.
+  contactPhone: text('contact_phone'),
+  // When Anchor's KYB actually cleared. Needed because `suspended` is ambiguous on its own: a
+  // `kyb.rejected` webhook suspends a retailer that was NEVER approved, while ops suspending a
+  // live retailer produces the identical status. Redemption of vouchers already sold must be
+  // honoured for the second and refused for the first, and `anchorBusinessCustomerId` cannot
+  // tell them apart — it is written when KYB is SUBMITTED, before Anchor has ruled on it.
+  approvedAt: timestamp('approved_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

@@ -1,7 +1,12 @@
 import { sql } from 'drizzle-orm';
 import { pgEnum, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
-export const userRoleEnum = pgEnum('user_role', ['principal', 'agent']);
+// 'retailer' is the marketplace supply side: the owner login for a retailer business (SP4b).
+// It is a peer of principal/agent rather than a flag on them, because a retailer owner has no
+// household, no wallet and no sub-wallet — every household route must reject it outright, and a
+// distinct role is what makes that rejection the default rather than something each route
+// remembers to check.
+export const userRoleEnum = pgEnum('user_role', ['principal', 'agent', 'retailer']);
 export const userStatusEnum = pgEnum('user_status', ['active', 'suspended']);
 export const kycTierEnum = pgEnum('kyc_tier', ['1', '2', '3']);
 export const memberStatusEnum = pgEnum('member_status', ['active', 'suspended']);

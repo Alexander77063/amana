@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { retailers } from '../../db/schema';
 
@@ -67,7 +67,7 @@ export const retailersRepo = {
     id: string,
     from: readonly RetailerOnboardingStatus[],
     to: RetailerOnboardingStatus,
-    patch: { anchorBusinessCustomerId?: string } = {},
+    patch: { anchorBusinessCustomerId?: string; approvedAt?: Date } = {},
   ): Promise<RetailerRow | undefined> {
     const [row] = await db
       .update(retailers)
@@ -92,6 +92,70 @@ export const retailersRepo = {
       .set({ anchorBusinessCustomerId })
       .where(eq(retailers.id, id))
       .returning();
+    return row;
+  },
+
+  /** The retailer a portal session belongs to. Ownership is the only scoping key (SP4b). */
+  async findByOwnerUserId(db: DbOrTx, ownerUserId: string): Promise<RetailerRow | undefined> {
+    const [row] = await db
+      .select()
+      .from(retailers)
+      .where(eq(retailers.ownerUserId, ownerUserId))
+      .limit(1);
+    return row;
+  },
+
+  /**
+   * The unclaimed retailer ops recorded this phone against.
+   *
+   * This is the claim path: ops create the business and record the number its owner will sign in
+   * with, and the first successful OTP from that number takes ownership. Restricted to rows with
+   * no owner, so a retailer that is already claimed can never be taken over by someone
+   * re-registering its contact number.
+   */
+  async findClaimableByContactPhone(
+    db: DbOrTx,
+    contactPhone: string,
+  ): Promise<RetailerRow | undefined> {
+    const [row] = await db
+      .select()
+      .from(retailers)
+      .where(and(eq(retailers.contactPhone, contactPhone), isNull(retailers.ownerUserId)))
+      .limit(1);
+    return row;
+  },
+
+  /**
+   * Bind an owner login to a retailer.
+   *
+   * Guarded on `ownerUserId IS NULL` rather than written unconditionally: the column is unique,
+   * so a second claim would fail on the constraint anyway, but failing the guard returns
+   * undefined and lets the caller say "already claimed" instead of surfacing a driver error.
+   */
+  async attachOwner(db: DbOrTx, id: string, ownerUserId: string): Promise<RetailerRow | undefined> {
+    const [row] = await db
+      .update(retailers)
+      .set({ ownerUserId })
+      .where(and(eq(retailers.id, id), isNull(retailers.ownerUserId)))
+      .returning();
+    return row;
+  },
+
+  async updateProfile(
+    db: DbOrTx,
+    id: string,
+    patch: { businessName?: string; contactPhone?: string },
+  ): Promise<RetailerRow | undefined> {
+    const [row] = await db.update(retailers).set(patch).where(eq(retailers.id, id)).returning();
+    return row;
+  },
+
+  async setPayoutAccount(
+    db: DbOrTx,
+    id: string,
+    payout: { payoutBankCode: string; payoutAccountNumber: string },
+  ): Promise<RetailerRow | undefined> {
+    const [row] = await db.update(retailers).set(payout).where(eq(retailers.id, id)).returning();
     return row;
   },
 

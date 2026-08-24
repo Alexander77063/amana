@@ -2,11 +2,12 @@ import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { users } from '../../db/schema';
 import { encryptField } from '../../lib/field-crypto';
+import type { ActorRole } from '../auth/types';
 
 export type DbOrTx = PostgresJsDatabase;
 
 export type NewUser = {
-  role: 'principal' | 'agent';
+  role: ActorRole;
   phone: string;
   bvn?: string | null;
   nin: string;

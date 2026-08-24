@@ -133,6 +133,11 @@ export const retailerOnboardingService = {
       retailerId,
       MANUALLY_APPROVABLE,
       'approved',
+      // Stamped in the same statement as the status, so the two can never disagree. This is what
+      // later distinguishes a retailer that was live and got suspended — whose already-sold
+      // vouchers must still be honoured — from one whose KYB was rejected, which lands in the
+      // very same `suspended` status but was never approved at all.
+      { approvedAt: new Date() },
     );
     if (!updated) {
       throw new ConflictError(
@@ -162,6 +167,7 @@ async function transitionByBusinessCustomerId(
     retailer.id,
     ['kyb_pending'],
     to,
+    to === 'approved' ? { approvedAt: new Date() } : {},
   );
   // CAS miss = the retailer already left `kyb_pending` (re-delivered event, or an ops
   // decision landed first). Return the row unchanged so the webhook acks instead of retrying.

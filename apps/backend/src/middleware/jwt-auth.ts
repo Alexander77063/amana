@@ -4,8 +4,9 @@ import { db } from '../db/client';
 import { logger } from '../lib/logger';
 import { authSessionsRepo } from '../modules/auth/auth-sessions.repo';
 import { verifyAccessToken } from '../modules/auth/tokens';
+import type { ActorRole } from '../modules/auth/types';
 
-export type Actor = { userId: string; role: 'principal' | 'agent'; sessionId: string };
+export type Actor = { userId: string; role: ActorRole; sessionId: string };
 export type ActorVariables = { actor: Actor };
 
 export const jwtAuth = (): MiddlewareHandler<{ Variables: ActorVariables }> => async (c, next) => {

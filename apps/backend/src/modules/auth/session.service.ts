@@ -8,13 +8,13 @@ import {
   signAccessToken,
   verifyRefreshToken,
 } from './tokens';
-import type { IssuedTokens } from './types';
+import type { ActorRole, IssuedTokens } from './types';
 
 type DbOrTx = PostgresJsDatabase;
 
 export type IssueInput = {
   userId: string;
-  role: 'principal' | 'agent';
+  role: ActorRole;
   now?: Date;
 };
 

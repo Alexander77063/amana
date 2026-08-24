@@ -1,4 +1,8 @@
-export type Role = 'principal' | 'agent';
+/**
+ * Who a session speaks for. `retailer` is the marketplace supply side (SP4b) — a peer of the
+ * household roles, not a flag on them: a retailer owner has no household, wallet or sub-wallet.
+ */
+export type Role = 'principal' | 'agent' | 'retailer';
 export type KycTier = '1' | '2' | '3';
 export type UserStatus = 'active' | 'suspended';
 export type OtpPurpose = 'login' | 'pair';

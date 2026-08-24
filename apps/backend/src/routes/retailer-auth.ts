@@ -59,6 +59,9 @@ export const retailerAuthRoute = new Hono()
             refreshToken: r.tokens.refreshToken,
             accessExpiresAt: r.tokens.accessExpiresAt.toISOString(),
             refreshExpiresAt: r.tokens.refreshExpiresAt.toISOString(),
+            // Needed by the client to call /auth/refresh, which is unauthenticated against the
+            // access token and therefore has to be told who it is refreshing for.
+            userId: r.userId,
             retailer: {
               id: r.retailer.id,
               businessName: r.retailer.businessName,

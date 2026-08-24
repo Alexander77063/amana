@@ -72,6 +72,8 @@ export type RetailerEarnings = {
 };
 
 export type RetailerSession = {
+  /** Required to refresh: /auth/refresh is unauthenticated and must be told whose session. */
+  userId: string;
   accessToken: string;
   refreshToken: string;
   accessExpiresAt: string;

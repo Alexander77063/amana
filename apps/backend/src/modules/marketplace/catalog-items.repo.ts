@@ -54,6 +54,47 @@ export const catalogItemsRepo = {
   },
 
   /** Active items in a section across all retailers, newest first — the buyer-facing section browse (SP5). */
+  /** Edit an item in place. Price is bigint kobo; the caller validates it is positive. */
+  async update(
+    db: DbOrTx,
+    id: string,
+    patch: {
+      name?: string;
+      priceKobo?: Kobo;
+      section?: string;
+      description?: string | null;
+      photoUrl?: string | null;
+      durationMinutes?: number | null;
+    },
+  ): Promise<CatalogItemRow | undefined> {
+    const [row] = await db
+      .update(catalogItems)
+      .set(patch)
+      .where(eq(catalogItems.id, id))
+      .returning();
+    return row;
+  },
+
+  /**
+   * Take an item off sale, or put it back.
+   *
+   * Deliberately a status flip rather than a delete: redemptions reference catalog items by FK,
+   * and a sold voucher must still be able to name what was bought long after the retailer stops
+   * offering it.
+   */
+  async setStatus(
+    db: DbOrTx,
+    id: string,
+    status: 'active' | 'inactive',
+  ): Promise<CatalogItemRow | undefined> {
+    const [row] = await db
+      .update(catalogItems)
+      .set({ status })
+      .where(eq(catalogItems.id, id))
+      .returning();
+    return row;
+  },
+
   async listBySection(db: DbOrTx, section: string): Promise<CatalogItemRow[]> {
     return db
       .select()

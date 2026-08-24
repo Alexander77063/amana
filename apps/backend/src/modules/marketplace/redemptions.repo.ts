@@ -99,6 +99,21 @@ export const redemptionsRepo = {
       .orderBy(desc(redemptions.createdAt));
   },
 
+  /** The retailer's orders log, newest first. Paginated: this grows without bound. */
+  async listByRetailer(
+    db: DbOrTx,
+    retailerId: string,
+    opts: { limit: number; offset: number },
+  ): Promise<RedemptionRow[]> {
+    return db
+      .select()
+      .from(redemptions)
+      .where(eq(redemptions.retailerId, retailerId))
+      .orderBy(desc(redemptions.createdAt))
+      .limit(opts.limit)
+      .offset(opts.offset);
+  },
+
   async markRedeemed(db: DbOrTx, id: string, at: Date): Promise<void> {
     await db
       .update(redemptions)

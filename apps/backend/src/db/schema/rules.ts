@@ -25,6 +25,9 @@ export const ruleKindEnum = pgEnum('rule_kind', [
   'time_window',
   'allowlist',
   'anomaly_threshold',
+  // SP5b control fusion: a principal approving a retailer writes one of these, and the existing
+  // engine evaluates it like any other rule. The marketplace and the rule engine are one system.
+  'merchant',
 ]);
 
 export const rules = pgTable('rules', {

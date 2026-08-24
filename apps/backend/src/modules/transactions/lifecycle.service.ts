@@ -73,6 +73,9 @@ export const lifecycleService = {
         vendorBankCode: txn.vendorBankCode,
         vendorAccountNumber: txn.vendorAccount,
         vendorResolvedName: txn.vendorResolvedName,
+        // A bank transfer has no retailer. A merchant rule therefore denies it — which is why a
+        // merchant rule is only ever evaluated on the marketplace path, never here.
+        retailerId: null,
         confirmedAt: input.now,
       };
 

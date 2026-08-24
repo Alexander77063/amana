@@ -36,6 +36,8 @@ function rowToRule(row: RuleRow): Rule {
         priority: row.priority,
         config: config as never,
       };
+    case 'merchant':
+      return { id: row.id, kind: 'merchant', priority: row.priority, config: config as never };
   }
 }
 

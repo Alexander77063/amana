@@ -33,6 +33,9 @@ type DbOrTx = PostgresJsDatabase;
  * for anything in the catalogue, while the identical spend as a bank transfer was held for
  * approval. Proved by tools/demo/probe-marketplace.mjs.
  *
+ * Also where the control fusion binds: `merchant` rules are evaluated here and nowhere else,
+ * because this is the only path with a retailer to match against.
+ *
  * Mirrors `assertVasRulesAllow` in modules/vas, including what it deliberately leaves out.
  * `limit` is filtered away because it is already enforced inside `pg_advisory_xact_lock` in
  * `reserve`; evaluating it a second time OUTSIDE that lock would reintroduce the
@@ -40,13 +43,21 @@ type DbOrTx = PostgresJsDatabase;
  */
 async function assertMarketplaceRulesAllow(
   db: DbOrTx,
-  input: { subWalletId: string; category: string | null; amountKobo: bigint; now: Date },
+  input: {
+    subWalletId: string;
+    category: string | null;
+    retailerId: string;
+    amountKobo: bigint;
+    now: Date;
+  },
 ): Promise<void> {
   const ruleSet = await fetchActiveRuleSet(db, input.subWalletId);
   if (!ruleSet) return;
   const relevant = {
     ...ruleSet,
-    rules: ruleSet.rules.filter((r) => r.kind === 'category' || r.kind === 'time_window'),
+    rules: ruleSet.rules.filter(
+      (r) => r.kind === 'category' || r.kind === 'time_window' || r.kind === 'merchant',
+    ),
   };
   if (relevant.rules.length === 0) return;
 
@@ -60,6 +71,10 @@ async function assertMarketplaceRulesAllow(
       vendorBankCode: null,
       vendorAccountNumber: null,
       vendorResolvedName: null,
+      // The control fusion: this is what a merchant rule matches on, and the only path that
+      // supplies it. Everywhere else passes null, so a merchant rule denies there — correctly,
+      // since "only these merchants" cannot permit a payment to someone who is not one.
+      retailerId: input.retailerId,
       confirmedAt: input.now,
     },
     relevant,
@@ -170,6 +185,7 @@ export const purchaseService = {
       await assertMarketplaceRulesAllow(db, {
         subWalletId: input.subWalletId,
         category: item.category,
+        retailerId: item.retailerId,
         amountKobo: item.priceKobo as bigint,
         now,
       });

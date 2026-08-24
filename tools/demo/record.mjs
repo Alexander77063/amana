@@ -50,6 +50,28 @@ async function seedItem(retailerId, name, priceKobo) {
   );
   if (r.status !== 0) throw new Error(`seedItem failed: ${r.stderr?.slice(0, 200)}`);
 }
+
+/** Take every storefront item off sale, so each recording starts from a clean marketplace. */
+async function retireExistingStorefronts() {
+  const { spawnSync } = await import('node:child_process');
+  const r = spawnSync(
+    'docker',
+    [
+      'exec',
+      'amana-postgres',
+      'psql',
+      '-U',
+      'amana',
+      '-d',
+      'amana_dev',
+      '-c',
+      "update catalog_items set status = 'inactive' where status = 'active'",
+    ],
+    { encoding: 'utf8' },
+  );
+  if (r.status !== 0) throw new Error(`retire failed: ${r.stderr?.slice(0, 200)}`);
+}
+
 const SPEED = Number(process.env.SPEED ?? 1);
 
 mkdirSync(`${OUT}/video`, { recursive: true });
@@ -720,43 +742,56 @@ const adminPost = async (path, body) => {
 };
 
 let retailerId = null;
-await step('a live retailer with a storefront', async () => {
-  const created = await adminPost('/retailers', {
-    businessName: 'Mama Nkechi Kitchen',
-    payoutBankCode: '000014',
-    payoutAccountNumber: '0123456789',
-  });
-  retailerId = created?.retailer?.id ?? created?.id;
-  if (!retailerId) throw new Error('could not create the retailer');
-  await adminPost(`/retailers/${retailerId}/approve`);
+await step('two live retailers with storefronts', async () => {
+  // Retire anything a previous run left behind. Households are tagged per run so they never
+  // collide, but retailers and their items persist, and by the fifth recording the "two nearby
+  // kitchens" the narration describes had become nine items from five shops.
+  //
+  // Deactivated rather than deleted: redemptions reference catalog items and retailers with
+  // `on delete restrict`, because a sold voucher must still be able to name what was bought.
+  // Browse only ever shows active items, so this is enough and destroys no history.
+  await retireExistingStorefronts();
+
+  // Two, so that narrowing is something the viewer can SEE happen. With one shop, approving it
+  // changes nothing on screen and the claim has to be taken on trust.
+  for (const [name, dish, price] of [
+    ['Mama Nkechi Kitchen', 'Lunch special', 120_000],
+    ['Corner Buka', 'Rice and stew', 90_000],
+  ]) {
+    const created = await adminPost('/retailers', {
+      businessName: name,
+      payoutBankCode: '000014',
+      payoutAccountNumber: '0123456789',
+    });
+    const id = created?.retailer?.id ?? created?.id;
+    if (!id) throw new Error(`could not create ${name}`);
+    await adminPost(`/retailers/${id}/approve`);
+    await seedItem(id, dish, price);
+    if (name === 'Mama Nkechi Kitchen') retailerId = id;
+  }
   // Food, because the parent's allowlist earlier in the recording is transport / school / food.
   // The category lock and the merchant rule are SEPARATE controls and this chapter is about the
   // second one, so the item has to clear the first — otherwise it would be showing a category
   // refusal while claiming to show merchant approval.
-  for (const [name, priceKobo] of [
-    ['Lunch special', 120_000],
-    ['Jollof and chicken', 180_000],
-  ]) {
-    await seedItem(retailerId, name, priceKobo);
-  }
 });
 await wait(1500);
 
 await focus('agent');
 await cap(
   '11 · The marketplace',
-  'Until a parent approves a shop, there is nothing to buy.',
-  'It starts closed. Nobody is upsold anything.',
+  'The agent only sees what this wallet is already allowed to buy.',
+  'Filtered by the category lock the parent already set.',
 );
-await step('agent opens an empty marketplace', async () => {
+await step('agent sees both kitchens', async () => {
   af = await reboot('agent', AGENT, (f) =>
     f.getByRole('button', { name: /SHOP WITH THIS WALLET/i }),
   );
   await af.getByRole('button', { name: /SHOP WITH THIS WALLET/i }).click();
-  await af
-    .getByText(/has not approved any shops/i)
-    .first()
-    .waitFor({ state: 'visible', timeout: 30_000 });
+  // NOT an empty marketplace: with no merchant rule set, the catalogue is unrestricted apart
+  // from the category lock. Claiming otherwise would have the demo assert something about the
+  // product that is not true.
+  await af.getByText('Corner Buka').first().waitFor({ state: 'visible', timeout: 30_000 });
+  await af.getByText('Mama Nkechi Kitchen').first().waitFor({ state: 'visible', timeout: 30_000 });
 });
 await wait(3500);
 await page.screenshot({ path: `${OUT}/record-marketplace-empty.png` });
@@ -764,8 +799,8 @@ await page.screenshot({ path: `${OUT}/record-marketplace-empty.png` });
 await focus('principal');
 await cap(
   '11 · The marketplace',
-  'Approving a shop writes a rule.',
-  'Into the same rule set as the limit and the category lock.',
+  'The parent narrows it to one shop.',
+  'Approving writes a rule — into the same set as the limit and the category lock.',
 );
 await step('parent approves the shop', async () => {
   pf = await reboot('principal', PRINCIPAL, (f) => f.getByRole('button', { name: 'Sub-wallets' }));
@@ -790,15 +825,23 @@ await page.screenshot({ path: `${OUT}/record-marketplace-approved.png` });
 await focus('agent');
 await cap(
   '11 · The marketplace',
-  'Now the agent sees it — and only it.',
-  'Never shown anything they could not buy.',
+  'Now the agent sees that one — and only that one.',
+  'The other kitchen is gone.',
 );
-await step('the shop appears for the agent', async () => {
+await step('the other kitchen disappears', async () => {
   af = await reboot('agent', AGENT, (f) =>
     f.getByRole('button', { name: /SHOP WITH THIS WALLET/i }),
   );
   await af.getByRole('button', { name: /SHOP WITH THIS WALLET/i }).click();
-  await af.getByText('Lunch special').first().waitFor({ state: 'visible', timeout: 30_000 });
+  await af
+    .getByText(/Lunch special|Rice and stew/)
+    .first()
+    .waitFor({ state: 'visible', timeout: 30_000 });
+  // Assert the NARROWING, not a particular shop: which card the principal screen renders first
+  // is not something this script controls, so naming the survivor would test render order
+  // instead of the thing being demonstrated.
+  const remaining = await af.getByText(/Mama Nkechi Kitchen|Corner Buka/).count();
+  if (remaining !== 1) throw new Error(`expected one kitchen to remain, saw ${remaining}`);
 });
 await wait(3000);
 
@@ -808,7 +851,10 @@ await cap(
   'The shop is paid when the service is actually delivered.',
 );
 await step('agent buys a voucher', async () => {
-  await af.getByText('Lunch special').first().click();
+  await af
+    .getByText(/Lunch special|Rice and stew/)
+    .first()
+    .click();
   await wait(2500);
   await af.getByRole('button', { name: /BUY VOUCHER/i }).click();
   await af

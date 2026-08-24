@@ -48,10 +48,28 @@ vouchers and receive the NIP-out payout. Purchases require `approved`, so this o
 sold while the retailer was live — but that is exactly the fraud case: approve → sell → get caught →
 collect anyway.
 
-This is left unchanged in SP4a **deliberately**, because closing it is a money-flow product decision,
-not a bug fix: blocking redemption strands the buyer's funds in suspense until the voucher expires
-and refunds, which is the right answer for a fraudulent retailer and the wrong one for a retailer
-suspended over paperwork. Until it is decided:
+**Decided in SP4b: the behaviour stays, deliberately, and is now stated to the retailer.**
+
+A buyer who has already paid must be able to obtain the service they bought. Refusing the
+redemption strands *them* — their funds sit in suspense until the voucher expires — in order to
+punish the retailer, which puts the cost on the wrong party. So suspension blocks **new supply**
+(publishing items, running deals, being found by buyers) and never blocks honouring a voucher
+already sold. The portal says exactly this on its suspended banner, so a retailer does not have
+to discover it by trying.
+
+The fraud case in the paragraph above is real and is not closed by this decision. What bounds it:
+suspension stops further sales immediately, so the exposure is capped at vouchers already in
+buyers' hands, and expiry (below) still returns anything unredeemed.
+
+One thing SP4b **did** close: a retailer whose KYB was *rejected* can no longer redeem at all.
+That case is indistinguishable by status — `kyb.rejected` lands in `suspended`, exactly like an
+ops suspension — and `anchorBusinessCustomerId` cannot separate them either, because it is written
+when KYB is **submitted**, before Anchor rules on it. `retailers.approved_at` (migration `0032`) is
+stamped in the same statement as the transition to `approved`, and the portal's redeem route
+requires it. Note the gate is on the **portal route**, not inside `redeemService` — the service's
+behaviour is unchanged, so any other caller reaching it is unaffected.
+
+Until the rest is decided:
 
 - Treat `suspend` as *"stop new business"*, not *"stop all payouts."*
 - To stop outstanding payouts on a suspended retailer today, the lever is expiry — vouchers refund
@@ -188,14 +206,68 @@ real wire shape of `/business-customers` is only exercised by the gated live E2E
 
 ---
 
-## 7. Still deferred (SP4b)
+## 7. The retailer portal (SP4b)
 
-- Retailer **portal** app + the Expo-web/PWA vs Next platform decision.
-- Retailer-scoped auth (a retailer logging in to see its own catalog, deals, and redemptions).
-- Retailer self-serve application — today ops creates the row.
-- **A decision on the redemption gap in §1** — should `redeemService` refuse a suspended retailer?
-  Needs a product answer on buyer funds (refund-on-expiry vs. honour the voucher), then a
-  `redeemService` guard plus a way to settle outstanding vouchers on suspension.
+**Platform: a separate Next.js app**, `apps/retailer-portal`, resolving the gate spec §7 left open.
+The recommended candidate was Expo-web reusing `@amana/ui`, and there is evidence it would have
+worked — the investor-demo work drove both Expo apps end to end in Chromium. It went the other way
+because the portal is the surface expected to grow data-dense, is the only one with a plausible
+public/SEO future, and is the only one with no app-store path to protect. The accepted cost is a
+second component system: `@amana/api-client` is reused as-is, but `@amana/ui` ships React Native
+source, so the design tokens and the naira formatter are duplicated once each, in
+`app/globals.css` and `lib/api.ts`, flagged at both sites.
+
+**Sign-in is phone OTP**, the same primitive as every other human login here, as a third JWT actor
+kind (`retailer`). It is a peer of principal/agent rather than a flag on them: a retailer owner has
+no household, wallet or sub-wallet, so every household route rejects one by default. `/auth/otp/*`
+refuses a retailer and points at the portal, so the two front doors stay separate.
+
+**There is no self-registration, and that is the point.** Ops create the business as before and
+record `contact_phone`; the first successful OTP from that number creates the owner's user row and
+claims the retailer. Claiming only ever matches rows with `owner_user_id IS NULL`, so a live
+retailer cannot be taken over by someone re-registering its contact number.
+
+A first sign-in also needs the owner's NIN. The server cannot know that until it has verified the
+code — and verifying **consumes** it — so the portal offers the NIN field up front rather than
+discovering the requirement and leaving the owner holding a spent OTP. Checking first would answer
+"does this number have a retailer waiting?" for anyone who asks, with no code at all.
+
+Both OTP endpoints are rate-limited alongside the household ones in `attachRateLimiters`.
+
+Authorisation is by **ownership, in the service layer** (`retailer-access.service`), never the
+`actor` claim — a forged role resolves to no owned retailer. Routes naming an id in the path check
+ownership first and report "not yours" identically to "does not exist".
+
+### Portal endpoints (`/retailer/*`, bearer auth)
+
+| Method | Path | Notes |
+|---|---|---|
+| `POST` | `/retailer/auth/otp/request` | Never reveals whether the phone belongs to a retailer |
+| `POST` | `/retailer/auth/otp/verify` | `nin` required on first sign-in only |
+| `GET` `PATCH` | `/retailer/me` | Profile; approval stays ops-only |
+| `PUT` | `/retailer/me/payout` | Bank account; verified by Anchor at payout time |
+| `POST` | `/retailer/me/kyb` | Submit only — a retailer can never approve itself |
+| `GET` `POST` | `/retailer/items` | Publishing requires `approved` |
+| `PATCH` | `/retailer/items/:id` | Taking an item off sale stays open to a suspended retailer |
+| `GET` `POST` `PATCH` | `/retailer/deals` | `markdown` only; `ended` is terminal |
+| `POST` | `/retailer/redeem` | Money. Requires `approved_at`; permitted while suspended |
+| `GET` | `/retailer/redemptions` | Orders log, paginated |
+| `GET` | `/retailer/earnings` | Settlement **history**, never a held balance (spec §7) |
+
+Run it locally with `pnpm --filter @amana/retailer-portal dev` (port 3300) against a backend with
+`CORS_ALLOWED_ORIGINS=http://localhost:3300`. `node tools/demo/probe-portal.mjs` drives the whole
+thing in a browser and is the fastest way to check the two halves still agree.
+
+## 8. Still deferred
+
+- Retailer self-serve application — ops still create the row.
+- **QR scanning and the USSD redeem fallback.** Redeem takes a keyed code today. USSD (spec §6) is
+  a telco integration, not UI.
+- **Multi-staff logins.** v1 is a single owner per retailer, enforced by a unique index on
+  `owner_user_id`.
+- **Funded-campaign deals.** `deal_type` has only `markdown`.
+- **An admin route for `contact_phone`.** Ops can create a retailer but not yet set the number its
+  owner will claim it with, so that field is currently written directly.
 - **An un-suspend path.** `approve` deliberately refuses `suspended`, and there is no re-apply
   endpoint that clears the old row — a suspended retailer's catalog items still exist and still
   point at it. If ops needs to reinstate a retailer, that flow does not exist yet.

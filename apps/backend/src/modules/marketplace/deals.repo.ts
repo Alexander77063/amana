@@ -53,6 +53,28 @@ export const dealsRepo = {
    * IS NULL). Retailer-scoped, so another retailer's retailer-wide deals never leak in. Newest first.
    * Best-deal selection is the pricing service's job (SP2 Task 4), not this repo.
    */
+  /** Every deal this retailer has ever run, newest first — the portal's deals list. */
+  async listByRetailer(db: DbOrTx, retailerId: string): Promise<DealRow[]> {
+    return db
+      .select()
+      .from(deals)
+      .where(eq(deals.retailerId, retailerId))
+      .orderBy(desc(deals.createdAt));
+  },
+
+  /**
+   * Pause, resume or end a deal. `ended` is terminal — a deal that has stopped is never
+   * restarted, because its window is part of what buyers were shown.
+   */
+  async setStatus(
+    db: DbOrTx,
+    id: string,
+    status: 'active' | 'paused' | 'ended',
+  ): Promise<DealRow | undefined> {
+    const [row] = await db.update(deals).set({ status }).where(eq(deals.id, id)).returning();
+    return row;
+  },
+
   async findActiveForItem(
     db: DbOrTx,
     catalogItemId: string,

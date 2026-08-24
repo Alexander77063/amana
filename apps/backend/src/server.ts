@@ -17,6 +17,8 @@ import { mediaRoute } from './routes/media';
 import { notificationPrefsRoute } from './routes/notification-prefs';
 import { notificationsListRoute } from './routes/notifications';
 import { pairingRoute } from './routes/pairing';
+import { retailerAuthRoute } from './routes/retailer-auth';
+import { retailerPortalRoute } from './routes/retailer-portal';
 import { retailersRoute } from './routes/retailers';
 import { subWalletsRoute } from './routes/sub-wallets';
 import { transactionsRoute } from './routes/transactions';
@@ -63,6 +65,29 @@ function attachRateLimiters(app: Hono): void {
       key: clientIp,
     }),
   );
+  // The portal's OTP endpoints are the marketplace's only unauthenticated surface. Same limits
+  // as the household ones: an unrated OTP route is an SMS bill and a business-enumeration oracle.
+  for (const path of ['/retailer/auth/otp/request', '/retailer/auth/otp/verify']) {
+    app.use(
+      path,
+      rateLimit({
+        limit: env.RATE_LIMIT_OTP_PER_PHONE,
+        windowSeconds,
+        keyPrefix: `retailer-otp:phone:${path}`,
+        key: bodyFieldKey('phone'),
+      }),
+    );
+    app.use(
+      path,
+      rateLimit({
+        limit: env.RATE_LIMIT_OTP_PER_IP,
+        windowSeconds,
+        keyPrefix: `retailer-otp:ip:${path}`,
+        key: clientIp,
+      }),
+    );
+  }
+
   app.use(
     '/auth/otp/verify',
     rateLimit({
@@ -147,6 +172,8 @@ export function createServer(): Hono {
   app.route('/sub-wallets', subWalletsRoute);
   app.route('/marketplace', marketplaceRoute);
   app.route('/retailers', retailersRoute);
+  app.route('/retailer/auth', retailerAuthRoute);
+  app.route('/retailer', retailerPortalRoute);
   app.route('/vas', vasRoute);
   app.route('/media', mediaRoute);
   app.route('/', buildMeRouter());

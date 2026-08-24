@@ -2,13 +2,13 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import argon2 from 'argon2';
 import { SignJWT, jwtVerify } from 'jose';
 import { env } from '../../env';
-import type { AccessTokenClaims } from './types';
+import { type AccessTokenClaims, type ActorRole, isActorRole } from './types';
 
 const secretKey = (): Uint8Array => new TextEncoder().encode(env.JWT_SECRET);
 
 export type SignAccessInput = {
   userId: string;
-  role: 'principal' | 'agent';
+  role: ActorRole;
   sessionId: string;
   now?: Date;
 };
@@ -38,7 +38,9 @@ export async function verifyAccessToken(token: string): Promise<AccessTokenClaim
   });
   if (typeof payload.sub !== 'string') throw new Error('jwt: missing sub');
   if (typeof payload.sid !== 'string') throw new Error('jwt: missing sid');
-  if (payload.role !== 'principal' && payload.role !== 'agent') throw new Error('jwt: bad role');
+  // Allow-list, never a cast: an unrecognised role in a signed token is a bug or an attack, and
+  // either way must not become an actor.
+  if (!isActorRole(payload.role)) throw new Error('jwt: bad role');
   return {
     sub: payload.sub,
     role: payload.role,

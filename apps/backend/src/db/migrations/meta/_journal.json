@@ -218,6 +218,20 @@
       "when": 1787328414285,
       "tag": "0030_clammy_princess_powerful",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1787567958384,
+      "tag": "0031_lucky_arclight",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1787568382815,
+      "tag": "0032_bizarre_puck",
+      "breakpoints": true
     }
   ]
 }

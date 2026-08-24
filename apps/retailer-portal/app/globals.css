@@ -1,0 +1,272 @@
+/*
+ * Design tokens copied from @amana/ui (packages/ui/src/theme/tokens.ts).
+ *
+ * Copied, not imported — and that is the accepted cost of the Phase-2 platform decision recorded
+ * in docs/superpowers/plans/2026-08-24-marketplace-sp4b-retailer-portal.md. @amana/ui ships React
+ * Native source that Metro transpiles; a Next app cannot consume it, so the portal keeps its own
+ * stylesheet and the tokens are duplicated ONCE, here.
+ *
+ * If those tokens change, this file has to change with them. That is real debt, written down
+ * rather than left for someone to discover from a screenshot.
+ */
+:root {
+  --bg-base: #0d1b2a;
+  --bg-surface: #152535;
+  --bg-raised: #1c3147;
+  --text-primary: #f5f0e8;
+  --text-secondary: #8ba3b8;
+  --text-muted: #5a8ca8;
+  --accent: #c9a227;
+  --accent-dim: rgba(201, 162, 39, 0.18);
+  --debit: #ff6b6b;
+  --credit: #52c49a;
+  --border: rgba(255, 255, 255, 0.08);
+  --radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font: 15px / 1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  min-height: 100vh;
+}
+
+.nav {
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  padding: 22px 16px;
+}
+
+.nav h1 {
+  font-size: 17px;
+  letter-spacing: 0.14em;
+  margin: 0 0 4px;
+}
+
+.nav .biz {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 22px;
+  word-break: break-word;
+}
+
+.nav a {
+  display: block;
+  padding: 9px 11px;
+  border-radius: 8px;
+  color: var(--text-secondary);
+  margin-bottom: 3px;
+  font-size: 14px;
+}
+
+.nav a:hover {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+
+.nav a[aria-current="page"] {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+
+main {
+  padding: 30px 34px 60px;
+  max-width: 1080px;
+}
+
+h2 {
+  font-size: 21px;
+  margin: 0 0 4px;
+  letter-spacing: -0.01em;
+}
+
+.sub {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0 0 22px;
+}
+
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 16px;
+}
+
+label {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 12px 0 5px;
+}
+
+input,
+select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-size: 15px;
+}
+
+input:focus,
+select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+button {
+  background: var(--accent);
+  border: 0;
+  color: #14202c;
+  font-weight: 600;
+  padding: 10px 17px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Tables scroll inside their own container so the page body never scrolls sideways. */
+.table-wrap {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  padding: 9px 10px;
+  white-space: nowrap;
+}
+
+td {
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+
+.pill.ok {
+  color: var(--credit);
+  border-color: rgba(82, 196, 154, 0.35);
+}
+
+.pill.warn {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.pill.bad {
+  color: var(--debit);
+  border-color: rgba(255, 107, 107, 0.35);
+}
+
+.banner {
+  border-radius: var(--radius);
+  padding: 13px 16px;
+  margin-bottom: 18px;
+  font-size: 14px;
+  border: 1px solid var(--accent-dim);
+  background: var(--accent-dim);
+  color: var(--text-primary);
+}
+
+.banner.bad {
+  border-color: rgba(255, 107, 107, 0.35);
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.err {
+  color: var(--debit);
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+}
+
+.stat .k {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.stat .v {
+  font-size: 25px;
+  font-variant-numeric: tabular-nums;
+  margin-top: 3px;
+}
+
+.center {
+  max-width: 380px;
+  margin: 11vh auto;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.muted {
+  color: var(--text-secondary);
+}

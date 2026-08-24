@@ -1,3 +1,4 @@
+import type { Role } from '@amana/types';
 import type { LoginResponse, OtpPurpose, User } from '@amana/types';
 import { ApiError } from './errors';
 
@@ -17,7 +18,7 @@ export type VerifyOtpInput = {
 export type RefreshInput = {
   refreshToken: string;
   userId: string;
-  role: 'principal' | 'agent';
+  role: Role;
 };
 export type RefreshResult = {
   accessToken: string;
@@ -26,7 +27,7 @@ export type RefreshResult = {
   refreshExpiresAt: string;
 };
 
-async function postJson<T>(
+export async function postJson<T>(
   fetchImpl: RawFetch,
   url: string,
   body: unknown,

@@ -99,6 +99,27 @@ the plan string, and hand it to `--plan=`. Every mismatch — wrong plan length,
 line count that does not reconcile — refuses to write, because putting one line on the wrong
 caption shifts every line after it.
 
+
+### If Expo will not start: "Failed to start watch mode"
+
+Metro's `watchFolders` is the whole monorepo, and `metro-file-map` gives its initial crawl a hard
+**four-minute** ceiling (`MAX_WAIT_TIME`). On a cold worktree — a fresh `pnpm install`, nothing in
+the OS file cache — that crawl can exceed it, and Expo then fails to start at all with a message
+that reads like a broken install rather than a slow directory walk.
+
+The `blockList` in each app's `metro.config.js` keeps the crawl out of the demo output, the
+retailer portal's `.next`, and coverage. That is enough on a warm checkout. On a genuinely cold
+one you may still need to raise the ceiling for a single session:
+
+```bash
+# node_modules is gitignored, so this is local and disappears on the next install
+sed -i 's/const MAX_WAIT_TIME = 240000;/const MAX_WAIT_TIME = 1200000;/'   node_modules/metro-file-map/src/Watcher.js
+```
+
+The first bundle after that takes several minutes; subsequent starts are fast. Installing
+**watchman** is the durable fix — Metro uses it automatically when present and it does not have
+this ceiling.
+
 ---
 
 ## The scripts

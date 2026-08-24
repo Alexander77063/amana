@@ -27,6 +27,13 @@ const IntentBodySchema = z.object({
   agentNote: z.string().nullable().default(null),
 });
 
+/**
+ * A malformed id must never reach Postgres — an invalid uuid literal raises a driver error
+ * that surfaces as a 500 (and as Sentry noise) instead of the 400 the caller deserves.
+ */
+const UuidSchema = z.string().uuid();
+const isUuid = (v: string): boolean => UuidSchema.safeParse(v).success;
+
 const ResumeBodySchema = z.object({ token: z.string().min(1) });
 
 const AttachMediaBodySchema = z.object({ mediaKey: z.string().min(1) });
@@ -53,6 +60,7 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
   })
   .post('/:id/evaluate', async (c) => {
     const id = c.req.param('id');
+    if (!isUuid(id)) return c.json({ error: 'invalid_transaction_id' }, 400);
     const a = c.get('actor') as Actor;
     const result = await lifecycleService.evaluate(db, {
       transactionId: id,
@@ -62,17 +70,21 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     if (result.kind === 'allow') {
       return c.json({ kind: 'allow', status: result.transaction.status }, 200);
     }
+    // `expiresAt` is what the agent's wait screen counts down to. It was missing here while
+    // the api-client type declared it, so the countdown rendered "NaN:NaN" on a live screen.
     return c.json(
       {
         kind: 'bump_pending',
         bumpRequestId: result.bumpRequestId,
         status: result.transaction.status,
+        expiresAt: result.bumpExpiresAt.toISOString(),
       },
       202,
     );
   })
   .post('/:id/send', async (c) => {
     const id = c.req.param('id');
+    if (!isUuid(id)) return c.json({ error: 'invalid_transaction_id' }, 400);
     const a = c.get('actor') as Actor;
     const txn = await transactionsRepo.findById(db, id);
     if (!txn) return c.json({ error: 'not_found' }, 404);
@@ -89,17 +101,21 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     return c.json(result, 202);
   })
   .post('/:id/resume-after-bump', async (c) => {
+    const id = c.req.param('id');
+    if (!isUuid(id)) return c.json({ error: 'invalid_transaction_id' }, 400);
     const body = await parseBody(c, ResumeBodySchema);
     if (body instanceof Response) return body;
     const result = await lifecycleService.resumeAfterBump(db, {
       token: body.token,
       now: new Date(),
+      expectedTransactionId: id,
     });
     return c.json({ status: result.transaction.status }, 200);
   })
   .get('/:id', async (c) => {
     const a = c.get('actor') as Actor;
     const id = c.req.param('id');
+    if (!isUuid(id)) return c.json({ error: 'invalid_transaction_id' }, 400);
     if (a.role === 'principal') {
       const detail = await transactionDetailService.getByIdForPrincipal(db, id, a.userId);
       if (!detail) return c.json({ error: 'not_found' }, 404);
@@ -115,6 +131,7 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
   .patch('/:id/media', async (c) => {
     const a = c.get('actor') as Actor;
     const id = c.req.param('id');
+    if (!isUuid(id)) return c.json({ error: 'invalid_transaction_id' }, 400);
     const body = await parseBody(c, AttachMediaBodySchema);
     if (body instanceof Response) return body;
     const txn = await transactionsRepo.findById(db, id);
@@ -126,9 +143,31 @@ export const transactionsRoute = new Hono<{ Variables: ActorVariables }>()
     await transactionsRepo.attachMedia(db, id, body.mediaKey, new Date());
     return c.json({ ok: true }, 200);
   })
+  /**
+   * The agent's view of the bump on their own transaction, and — once the principal has
+   * approved — the one-shot token that lets them continue.
+   *
+   * Without this the token had no way to reach the device that needs it: it is minted for the
+   * principal's response, and the push to the agent omits it on purpose (a capability does not
+   * belong in a push payload). The agent's wait screen polls this, which also means a dropped
+   * push no longer strands the payment until the bump expires.
+   */
+  .get('/:id/bump', async (c) => {
+    const a = c.get('actor') as Actor;
+    const id = c.req.param('id');
+    if (!isUuid(id)) return c.json({ error: 'invalid_transaction_id' }, 400);
+    if (a.role !== 'agent') return c.json({ error: 'agent_only' }, 403);
+    const result = await bumpWorkflowService.statusForAgent(db, {
+      transactionId: id,
+      agentUserId: a.userId,
+    });
+    if (!result) return c.json({ error: 'not_found' }, 404);
+    return c.json(result, 200);
+  })
   .delete('/:id/bump', async (c) => {
     const a = c.get('actor') as Actor;
     const id = c.req.param('id');
+    if (!isUuid(id)) return c.json({ error: 'invalid_transaction_id' }, 400);
     const txn = await transactionsRepo.findById(db, id);
     if (!txn) return c.json({ error: 'not_found' }, 404);
     if (!txn.subWalletId || a.role !== 'agent') return c.json({ error: 'forbidden' }, 403);

@@ -15,6 +15,19 @@ const EnvSchema = z.object({
   // Min 32 chars: it is a bearer-equivalent static credential with no rotation story yet.
   ADMIN_API_KEY: z.string().min(32, 'ADMIN_API_KEY must be at least 32 chars').optional(),
   API_BASE_URL: z.string().url().default('http://localhost:3000'),
+  // Browser clients only. Comma-separated EXACT origins (scheme://host:port) — there is
+  // deliberately no wildcard: this is a money API, and `*` plus a bearer token in a browser
+  // is how a hostile page reads someone's wallet. Unset (the default) mounts no CORS
+  // middleware at all, so the native apps and production are unaffected.
+  CORS_ALLOWED_ORIGINS: z
+    .string()
+    .optional()
+    .transform((v) =>
+      (v ?? '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
   ANCHOR_API_BASE_URL: z.string().url().default('https://api.sandbox.getanchor.co'),
   EXPO_ACCESS_TOKEN: z.string().optional(),
   TERMII_API_KEY: z.string().optional(),

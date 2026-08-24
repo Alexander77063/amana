@@ -12,10 +12,12 @@ import {
 } from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Notifications from 'expo-notifications';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { api } from '../lib/api';
 import type { PayStackParamList } from '../nav/PayStack';
+
+const POLL_INTERVAL_MS = 3_000;
 
 type Props = NativeStackScreenProps<PayStackParamList, 'BumpWait'>;
 
@@ -42,19 +44,43 @@ export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
     return () => clearInterval(id);
   }, [expiresAt]);
 
+  /**
+   * Continue an approved spend.
+   *
+   * The approval lives on the principal's phone; what unlocks the payment here is the one-shot
+   * token, which the agent pulls over its own authenticated connection. Consuming it moves the
+   * transaction out of bump_pending, which is what lets the Sending screen hand it to the bank.
+   */
+  const resumeApproved = useCallback(async () => {
+    if (navigated.current) return;
+    try {
+      const { resumeToken } = await api.transaction.bumpStatus(transactionId);
+      if (!resumeToken) return; // approved but already consumed — the poll will settle it
+      navigated.current = true;
+      await api.transaction.resumeAfterBump(transactionId, resumeToken);
+      navigation.replace('Sending', { transactionId });
+    } catch {
+      // Leave it to the poll below rather than failing a payment the principal approved.
+      navigated.current = false;
+    }
+    // Memoised on purpose. The countdown re-renders this screen once a second, so an unmemoised
+    // callback in the dependency lists below would tear down and recreate the poll timer every
+    // second — and since the timer is longer than a second, the poll would never fire at all.
+  }, [transactionId, navigation]);
+
   useEffect(() => {
     const sub = Notifications.addNotificationReceivedListener((notification) => {
       if (navigated.current) return;
       const data = notification.request.content.data as Record<string, unknown>;
       if (data.kind !== 'bump_decided' || data.transactionId !== transactionId) return;
-      navigated.current = true;
       if (
         data.decision === 'approved' ||
         data.decision === 'approved_once' ||
         data.decision === 'raise_limit'
       ) {
-        navigation.replace('Sending', { transactionId });
+        void resumeApproved();
       } else {
+        navigated.current = true;
         navigation.replace('Failed', {
           transactionId,
           errorMessage: `Bump ${String(data.decision ?? 'denied')}`,
@@ -62,7 +88,38 @@ export function BumpWaitScreen({ route, navigation }: Props): JSX.Element {
       }
     });
     return () => sub.remove();
-  }, [navigation, transactionId]);
+  }, [navigation, transactionId, resumeApproved]);
+
+  /**
+   * Poll the bump as well as listening for the push.
+   *
+   * Push is best-effort — it can be dropped, delayed, or denied at the OS level, and it does
+   * not exist at all on web. Without this the agent sat on this screen until the request
+   * expired, even though the principal had already approved.
+   */
+  useEffect(() => {
+    let alive = true;
+    const tick = async () => {
+      if (!alive || navigated.current) return;
+      try {
+        const { status } = await api.transaction.bumpStatus(transactionId);
+        if (status === 'approved_once' || status === 'raise_limit') {
+          await resumeApproved();
+        } else if (status === 'denied' || status === 'expired' || status === 'cancelled') {
+          navigated.current = true;
+          navigation.replace('Failed', { transactionId, errorMessage: `Bump ${status}` });
+        }
+      } catch {
+        // Transient — keep polling.
+      }
+      if (alive && !navigated.current) setTimeout(() => void tick(), POLL_INTERVAL_MS);
+    };
+    const id = setTimeout(() => void tick(), POLL_INTERVAL_MS);
+    return () => {
+      alive = false;
+      clearTimeout(id);
+    };
+  }, [navigation, transactionId, resumeApproved]);
 
   const cancel = async () => {
     setCancelling(true);

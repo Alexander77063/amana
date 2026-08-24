@@ -1,5 +1,11 @@
 import type { ErrorHandler } from 'hono';
-import { ConflictError, ForbiddenError, LimitExceededError, NotFoundError } from '../lib/errors';
+import {
+  ConflictError,
+  ForbiddenError,
+  LimitExceededError,
+  NotFoundError,
+  RuleDeniedError,
+} from '../lib/errors';
 import { logger } from '../lib/logger';
 import { Sentry } from '../lib/sentry';
 
@@ -10,6 +16,11 @@ export const errorHandler: ErrorHandler = (err, c) => {
   }
   if (err instanceof ConflictError) {
     return c.json({ error: 'conflict', detail: err.message }, 409);
+  }
+  // The parent's rules refused this spend. Expected, and the reasons are what the agent's
+  // app shows them, so they travel in the body rather than being flattened to a message.
+  if (err instanceof RuleDeniedError) {
+    return c.json({ error: 'rule_denied', reasons: err.reasons, detail: err.message }, 409);
   }
   if (err instanceof LimitExceededError) {
     return c.json({ error: 'limit_exceeded', detail: err.message }, 409);

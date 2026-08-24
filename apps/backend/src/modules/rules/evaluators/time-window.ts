@@ -1,11 +1,16 @@
+import { hourInTz, weekdayInTz } from '../../../lib/tz';
 import type { DenialReason, TimeWindowRuleConfig, TxnIntent } from '../types';
 
 export function evaluateTimeWindow(
   cfg: TimeWindowRuleConfig,
   intent: TxnIntent,
 ): DenialReason | null {
-  const hour = intent.confirmedAt.getUTCHours();
-  const day = intent.confirmedAt.getUTCDay();
+  // Evaluated on the household's wall clock, not UTC. A parent who blocks spending before 6am
+  // means 6am where they live; under UTC every window silently landed an hour late, because
+  // Nigeria is UTC+1. Quiet hours and the inflow-fee month already work in Africa/Lagos — this
+  // makes the rule engine agree with them.
+  const hour = hourInTz(intent.confirmedAt);
+  const day = weekdayInTz(intent.confirmedAt);
 
   if (!cfg.daysOfWeek.includes(day)) {
     return {

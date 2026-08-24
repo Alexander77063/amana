@@ -245,7 +245,11 @@ describe('VAS routes', () => {
     expect(res.status).toBe(200);
     const json = (await res.json()) as { billers: Array<{ slug: string }> };
     expect(json.billers[0]?.slug).toBe('mtn');
-    expect(listBillersSpy).toHaveBeenCalledWith('airtime');
+    // Anchor's bill types are `Airtime` / `Data` / `Electricity` / `CableTV`; ours are
+    // lowercase. This previously asserted the raw 'airtime' was forwarded, which pinned a bug:
+    // `payBill` has always mapped through VAS_ANCHOR_TYPE, so listing and paying disagreed and
+    // the catalog came back empty against a real Anchor.
+    expect(listBillersSpy).toHaveBeenCalledWith('Airtime');
   });
 
   it('GET /vas/billers — invalid category → 400', async () => {

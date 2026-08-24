@@ -13,6 +13,13 @@ import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../modules/wallet/transactions.repo';
 
+/**
+ * A malformed id must never reach Postgres — an invalid uuid literal raises a driver error
+ * that surfaces as a 500 (and as Sentry noise) instead of the 400 the caller deserves.
+ */
+const UuidSchema = z.string().uuid();
+const isUuid = (v: string): boolean => UuidSchema.safeParse(v).success;
+
 export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(jwtAuth())
   .post('/', async (c) => {
@@ -87,6 +94,7 @@ export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
   .get('/:id/sub-wallets', async (c) => {
     const a = c.get('actor');
     if (a.role !== 'principal') return c.json({ error: 'principal_only' }, 403);
+    if (!isUuid(c.req.param('id'))) return c.json({ error: 'invalid_household_id' }, 400);
     const hh = await householdsRepo.findById(db, c.req.param('id'));
     if (!hh) return c.json({ error: 'household_not_found' }, 404);
     if (hh.principalUserId !== a.userId) return c.json({ error: 'not_your_household' }, 403);
@@ -110,6 +118,7 @@ export const householdsRoute = new Hono<{ Variables: ActorVariables }>()
   .post('/:id/sub-wallets', async (c) => {
     const a = c.get('actor');
     if (a.role !== 'principal') return c.json({ error: 'principal_only' }, 403);
+    if (!isUuid(c.req.param('id'))) return c.json({ error: 'invalid_household_id' }, 400);
     const hh = await householdsRepo.findById(db, c.req.param('id'));
     if (!hh) return c.json({ error: 'household_not_found' }, 404);
     if (hh.principalUserId !== a.userId) return c.json({ error: 'not_your_household' }, 403);

@@ -14,6 +14,7 @@ export { Card } from './layout/Card';
 export { Divider } from './layout/Divider';
 
 export { Button } from './controls/Button';
+export { Chip } from './controls/Chip';
 export { IconButton } from './controls/IconButton';
 export { TextInput } from './controls/TextInput';
 

@@ -33,7 +33,11 @@
         "backgroundColor": "#0D1B2A"
       }
     },
-    "platforms": ["ios", "android"],
+    "platforms": ["ios", "android", "web"],
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/icon.png"
+    },
     "plugins": [
       "expo-secure-store",
       [

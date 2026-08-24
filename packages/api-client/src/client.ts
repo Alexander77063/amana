@@ -12,6 +12,7 @@ import { PreferenceApi } from './preference-api';
 import { SubWalletApi } from './sub-wallet-api';
 import type { StoredAuth, TokenStore } from './token-store';
 import { TransactionApi } from './transaction-api';
+import { VasApi } from './vas-api';
 import { VendorApi } from './vendor-api';
 
 export interface ClientConfig {
@@ -40,13 +41,21 @@ export class AmanaApiClient {
   public readonly pairing: PairingApi;
   public readonly transaction: TransactionApi;
   public readonly vendor: VendorApi;
+  public readonly vas: VasApi;
   private readonly fetchImpl: typeof fetch;
   private readonly tokenStore?: TokenStore;
   private inflightRefresh: Promise<StoredAuth> | null = null;
 
   constructor(config: ClientConfig) {
     this.baseUrl = config.baseUrl.replace(/\/$/, '');
-    this.fetchImpl = config.fetchImpl ?? globalThis.fetch;
+    // Bind to globalThis. Stored on `this`, `this.fetchImpl(...)` would invoke the browser's
+    // `fetch` with the client as its receiver, and the DOM binding rejects that with
+    // "TypeError: Failed to execute 'fetch' on 'Window': Illegal invocation". React Native and
+    // Node tolerate it (their fetch is an ordinary function), which is why this only bites in a
+    // browser — and why it stayed hidden until the app was run on web. Auth calls were
+    // unaffected because AuthApi holds the reference in a local and calls it unbound.
+    const rawFetch = config.fetchImpl ?? globalThis.fetch;
+    this.fetchImpl = rawFetch.bind(globalThis);
     this.tokenStore = config.tokenStore;
     this.auth = new AuthApi(this.baseUrl, this.fetchImpl);
     this.household = new HouseholdApi(this);
@@ -60,6 +69,7 @@ export class AmanaApiClient {
     this.vendor = new VendorApi(this);
     this.media = new MediaApi(this);
     this.me = new MeApi(this);
+    this.vas = new VasApi(this);
   }
 
   async health(): Promise<{ status: 'ok'; version: string }> {

@@ -1,4 +1,15 @@
-import { AmountText, Body, Button, Card, Label, Screen, TextInput, useTheme } from '@amana/ui';
+import { SPEND_CATEGORIES } from '@amana/types';
+import {
+  AmountText,
+  Body,
+  Button,
+  Card,
+  Chip,
+  Label,
+  Screen,
+  TextInput,
+  useTheme,
+} from '@amana/ui';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
 import { useState } from 'react';
@@ -17,6 +28,10 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  // The principal's category rules compare against this exact string, so it has to come from
+  // the shared vocabulary in @amana/types. The previous hardcoded 'ad_hoc_service' meant any
+  // allowlist the parent set would have denied every payment.
+  const [category, setCategory] = useState<string>('other');
 
   const send = async () => {
     const sw = useAgentStore.getState().selectedSubWallet;
@@ -53,7 +68,7 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
         vendorBankCode: bankCode,
         vendorAccountNumber: accountNumber,
         vendorResolvedName: resolvedName,
-        category: 'ad_hoc_service',
+        category,
         agentNote: note.trim() || null,
         geolocation,
       });
@@ -99,6 +114,18 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
         autoFocus
         style={{ fontSize: 24, fontWeight: '600', height: 56 }}
       />
+
+      <Label>CATEGORY</Label>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+        {SPEND_CATEGORIES.map((c) => (
+          <Chip
+            key={c.value}
+            label={c.label}
+            selected={category === c.value}
+            onPress={() => setCategory(c.value)}
+          />
+        ))}
+      </View>
 
       <TextInput
         label="NOTE (OPTIONAL)"

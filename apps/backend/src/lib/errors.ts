@@ -32,6 +32,26 @@ export class NotFoundError extends Error {
 }
 
 /**
+ * Thrown when the principal's active rules refuse a money movement — a locked category, a
+ * spend outside the allowed hours.
+ *
+ * Deliberately distinct from ForbiddenError: the agent is permitted to use this wallet, it is
+ * this particular purchase the parent's rules disallow. Mapped to HTTP 409, matching
+ * LimitExceededError, since both are a conflict with the wallet's current rule state rather
+ * than an authorization failure. `reasons` carries the engine's denial codes so the app can
+ * tell the agent which rule stopped them.
+ */
+export class RuleDeniedError extends Error {
+  readonly reasons: string[];
+
+  constructor(reasons: string[], message = 'blocked by a spending rule') {
+    super(message);
+    this.name = 'RuleDeniedError';
+    this.reasons = reasons;
+  }
+}
+
+/**
  * Thrown when a money movement would breach an active sub-wallet spend limit
  * (daily / 30-day). Raised under the per-sub-wallet advisory lock at the reserve
  * seam, so the caller's transaction rolls back with nothing written. The error

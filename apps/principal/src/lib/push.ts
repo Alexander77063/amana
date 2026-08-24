@@ -44,3 +44,18 @@ export function setupResponseListener(
 ): Notifications.Subscription {
   return Notifications.addNotificationResponseReceivedListener(handler);
 }
+
+/**
+ * The notification response that cold-started the app, if any.
+ *
+ * Wrapped here (rather than called straight from App.tsx) so the platform twin can answer
+ * for web, and so a rejection can never escape as an unhandled promise — the caller fires
+ * this during post-login bootstrap, where an uncaught throw takes the whole screen down.
+ */
+export async function getLastNotificationResponseOrNull(): Promise<Notifications.NotificationResponse | null> {
+  try {
+    return (await Notifications.getLastNotificationResponseAsync()) ?? null;
+  } catch {
+    return null;
+  }
+}

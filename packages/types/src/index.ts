@@ -1,4 +1,5 @@
 export * from './auth';
+export * from './categories';
 export * from './bump';
 export * from './device';
 export * from './household';

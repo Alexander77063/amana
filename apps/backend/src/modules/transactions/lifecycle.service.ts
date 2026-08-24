@@ -1,5 +1,6 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { runInBackground } from '../../lib/background';
+import { ConflictError } from '../../lib/errors';
 import { type Kobo, kobo } from '../../lib/kobo';
 import { logger } from '../../lib/logger';
 import { anomalyService } from '../anomaly/anomaly.service';
@@ -30,7 +31,13 @@ export type EvaluateInput = {
 
 export type EvaluateOutput =
   | { kind: 'allow'; transaction: TransactionRow }
-  | { kind: 'bump_pending'; transaction: TransactionRow; bumpRequestId: string };
+  | {
+      kind: 'bump_pending';
+      transaction: TransactionRow;
+      bumpRequestId: string;
+      /** When the request lapses. The agent's wait screen counts down to this. */
+      bumpExpiresAt: Date;
+    };
 
 export const lifecycleService = {
   async evaluate(db: DbOrTx, input: EvaluateInput): Promise<EvaluateOutput> {
@@ -155,6 +162,7 @@ export const lifecycleService = {
         kind: 'bump_pending' as const,
         transaction: updated,
         bumpRequestId: bump.bumpRequest.id,
+        bumpExpiresAt: bump.bumpRequest.expiresAt,
       };
     });
 
@@ -192,11 +200,23 @@ export const lifecycleService = {
     return result;
   },
 
-  async resumeAfterBump(db: DbOrTx, input: { token: string; now: Date }): Promise<EvaluateOutput> {
+  async resumeAfterBump(
+    db: DbOrTx,
+    input: { token: string; now: Date; expectedTransactionId?: string },
+  ): Promise<EvaluateOutput> {
     const bump = await bumpWorkflowService.consumeToken(db, input.token, input.now);
-    if (!bump) throw new Error('invalid or already-consumed token');
+    // One-shot by design: an expired token, or a second tap on "resume", lands here. That is a
+    // client-visible conflict, not a server fault — a bare Error would surface as a 500 and page
+    // us via Sentry for what is ordinary user behaviour.
+    if (!bump) throw new ConflictError('invalid or already-consumed bump token');
     if (bump.status !== 'approved_once' && bump.status !== 'raise_limit') {
-      throw new Error(`bump not approved: status=${bump.status}`);
+      throw new ConflictError(`bump not approved: status=${bump.status}`);
+    }
+    // The token is the capability, so the path id is not what authorizes this. Assert they agree
+    // anyway: a mismatch means the caller is confused about which spend it is resuming, and
+    // silently resuming a *different* transaction is the worst possible resolution.
+    if (input.expectedTransactionId && input.expectedTransactionId !== bump.transactionId) {
+      throw new ConflictError('bump token does not belong to this transaction');
     }
     await transactionsRepo.setStatus(db, bump.transactionId, 'in_flight');
     const updated = await transactionsRepo.findById(db, bump.transactionId);

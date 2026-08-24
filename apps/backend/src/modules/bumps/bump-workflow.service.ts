@@ -3,6 +3,7 @@ import { eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { transactions } from '../../db/schema';
 import { runInBackground } from '../../lib/background';
+import { ForbiddenError } from '../../lib/errors';
 import type { Kobo } from '../../lib/kobo';
 import { logger } from '../../lib/logger';
 import { type Result, err, ok } from '../../lib/result';
@@ -189,6 +190,46 @@ export const bumpWorkflowService = {
         .set({ errorMessage: 'CANCELLED_BY_AGENT' })
         .where(eq(transactions.id, transactionId));
     });
+  },
+
+  /**
+   * What happened to the bump on this transaction, for the agent waiting on it — and, once
+   * the principal has approved, the one-shot token that lets them continue.
+   *
+   * This exists because the token had no route to the device that needs it. It is minted
+   * inside `decide()` and returned only in the *principal's* HTTP response, and the
+   * `bump_decided` push deliberately omits it — a capability in a push payload would sit in
+   * third-party infrastructure and on a lock screen. So the agent pulls it over their own
+   * authenticated connection instead.
+   *
+   * Deliberately agent-only. The principal already receives the token from `decide()`; the
+   * device that resumes the payment is the one that should be able to fetch it here.
+   */
+  async statusForAgent(
+    db: DbOrTx,
+    input: { transactionId: string; agentUserId: string },
+  ): Promise<{
+    status: BumpRequestRow['status'];
+    expiresAt: string;
+    resumeToken: string | null;
+  } | null> {
+    const bump = await bumpRequestsRepo.findLatestByTransactionId(db, input.transactionId);
+    if (!bump) return null;
+
+    // Authorization is by ownership, never by the JWT role claim: the caller must be the
+    // agent this sub-wallet belongs to. `assertSubWalletAccess` would also admit the
+    // household principal, which is not who this endpoint is for.
+    const sw = await subWalletsRepo.findById(db, bump.subWalletId);
+    if (!sw || sw.agentUserId !== input.agentUserId) throw new ForbiddenError();
+
+    const approved = bump.status === 'approved_once' || bump.status === 'raise_limit';
+    const token = approved ? await oneShotTokensRepo.findUnconsumedForBump(db, bump.id) : undefined;
+
+    return {
+      status: bump.status,
+      expiresAt: bump.expiresAt.toISOString(),
+      resumeToken: token?.token ?? null,
+    };
   },
 
   async consumeToken(db: DbOrTx, token: string, now: Date): Promise<BumpRequestRow | null> {

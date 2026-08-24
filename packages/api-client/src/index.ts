@@ -46,3 +46,4 @@ export { VendorApi } from './vendor-api';
 export type { ResolvedVendorResponse, RecentVendorResponse } from './vendor-api';
 export { MediaApi } from './media-api';
 export { MeApi } from './me-api';
+export * from './vas-api';

@@ -10,6 +10,8 @@ import { PhotoAttachScreen } from '../screens/PhotoAttachScreen';
 import { ReceiptScreen } from '../screens/ReceiptScreen';
 import { SendingScreen } from '../screens/SendingScreen';
 import { ShowRecipientScreen } from '../screens/ShowRecipientScreen';
+import { TopUpReceiptScreen } from '../screens/TopUpReceiptScreen';
+import { TopUpScreen } from '../screens/TopUpScreen';
 
 export type PayStackParamList = {
   CaptureMethod: undefined;
@@ -32,6 +34,8 @@ export type PayStackParamList = {
   Receipt: { transactionId: string };
   ShowRecipient: { amountKobo: string; resolvedName: string; sessionId: string };
   PhotoAttach: { transactionId: string };
+  TopUp: undefined;
+  TopUpReceipt: { purchaseId: string };
   Failed: { transactionId: string; errorMessage: string | null };
 };
 
@@ -58,6 +62,8 @@ export function PayStack(): JSX.Element {
         component={PhotoAttachScreen}
         options={{ presentation: 'modal' }}
       />
+      <Stack.Screen name="TopUp" component={TopUpScreen} />
+      <Stack.Screen name="TopUpReceipt" component={TopUpReceiptScreen} />
       <Stack.Screen name="Failed" component={FailedScreen} />
     </Stack.Navigator>
   );

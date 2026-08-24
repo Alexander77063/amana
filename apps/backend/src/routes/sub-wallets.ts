@@ -14,11 +14,21 @@ import { subWalletsRepo } from '../modules/wallet/sub-wallets.repo';
 
 type DbType = typeof db;
 
+/**
+ * A malformed id must never reach Postgres — an invalid uuid literal raises a driver error
+ * that surfaces as a 500 (and as Sentry noise) instead of the 400 the caller deserves.
+ */
+const UuidSchema = z.string().uuid();
+const isUuid = (v: string): boolean => UuidSchema.safeParse(v).success;
+
 async function ownerCheck(
   database: DbType,
   subWalletId: string,
   actorUserId: string,
-): Promise<{ ok: true; subWalletId: string } | { ok: false; status: 403 | 404; code: string }> {
+): Promise<
+  { ok: true; subWalletId: string } | { ok: false; status: 400 | 403 | 404; code: string }
+> {
+  if (!isUuid(subWalletId)) return { ok: false, status: 400, code: 'invalid_sub_wallet_id' };
   const sw = await subWalletsRepo.findById(database, subWalletId);
   if (!sw) return { ok: false, status: 404, code: 'sub_wallet_not_found' };
   const mw = await masterWalletsRepo.findById(database, sw.masterWalletId);
@@ -57,8 +67,20 @@ export const subWalletsRoute = new Hono<{ Variables: ActorVariables }>()
     if (a.role !== 'principal') return c.json({ error: 'principal_only' }, 403);
     const check = await ownerCheck(db, c.req.param('id'), a.userId);
     if (!check.ok) return c.json({ error: check.code }, check.status);
-    const balance = await balanceService.accountBalanceForSubWallet(db, c.req.param('id'));
-    return c.json({ balanceKobo: balance.toString() }, 200);
+    // `balanceKobo` stays in the response for compatibility, but it is ~0 by construction under
+    // the limits-only funds model. The spend-against-limit figures are what a principal can
+    // actually act on, so they are returned alongside it.
+    const s = await balanceService.spendSummaryForSubWallet(db, c.req.param('id'));
+    return c.json(
+      {
+        balanceKobo: s.balanceKobo.toString(),
+        spentLast24hKobo: s.spentLast24hKobo.toString(),
+        spentLast30dKobo: s.spentLast30dKobo.toString(),
+        dailyLimitKobo: s.dailyLimitKobo === null ? null : s.dailyLimitKobo.toString(),
+        monthlyLimitKobo: s.monthlyLimitKobo === null ? null : s.monthlyLimitKobo.toString(),
+      },
+      200,
+    );
   })
   .get('/:id/rules', async (c) => {
     const a = c.get('actor');
@@ -118,6 +140,7 @@ export const subWalletsRoute = new Hono<{ Variables: ActorVariables }>()
     if (a.role !== 'agent') return c.json({ error: 'agent_only' }, 403);
 
     const subWalletId = c.req.param('id');
+    if (!isUuid(subWalletId)) return c.json({ error: 'invalid_sub_wallet_id' }, 400);
     const sw = await subWalletsRepo.findById(db, subWalletId);
     if (!sw) return c.json({ error: 'not_found' }, 404);
     if (sw.agentUserId !== a.userId) return c.json({ error: 'forbidden' }, 403);

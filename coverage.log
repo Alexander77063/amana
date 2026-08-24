@@ -1,0 +1,655 @@
+
+> @amana/backend@0.0.0 test:coverage C:\Users\alex_\amana\.claude\worktrees\marketplace-sp4b-retailer-portal\apps\backend
+> vitest run --coverage
+
+
+[7m[1m[36m RUN [39m[22m[27m [36mv2.1.2[39m [90mC:/Users/alex_/amana/.claude/worktrees/marketplace-sp4b-retailer-portal/apps/backend[39m
+[2m      Coverage enabled with [22m[33mv8[39m
+
+ [32m✓[39m tests/routes/transactions.test.ts [2m ([22m[2m21 tests[22m[2m)[22m[33m 20898[2mms[22m[39m
+ [32m✓[39m tests/modules/marketplace/purchase.service.test.ts [2m ([22m[2m16 tests[22m[2m)[22m[33m 7617[2mms[22m[39m
+ [32m✓[39m tests/modules/vas/purchase.service.test.ts [2m ([22m[2m12 tests[22m[2m)[22m[33m 8482[2mms[22m[39m
+ [32m✓[39m tests/routes/sub-wallets.test.ts [2m ([22m[2m21 tests[22m[2m)[22m[33m 21426[2mms[22m[39m
+[12:53:28.735] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:30.824] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:31.719] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:34.064] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:35.391] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:36.788] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:37.857] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:39.213] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:40.959] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:42.712] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:44.975] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:46.713] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:48.406] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:50.755] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:53.061] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:55.797] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:57.538] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:53:59.396] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:54:01.414] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:54:04.296] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:54:06.285] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:54:07.921] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:54:09.953] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:54:11.855] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:54:15.210] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:54:16.804] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+ [32m✓[39m tests/routes/retailer-portal.test.ts [2m ([22m[2m22 tests[22m[2m)[22m[33m 50302[2mms[22m[39m
+[12:54:21.578] [33mWARN[39m: [36mtransfer.completed: no matching txn[39m
+    service: "amana-backend"
+    reference: "k-1"
+[12:54:21.752] [33mWARN[39m: [36mtransfer.completed: no matching txn[39m
+    service: "amana-backend"
+    reference: "no-match"
+[12:54:21.969] [33mWARN[39m: [36manchor webhook: bad signature[39m
+    service: "amana-backend"
+    err: "signature mismatch"
+[12:54:22.228] [33mWARN[39m: [36mtransfer.completed: no matching txn[39m
+    service: "amana-backend"
+    reference: "k-x"
+[12:54:22.932] [31mERROR[39m: [36manchor webhook handler failed — will retry[39m
+    service: "amana-backend"
+    type: "transfer.completed"
+    err: "cannot settle txn in status draft"
+[12:54:25.527] [33mWARN[39m: [36mkyc.rejected[39m
+    service: "amana-backend"
+    customerId: "anchor-cust-kyc-3"
+    reason: "BVN mismatch"
+[12:54:25.712] [33mWARN[39m: [36mkyc.approved: no matching user[39m
+    service: "amana-backend"
+    customerId: "anchor-cust-unknown"
+ [32m✓[39m tests/routes/webhooks.test.ts [2m ([22m[2m13 tests[22m[2m)[22m[33m 5099[2mms[22m[39m
+ [32m✓[39m tests/routes/households.test.ts [2m ([22m[2m14 tests[22m[2m)[22m[33m 14639[2mms[22m[39m
+ [32m✓[39m tests/modules/vas/purchase.hardening.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 23016[2mms[22m[39m
+[12:55:14.776] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "a8c7e404-8787-4d53-96f6-628e5e942561"
+[12:55:15.652] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "dd2043a2-47f3-4da5-ad81-2ec1e3247e33"
+ [32m✓[39m tests/modules/transactions/lifecycle.service.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[33m 5625[2mms[22m[39m
+ [32m✓[39m tests/modules/marketplace/deals.service.test.ts [2m ([22m[2m24 tests[22m[2m)[22m[33m 4785[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/detail.service.test.ts [2m ([22m[2m11 tests[22m[2m)[22m[33m 4226[2mms[22m[39m
+[12:55:31.408] [33mWARN[39m: [36mmarketplace redemption payout failed synchronously — funds held in suspense, no buyer refund[39m
+    service: "amana-backend"
+    redemptionId: "51558f80-9cd5-4b2e-9a20-88a21a33e966"
+    payoutTxnId: "81fca1c6-854c-4a27-8837-24d798c86e19"
+    reason: "bank down"
+[12:55:31.845] [33mWARN[39m: [36mmarketplace redemption payout failed synchronously — funds held in suspense, no buyer refund[39m
+    service: "amana-backend"
+    redemptionId: "494815d2-615a-4a1c-a095-d836dcb0f22c"
+    payoutTxnId: "64ea612c-565c-4123-b695-8058cac5365b"
+    reason: "Anchor HTTP 500"
+ [32m✓[39m tests/modules/marketplace/redeem.service.test.ts [2m ([22m[2m7 tests[22m[2m)[22m[33m 3657[2mms[22m[39m
+ [32m✓[39m tests/modules/marketplace/expiry.service.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[33m 4157[2mms[22m[39m
+[12:55:42.044] [33mWARN[39m: [36mmarketplace redemption payout failed — funds held in suspense, no buyer refund[39m
+    service: "amana-backend"
+    redemptionId: "b548e23f-2f49-4826-9380-0736bc3529f9"
+    payoutTxnId: "e0572460-8b72-40f8-b218-c4d1828c338d"
+    payoutStatus: "failed_retryable"
+    payoutAttempts: 1
+    reason: "NIP timeout"
+[12:55:42.184] [33mWARN[39m: [36mmarketplace redemption payout failed — funds held in suspense, no buyer refund[39m
+    service: "amana-backend"
+    redemptionId: "b548e23f-2f49-4826-9380-0736bc3529f9"
+    payoutTxnId: "e0572460-8b72-40f8-b218-c4d1828c338d"
+    payoutStatus: "failed_retryable"
+    payoutAttempts: 2
+    reason: "NIP timeout 2"
+[12:55:42.274] [33mWARN[39m: [36mmarketplace redemption payout failed — funds held in suspense, no buyer refund[39m
+    service: "amana-backend"
+    redemptionId: "b548e23f-2f49-4826-9380-0736bc3529f9"
+    payoutTxnId: "e0572460-8b72-40f8-b218-c4d1828c338d"
+    payoutStatus: "stuck"
+    payoutAttempts: 3
+    reason: "NIP timeout 3"
+[12:55:42.877] [33mWARN[39m: [36mmarketplace redemption payout failed — funds held in suspense, no buyer refund[39m
+    service: "amana-backend"
+    redemptionId: "ca88e97e-2bef-43f7-87c4-860e1d34cc1d"
+    payoutTxnId: "403b54f2-04f3-49fa-b5df-48c1c421308a"
+    payoutStatus: "failed_retryable"
+    payoutAttempts: 1
+    reason: "once"
+[12:55:44.306] [33mWARN[39m: [36mmarketplace redemption payout failed — funds held in suspense, no buyer refund[39m
+    service: "amana-backend"
+    redemptionId: "fcd18719-0e11-4e62-b373-0e1a62a0006c"
+    payoutTxnId: "8f2b0224-ce80-41c9-99e5-896ece507b66"
+    payoutStatus: "failed_retryable"
+    payoutAttempts: 1
+    reason: "boom"
+ [32m✓[39m tests/modules/marketplace/redemption-settlement.service.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[33m 5523[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/nip-out.service.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[33m 3176[2mms[22m[39m
+[12:55:52.400] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "3dccefe9-c150-433e-866a-39fcd5c1a99c"
+[12:55:53.176] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "a0da47d4-90f4-4f0d-9f08-5e554ea68d6e"
+[12:55:54.058] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "1c451c1e-524f-47db-a046-fee9ac937889"
+[12:55:55.137] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "be498084-7caf-4de1-a0f9-ccf5620b97f2"
+ [32m✓[39m tests/modules/bumps/bump-requests.repo.test.ts [2m ([22m[2m12 tests[22m[2m)[22m[33m 5214[2mms[22m[39m
+[12:55:55.492] [31mERROR[39m: [36mbump_requested notification failed[39m
+    service: "amana-backend"
+    err: "write CONNECTION_ENDED localhost:5432"
+ [32m✓[39m tests/routes/webhooks.marketplace.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 2152[2mms[22m[39m
+[12:55:59.823] [33mWARN[39m: [36mmarketplace redemption payout failed — funds held in suspense, no buyer refund[39m
+    service: "amana-backend"
+    redemptionId: "8d86b254-9726-440b-ba52-1cfd4145d211"
+    payoutTxnId: "91422251-a10b-4c60-8292-523a22cd9083"
+    payoutStatus: "failed_retryable"
+    payoutAttempts: 1
+    reason: "bank down"
+[12:56:02.384] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "c77fa39e-3840-4de1-9845-f30775aeb3e5"
+[12:56:03.398] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "d8f9757f-a01d-41d9-8841-d7a8732b6aab"
+[12:56:04.369] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "4fd7d38b-c27d-4e56-a43c-8bac625213a5"
+[12:56:04.820] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "63c82825-1002-4e71-ae6f-be60f6aa037d"
+[12:56:05.179] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "dceb8369-15c7-4d09-8a5b-c3181286e5ca"
+[12:56:05.519] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "c8d59bc0-c556-4909-bbc3-827e02e1a67c"
+[12:56:06.319] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "99326d31-edba-4ff7-ba3b-9a425b480bf5"
+[12:56:06.904] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "f67b5e8d-1114-4665-bc00-4d73288ca208"
+[12:56:07.448] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "2d1512f5-6348-4552-94b4-e5dfc9318fe2"
+ [32m✓[39m tests/modules/bumps/bump-workflow.service.test.ts [2m ([22m[2m11 tests[22m[2m)[22m[33m 6156[2mms[22m[39m
+ [32m✓[39m tests/routes/vas.test.ts [2m ([22m[2m11 tests[22m[2m)[22m[33m 11645[2mms[22m[39m
+[12:56:26.898] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "9dfa39e9-da60-4813-9d66-ad1ffd1c85b9"
+ [32m✓[39m tests/routes/e2e-bump-notification.test.ts [2m ([22m[2m1 test[22m[2m)[22m[33m 3320[2mms[22m[39m
+ [32m✓[39m tests/modules/marketplace/ledger.property.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 30428[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/refund.service.test.ts [2m ([22m[2m7 tests[22m[2m)[22m[33m 7735[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/postings.repo.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 1519[2mms[22m[39m
+ [32m✓[39m tests/routes/marketplace.test.ts [2m ([22m[2m10 tests[22m[2m)[22m[33m 8320[2mms[22m[39m
+ [32m✓[39m tests/routes/retailers.test.ts [2m ([22m[2m23 tests[22m[2m)[22m[33m 4014[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/quiet.service.test.ts [2m ([22m[2m9 tests[22m[2m)[22m[33m 2309[2mms[22m[39m
+ [2m[90m↓[39m[22m tests/sandbox/anchor-e2e.test.ts [2m ([22m[2m2 tests[22m [2m|[22m [33m2 skipped[39m[2m)[22m
+ [32m✓[39m tests/modules/marketplace/redemptions.repo.test.ts [2m ([22m[2m7 tests[22m[2m)[22m[33m 4143[2mms[22m[39m
+[12:57:35.817] [31mERROR[39m: [36mrecon: master ledger account has a negative balance[39m
+    service: "amana-backend"
+    ledgerAccountId: "e2b641b9-a35c-445a-8efb-3cac5e85d066"
+    masterWalletId: "11b829d2-b0ec-4d1a-801a-8ff08b7169d4"
+    balanceKobo: "-10000"
+ [32m✓[39m tests/modules/transactions/reconciliation.service.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 2594[2mms[22m[39m
+[12:57:37.632] [31mERROR[39m: [36mrecon: master ledger account has a negative balance[39m
+    service: "amana-backend"
+    ledgerAccountId: "28fcbad7-5227-4682-9aae-ab48fbb35866"
+    masterWalletId: "7ad7763b-60de-4ea5-9b4b-3fa48a4bbffe"
+    balanceKobo: "-10000"
+ [32m✓[39m tests/routes/webhooks-bills.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 2286[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/prefs.service.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[33m 3036[2mms[22m[39m
+[12:57:46.295] [32mINFO[39m: [36mkyb.approved: retailer approved[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-4"
+[12:57:46.451] [32mINFO[39m: [36mkyb.approved: retailer approved[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-race"
+[12:57:46.607] [32mINFO[39m: [36mkyb.approved: retailer approved[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-2"
+[12:57:46.813] [32mINFO[39m: [36mkyb.approved: retailer approved[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-2b"
+[12:57:47.010] [33mWARN[39m: [36mkyb.rejected: retailer suspended[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-3"
+    reason: "docs invalid"
+[12:57:47.204] [32mINFO[39m: [36mkyb.approved: retailer approved[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-3b"
+[12:57:47.213] [33mWARN[39m: [36mkyb.rejected: ignored, retailer no longer kyb_pending[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-3b"
+    reason: "late reject"
+    onboardingStatus: "approved"
+ [32m✓[39m tests/modules/marketplace/retailer-onboarding.service.test.ts [2m ([22m[2m16 tests[22m[2m)[22m[33m 2553[2mms[22m[39m
+[12:57:52.121] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "c28ec73f-d318-47ee-b0a6-eba20e974b57"
+ [32m✓[39m tests/routes/e2e-spend.test.ts [2m ([22m[2m1 test[22m[2m)[22m[33m 3638[2mms[22m[39m
+ [32m✓[39m tests/routes/pairing.test.ts [2m ([22m[2m7 tests[22m[2m)[22m[33m 8217[2mms[22m[39m
+ [32m✓[39m tests/modules/vas/vas-settlement.service.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 2255[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/reversal.service.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 5141[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/settlement.service.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 2629[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/spend-summary.test.ts [2m ([22m[2m7 tests[22m[2m)[22m[33m 2759[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/notification.service.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 1518[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/templates.test.ts [2m ([22m[2m14 tests[22m[2m)[22m[90m 42[2mms[22m[39m
+[12:58:22.412] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "aa93a2ce-89c7-4845-92ba-686487994785"
+ [32m✓[39m tests/modules/vas/purchase.rules.test.ts [2m ([22m[2m7 tests[22m[2m)[22m[33m 2771[2mms[22m[39m
+ [32m✓[39m tests/routes/vas-beneficiaries.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[33m 8021[2mms[22m[39m
+[12:58:39.697] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:58:40.896] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[12:58:42.525] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+ [32m✓[39m tests/routes/auth.test.ts [2m ([22m[2m7 tests[22m[2m)[22m[33m 7177[2mms[22m[39m
+[12:58:48.322] [31mERROR[39m: [36mbump_requested notification failed[39m
+    service: "amana-backend"
+    err: "write CONNECTION_ENDED localhost:5432"
+ [32m✓[39m tests/modules/transactions/concurrent-send-limit.test.ts [2m ([22m[2m1 test[22m[2m)[22m[33m 1097[2mms[22m[39m
+ [32m✓[39m tests/modules/marketplace/deals.repo.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 889[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/ledger.invariants.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 15639[2mms[22m[39m
+ [32m✓[39m tests/routes/transactions.authz.test.ts [2m ([22m[2m7 tests[22m[2m)[22m[33m 8021[2mms[22m[39m
+[12:59:18.225] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "50da68e9-90a6-486c-aa5e-1d856592dcf2"
+[12:59:19.796] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "f79d50cd-284f-4ca5-b01a-c83b302a4138"
+[12:59:21.348] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "2333b3e4-c47e-4f59-858a-3baaeda6923a"
+[12:59:22.543] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "a937bf83-f7ea-44f9-a505-1e1a591f9424"
+[12:59:24.276] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "e5178650-0207-4cdd-8718-809d6c0dd46b"
+[12:59:25.454] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "538581ef-c5c2-44f0-9ad0-2f6969f81596"
+ [32m✓[39m tests/routes/bump-status.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[33m 9052[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/postings.repo.marketplace-hold.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 906[2mms[22m[39m
+ [32m✓[39m tests/modules/vendors/vendor-resolution.service.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 1809[2mms[22m[39m
+ [32m✓[39m tests/modules/marketplace/catalog.service.test.ts [2m ([22m[2m9 tests[22m[2m)[22m[33m 1905[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/limit-window.test.ts [2m ([22m[2m1 test[22m[2m)[22m[33m 1622[2mms[22m[39m
+[12:59:35.667] [31mERROR[39m: [36mbump_requested notification failed[39m
+    service: "amana-backend"
+    err: "write CONNECTION_ENDED localhost:5432"
+ [32m✓[39m tests/middleware/rate-limit.test.ts [2m ([22m[2m14 tests[22m[2m)[22m[90m 94[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/topup.fee.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 1027[2mms[22m[39m
+ [32m✓[39m tests/modules/vas/beneficiaries.service.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[33m 2735[2mms[22m[39m
+ [32m✓[39m tests/modules/vendors/recents.repo.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[33m 2389[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/transactions.repo.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[33m 1779[2mms[22m[39m
+ [32m✓[39m tests/integrations/anchor/adapter.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 867[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/subwallet-snooze.repo.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[33m 2445[2mms[22m[39m
+ [32m✓[39m tests/modules/marketplace/retailers.repo.test.ts [2m ([22m[2m10 tests[22m[2m)[22m[33m 1734[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/list.service.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 1260[2mms[22m[39m
+ [32m✓[39m tests/routes/notification-prefs.test.ts [2m ([22m[2m7 tests[22m[2m)[22m[33m 7741[2mms[22m[39m
+[13:00:07.187] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "0ce786f7-47e0-46a0-9dd3-b5e0db61b44a"
+[13:00:08.365] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "1e68e21a-12dc-4956-8443-65abb11a2177"
+[13:00:09.557] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "b0e9a904-159a-4381-a475-370f97010235"
+[13:00:11.116] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "54f0956d-e9a2-403b-b9c5-4ee0870b5170"
+[13:00:11.714] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "0001b379-313e-44c1-873b-285db37a64f5"
+ [32m✓[39m tests/routes/me-bumps.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 6479[2mms[22m[39m
+ [32m✓[39m tests/modules/marketplace/catalog-items.repo.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 1353[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/sub-wallets.repo.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 1196[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/ledger.service.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 1044[2mms[22m[39m
+ [32m✓[39m tests/modules/auth/pairing.service.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 810[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/spend-limit-vas.test.ts [2m ([22m[2m1 test[22m[2m)[22m[33m 900[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/txn-intent.service.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 979[2mms[22m[39m
+ [32m✓[39m tests/routes/validation.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[33m 6144[2mms[22m[39m
+ [32m✓[39m tests/integrations/anchor/adapter.kyb.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 369[2mms[22m[39m
+ [32m✓[39m tests/routes/malformed-ids.test.ts [2m ([22m[2m16 tests[22m[2m)[22m[33m 20523[2mms[22m[39m
+[13:00:57.328] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "2cd71652-fb4b-4536-baed-7795500d0caf"
+[13:00:58.811] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "478fa343-5064-41c3-a75c-d2ad7bfa76ec"
+[13:00:59.404] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "b67a1ce1-3331-4802-ad1d-557c67dced4b"
+ [32m✓[39m tests/routes/bumps.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 2814[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/rule-sets.repo.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 1331[2mms[22m[39m
+ [32m✓[39m tests/modules/bumps/bump-requests.repo.bulkExpire.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 1171[2mms[22m[39m
+ [32m✓[39m tests/modules/anomaly/history.loader.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 1457[2mms[22m[39m
+[13:01:07.102] [32mINFO[39m: [36mkyb.approved: retailer approved[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-wh-1"
+[13:01:07.305] [33mWARN[39m: [36mkyb.rejected: retailer suspended[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-wh-2"
+    reason: "RC number mismatch"
+[13:01:07.451] [32mINFO[39m: [36mkyb.approved: retailer approved[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-wh-3"
+[13:01:07.600] [32mINFO[39m: [36mkyb.approved: retailer approved[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-wh-4"
+[13:01:07.628] [33mWARN[39m: [36mkyb.rejected: ignored, retailer no longer kyb_pending[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-wh-4"
+    reason: "late"
+    onboardingStatus: "approved"
+[13:01:07.732] [33mWARN[39m: [36mkyb.approved: no matching retailer[39m
+    service: "amana-backend"
+    businessCustomerId: "biz-nobody"
+[13:01:07.857] [33mWARN[39m: [36manchor webhook: bad signature[39m
+    service: "amana-backend"
+    err: "signature mismatch"
+ [32m✓[39m tests/routes/webhooks.kyb.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[33m 1099[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/rule-set.service.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 743[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/postings.repo.sumDebits.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 1108[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/balance.service.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 1127[2mms[22m[39m
+ [32m✓[39m tests/modules/audit/audit.repo.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 1097[2mms[22m[39m
+ [32m✓[39m tests/routes/vendors.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 3940[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/evaluators/time-window.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[90m 15[2mms[22m[39m
+ [32m✓[39m tests/routes/media.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 3694[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/inflow-fee.test.ts [2m ([22m[2m10 tests[22m[2m)[22m[90m 21[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/master-wallets.repo.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 812[2mms[22m[39m
+ [32m✓[39m tests/routes/idor.authz.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 4289[2mms[22m[39m
+ [32m✓[39m tests/routes/me-sub-wallet.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 3275[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/engine.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m tests/modules/transactions/topup.service.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 830[2mms[22m[39m
+[13:01:44.235] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "faaebee7-f127-4ae7-87fd-f1d887ea277a"
+ [32m✓[39m tests/routes/notifications.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 3356[2mms[22m[39m
+[13:01:47.456] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "01dabde6-80b7-4063-8de5-fe26ea9a9b57"
+[13:01:47.868] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "c4ed7582-4964-4e34-bd13-fce5ae708da3"
+[13:01:48.951] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "0b9f2a7a-1da0-47a6-ac09-285d7eb94265"
+[13:01:49.405] [31mERROR[39m: [36mbump_decided notification failed[39m
+    service: "amana-backend"
+    err: "write CONNECTION_ENDED localhost:5432"
+ [32m✓[39m tests/routes/bumps.authz.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 2540[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/replay.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 33[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/prefs.repo.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 1011[2mms[22m[39m
+ [32m✓[39m tests/modules/auth/session.service.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 5775[2mms[22m[39m
+ [32m✓[39m tests/modules/auth/pairing-atomicity.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 531[2mms[22m[39m
+[13:02:00.129] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:02:00.761] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:02:01.928] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:02:02.384] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:02:07.118] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:02:08.189] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+ [32m✓[39m tests/modules/auth/otp.service.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[33m 9122[2mms[22m[39m
+ [32m✓[39m tests/integrations/anchor/client.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/rules.repo.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 793[2mms[22m[39m
+ [32m✓[39m tests/modules/identity/users.repo.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[33m 1558[2mms[22m[39m
+ [32m✓[39m tests/modules/auth/pairing-tokens.repo.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 1022[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/notifications.repo.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 1214[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/device-tokens.repo.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 743[2mms[22m[39m
+ [32m✓[39m tests/modules/auth/auth-sessions.repo.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 689[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/evaluators/limit.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/providers/expo-push.provider.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 336[2mms[22m[39m
+ [32m✓[39m tests/modules/auth/otp-challenges.repo.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[33m 968[2mms[22m[39m
+ [32m✓[39m tests/lib/circuit-breaker.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m tests/modules/vendors/recents.service.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 855[2mms[22m[39m
+ [32m✓[39m tests/modules/identity/households.repo.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 1032[2mms[22m[39m
+ [32m✓[39m tests/middleware/jwt-auth.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 2583[2mms[22m[39m
+ [32m✓[39m tests/env.prod-required.test.ts [2m ([22m[2m8 tests[22m[2m)[22m[90m 14[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/rule-set.fetcher.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 513[2mms[22m[39m
+ [32m✓[39m tests/integrations/anchor/vas-adapter.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 321[2mms[22m[39m
+ [32m✓[39m tests/modules/vendors/name-enquiry.service.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 30[2mms[22m[39m
+ [32m✓[39m tests/routes/devices.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 3005[2mms[22m[39m
+ [32m✓[39m tests/modules/sticker/sticker-resolver.service.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 556[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/ledger-accounts.repo.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 810[2mms[22m[39m
+ [32m✓[39m tests/modules/vendors/nqr-decoder.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m tests/modules/wallet/transactions.repo.fees.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 692[2mms[22m[39m
+ [32m✓[39m tests/modules/vendors/phone-lookup.service.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m tests/modules/vendors/sticker-lookup.service.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 748[2mms[22m[39m
+[13:02:42.537] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:02:47.582] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+ [32m✓[39m tests/modules/auth/otp-atomicity.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 7491[2mms[22m[39m
+ [32m✓[39m tests/routes/households.fees-covered.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 3643[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/evaluators/allowlist.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/quiet-hours.repo.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[33m 680[2mms[22m[39m
+ [32m✓[39m tests/integrations/anchor/webhook.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/evaluators/category.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[90m 6[2mms[22m[39m
+ [32m✓[39m tests/modules/anomaly/features/amount-zscore.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+[13:02:59.597] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:03:00.233] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:03:01.303] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:03:01.697] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:03:02.314] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:03:03.065] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:03:04.177] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:03:04.814] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:03:05.233] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:03:05.679] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+[13:03:06.025] [33mWARN[39m: [36motp: TERMII_API_KEY not set, skipping send[39m
+    service: "amana-backend"
+    phone: "[redacted]"
+ [32m✓[39m tests/routes/rate-limit.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 7760[2mms[22m[39m
+ [32m✓[39m tests/lib/validate.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 25[2mms[22m[39m
+ [32m✓[39m tests/modules/marketplace/codes.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[33m 2540[2mms[22m[39m
+ [32m✓[39m tests/modules/anomaly/features/velocity.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m tests/modules/anomaly/features/vendor-novelty.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m tests/modules/anomaly/anomaly.service.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m tests/modules/sticker/stickers.repo.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 860[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/schema.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 158[2mms[22m[39m
+ [32m✓[39m tests/middleware/admin-auth.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[90m 12[2mms[22m[39m
+ [32m✓[39m tests/integrations/anchor/adapter.transfer.test.ts [2m ([22m[2m1 test[22m[2m)[22m[33m 637[2mms[22m[39m
+ [32m✓[39m tests/modules/identity/kyc.service.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m tests/modules/identity/users.repo.anchor.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 722[2mms[22m[39m
+ [32m✓[39m tests/modules/anomaly/features/hour-of-day.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m tests/integrations/anchor/adapter.virtual-account.test.ts [2m ([22m[2m1 test[22m[2m)[22m[33m 382[2mms[22m[39m
+ [32m✓[39m tests/lib/background.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 68[2mms[22m[39m
+ [32m✓[39m tests/integrations/anchor/narration.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[90m 7[2mms[22m[39m
+ [32m✓[39m tests/modules/bumps/state-machine.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m tests/integrations/anchor/adapter.kyc.test.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 194[2mms[22m[39m
+ [32m✓[39m tests/modules/auth/tokens.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 1658[2mms[22m[39m
+ [32m✓[39m tests/routes/auth.authz.test.ts [2m ([22m[2m1 test[22m[2m)[22m[33m 4449[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/providers/in-app.provider.test.ts [2m ([22m[2m1 test[22m[2m)[22m[33m 387[2mms[22m[39m
+ [32m✓[39m tests/lib/logger-redact.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m tests/modules/audit/webhook-dedupe.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[33m 330[2mms[22m[39m
+ [32m✓[39m tests/integrations/anchor/adapter.phone-lookup.test.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 228[2mms[22m[39m
+ [32m✓[39m tests/modules/media/media.service.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m tests/modules/notifications/providers/termii-sms.provider.test.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 259[2mms[22m[39m
+ [32m✓[39m tests/modules/audit/events.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+[13:03:30.085] [33mWARN[39m: [36mtermii: no API key configured, skipping SMS send[39m
+    service: "amana-backend"
+    kind: "bump_requested"
+    recipientUserId: "9ee25236-4a11-4cd3-8452-71eb520ac930"
+ [32m✓[39m tests/integrations/anchor/adapter.name-enquiry.test.ts [2m ([22m[2m1 test[22m[2m)[22m[33m 378[2mms[22m[39m
+ [32m✓[39m tests/lib/kobo.test.ts [2m ([22m[2m6 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m tests/env.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[90m 10[2mms[22m[39m
+ [32m✓[39m tests/modules/rules/evaluators/anomaly-threshold.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m tests/request-id.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 19[2mms[22m[39m
+ [2m[90m↓[39m[22m tests/integrations/anchor/sandbox-smoke.test.ts [2m ([22m[2m1 test[22m [2m|[22m [33m1 skipped[39m[2m)[22m
+ [32m✓[39m tests/lib/field-crypto.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[90m 36[2mms[22m[39m
+ [32m✓[39m tests/error-handler.test.ts [2m ([22m[2m1 test[22m[2m)[22m[90m 37[2mms[22m[39m
+ [32m✓[39m tests/cron/recon-sweep.job.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 27[2mms[22m[39m
+[13:03:33.757] [31mERROR[39m: [36munhandled error[39m
+    service: "amana-backend"
+    requestId: "ada7435f-bd7d-4b7f-b37a-5b33c73099b8"
+    path: "/boom"
+    err: {
+      "type": "Error",
+      "message": "kaboom",
+      "stack":
+          Error: kaboom
+              at C:\Users\alex_\amana\.claude\worktrees\marketplace-sp4b-retailer-portal\apps\backend\tests\error-handler.test.ts:11:13
+              at dispatch (file:///C:/Users/alex_/amana/.claude/worktrees/marketplace-sp4b-retailer-portal/node_modules/hono/dist/compose.js:29:23)
+              at file:///C:/Users/alex_/amana/.claude/worktrees/marketplace-sp4b-retailer-portal/node_modules/hono/dist/compose.js:30:20
+              at C:\Users\alex_\amana\.claude\worktrees\marketplace-sp4b-retailer-portal\apps\backend\src\middleware\request-id.ts:11:9
+              at dispatch (file:///C:/Users/alex_/amana/.claude/worktrees/marketplace-sp4b-retailer-portal/node_modules/hono/dist/compose.js:29:23)
+              at file:///C:/Users/alex_/amana/.claude/worktrees/marketplace-sp4b-retailer-portal/node_modules/hono/dist/compose.js:6:12
+              at file:///C:/Users/alex_/amana/.claude/worktrees/marketplace-sp4b-retailer-portal/node_modules/hono/dist/hono-base.js:200:31
+              at Hono.dispatch (file:///C:/Users/alex_/amana/.claude/worktrees/marketplace-sp4b-retailer-portal/node_modules/hono/dist/hono-base.js:210:7)
+              at Hono.fetch (file:///C:/Users/alex_/amana/.claude/worktrees/marketplace-sp4b-retailer-portal/node_modules/hono/dist/hono-base.js:213:17)
+              at Hono.request (file:///C:/Users/alex_/amana/.claude/worktrees/marketplace-sp4b-retailer-portal/node_modules/hono/dist/hono-base.js:225:17)
+    }
+ [32m✓[39m tests/health.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 106[2mms[22m[39m
+ [32m✓[39m tests/modules/auth/codes.test.ts [2m ([22m[2m3 tests[22m[2m)[22m[33m 950[2mms[22m[39m
+ [32m✓[39m tests/env.bypass-guard.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m tests/modules/vas/commission.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m tests/cron/bump-ttl-sweep.job.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m tests/helpers/factories.test.ts [2m ([22m[2m5 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m tests/lib/mask-account.test.ts [2m ([22m[2m4 tests[22m[2m)[22m[90m 4[2mms[22m[39m
+ [32m✓[39m tests/lib/result.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+ [32m✓[39m tests/cron/scheduler.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m tests/modules/marketplace/config.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 3[2mms[22m[39m
+ [32m✓[39m tests/logger.test.ts [2m ([22m[2m2 tests[22m[2m)[22m[90m 2[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m174 passed[39m[22m[2m | [22m[33m2 skipped[39m[90m (176)[39m
+[2m      Tests [22m [1m[32m913 passed[39m[22m[2m | [22m[33m3 skipped[39m[90m (916)[39m
+[2m   Start at [22m 12:51:51
+[2m   Duration [22m 723.92s[2m (transform 17.57s, setup 14.23s, collect 118.34s, tests 530.94s, environment 1ms, prepare 527ms)[22m
+
+[34m % [39m[2mCoverage report from [22m[33mv8[39m
+
+=============================== Coverage summary ===============================
+[32;1mStatements   : 92.27% ( 7750/8399 )[0m
+[32;1mBranches     : 82.83% ( 1762/2127 )[0m
+[32;1mFunctions    : 91.64% ( 417/455 )[0m
+[32;1mLines        : 92.27% ( 7750/8399 )[0m
+================================================================================

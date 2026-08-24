@@ -1,0 +1,31 @@
+
+> @amana/retailer-portal@0.0.0 dev C:\Users\alex_\amana\.claude\worktrees\marketplace-sp4b-retailer-portal\apps\retailer-portal
+> next dev --port 3300
+
+  [1m[38;2;173;127;168m▲ Next.js 14.2.15[39m[22m
+  - Local:        http://localhost:3300
+
+ [32m[1m✓[22m[39m Starting...
+ [32m[1m✓[22m[39m Ready in 22s
+ [37m[1m○[22m[39m Compiling / ...
+ [32m[1m✓[22m[39m Compiled / in 32s (541 modules)
+ GET / [32m200[39m in 34334ms
+ GET / [32m200[39m in 1235ms
+ [32m[1m✓[22m[39m Compiled in 8s (527 modules)
+ [32m[1m✓[22m[39m Compiled in 1374ms (527 modules)
+ GET / [32m200[39m in 1666ms
+ [37m[1m○[22m[39m Compiling /storefront ...
+ [32m[1m✓[22m[39m Compiled /storefront in 5.3s (578 modules)
+ [37m[1m○[22m[39m Compiling /earnings ...
+ [32m[1m✓[22m[39m Compiled /earnings in 2.4s (584 modules)
+ [37m[1m○[22m[39m Compiling /redeem ...
+ [32m[1m✓[22m[39m Compiled /redeem in 2.7s (590 modules)
+ [37m[1m○[22m[39m Compiling /profile ...
+ [32m[1m✓[22m[39m Compiled /profile in 3s (596 modules)
+ [32m[1m✓[22m[39m Compiled in 9s (624 modules)
+ GET / [32m200[39m in 1497ms
+ GET / [32m200[39m in 165ms
+ GET / [32m200[39m in 131ms
+ GET / [32m200[39m in 376ms
+ [32m[1m✓[22m[39m Compiled in 23.3s (620 modules)
+[?25h

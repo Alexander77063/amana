@@ -9,6 +9,7 @@ import { MediaApi } from './media-api';
 import { NotificationApi } from './notification-api';
 import { PairingApi } from './pairing-api';
 import { PreferenceApi } from './preference-api';
+import { RetailerApi, RetailerAuthApi } from './retailer-api';
 import { SubWalletApi } from './sub-wallet-api';
 import type { StoredAuth, TokenStore } from './token-store';
 import { TransactionApi } from './transaction-api';
@@ -42,6 +43,8 @@ export class AmanaApiClient {
   public readonly transaction: TransactionApi;
   public readonly vendor: VendorApi;
   public readonly vas: VasApi;
+  public readonly retailer: RetailerApi;
+  public readonly retailerAuth: RetailerAuthApi;
   private readonly fetchImpl: typeof fetch;
   private readonly tokenStore?: TokenStore;
   private inflightRefresh: Promise<StoredAuth> | null = null;
@@ -70,6 +73,8 @@ export class AmanaApiClient {
     this.media = new MediaApi(this);
     this.me = new MeApi(this);
     this.vas = new VasApi(this);
+    this.retailer = new RetailerApi(this);
+    this.retailerAuth = new RetailerAuthApi(this.baseUrl, this.fetchImpl);
   }
 
   async health(): Promise<{ status: 'ok'; version: string }> {

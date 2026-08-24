@@ -26,7 +26,7 @@ export type RefreshResult = {
   refreshExpiresAt: string;
 };
 
-async function postJson<T>(
+export async function postJson<T>(
   fetchImpl: RawFetch,
   url: string,
   body: unknown,

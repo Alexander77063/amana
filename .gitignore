@@ -57,3 +57,11 @@ ios/Pods/
 android/.gradle/
 android/build/
 *.keystore
+
+# TypeScript incremental build state — a local cache, not source.
+*.tsbuildinfo
+
+# Scratch output from running the stack locally (tools/demo, probe scripts).
+*.log
+*.err
+!npm-debug.log*

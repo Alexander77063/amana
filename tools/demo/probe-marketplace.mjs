@@ -85,8 +85,8 @@ const insert = spawnSync(
     '-d',
     'amana_dev',
     '-c',
-    `insert into catalog_items (id, retailer_id, name, price_kobo, section, status)
-     values ('${itemId}', '${retailerId}', 'Wash and set', 300000, 'beauty', 'active')`,
+    `insert into catalog_items (id, retailer_id, name, price_kobo, section, category, status)
+     values ('${itemId}', '${retailerId}', 'Wash and set', 300000, 'hair', 'health', 'active')`,
   ],
   { encoding: 'utf8' },
 );
@@ -94,7 +94,7 @@ if (insert.status !== 0) {
   console.log('could not seed the catalogue item:', insert.stderr?.slice(0, 300));
   process.exit(2);
 }
-console.log(`catalogue item : Wash and set, section "beauty", ₦3,000`);
+console.log('catalogue item : Wash and set, category "health", ₦3,000');
 
 // A normal bank transfer tagged with that same category is correctly held for approval.
 const intent = await call('/transactions/intent', {
@@ -108,7 +108,7 @@ const intent = await call('/transactions/intent', {
     vendorBankCode: '058',
     vendorAccountNumber: '0123456789',
     vendorResolvedName: 'ADA SALON',
-    category: 'beauty',
+    category: 'health',
     agentNote: null,
   },
 });
@@ -116,7 +116,7 @@ const ev = await call(`/transactions/${intent.body.transactionId}/evaluate`, {
   method: 'POST',
   token: aTok,
 });
-console.log(`bank transfer tagged beauty     → ${ev.body?.kind}`);
+console.log(`bank transfer tagged health     → ${ev.body?.kind}`);
 
 // Now the same spend, as a marketplace purchase.
 const buy = await call('/marketplace/purchase', {

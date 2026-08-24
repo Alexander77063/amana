@@ -1,6 +1,7 @@
 'use client';
 
 import type { RetailerItem } from '@amana/api-client';
+import { SPEND_CATEGORIES } from '@amana/types';
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, errorMessage, formatNaira } from '../../../lib/api';
 
@@ -13,6 +14,7 @@ export default function Storefront() {
     name: '',
     priceNaira: '',
     section: '',
+    category: 'other',
     description: '',
     durationMinutes: '',
   });
@@ -43,10 +45,20 @@ export default function Storefront() {
         // float ever touches a price.
         priceNaira: form.priceNaira,
         section: form.section,
+        // Distinct from `section`: this is the closed vocabulary a parent's spending lock is
+        // matched against, so it decides whether a locked sub-wallet may buy this at all.
+        category: form.category,
         description: form.description || null,
         durationMinutes: form.durationMinutes ? Number(form.durationMinutes) : null,
       });
-      setForm({ name: '', priceNaira: '', section: '', description: '', durationMinutes: '' });
+      setForm({
+        name: '',
+        priceNaira: '',
+        section: '',
+        category: 'other',
+        description: '',
+        durationMinutes: '',
+      });
       await load();
     } catch (err) {
       setError(errorMessage(err));
@@ -101,6 +113,20 @@ export default function Storefront() {
                 placeholder="hair"
               />
             </div>
+            <div style={{ flex: 1, minWidth: 170 }}>
+              <label htmlFor="cat">Spending category</label>
+              <select
+                id="cat"
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+              >
+                {SPEND_CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div style={{ flex: 1, minWidth: 150 }}>
               <label htmlFor="dur">Takes (minutes, optional)</label>
               <input
@@ -142,6 +168,7 @@ export default function Storefront() {
                 <tr>
                   <th>Service</th>
                   <th>Section</th>
+                  <th>Category</th>
                   <th className="num">Price</th>
                   <th>Status</th>
                   <th />
@@ -152,6 +179,9 @@ export default function Storefront() {
                   <tr key={i.id}>
                     <td>{i.name}</td>
                     <td className="muted">{i.section}</td>
+                    <td className="muted">
+                      {SPEND_CATEGORIES.find((c) => c.value === i.category)?.label ?? i.category}
+                    </td>
                     <td className="num">{formatNaira(i.priceKobo)}</td>
                     <td>
                       <span className={`pill ${i.status === 'active' ? 'ok' : ''}`}>

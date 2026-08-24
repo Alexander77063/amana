@@ -20,7 +20,10 @@ export type RetailerItem = {
   name: string;
   /** bigint kobo as a string — never a JS number, this is money. */
   priceKobo: string;
+  /** The retailer's own merchandising label. */
   section: string;
+  /** The spend category a parent's lock is matched against — closed vocabulary. */
+  category: string;
   description: string | null;
   photoUrl: string | null;
   durationMinutes: number | null;
@@ -86,6 +89,7 @@ export type ItemInput = {
   /** Decimal naira string, e.g. "4820.50". Converted to kobo once, server-side. */
   priceNaira: string;
   section: string;
+  category: string;
   description?: string | null;
   photoUrl?: string | null;
   durationMinutes?: number | null;

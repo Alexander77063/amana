@@ -14,6 +14,12 @@ export type NewCatalogItem = {
   name: string;
   priceKobo: Kobo;
   section: string;
+  /**
+   * Spend category from the closed @amana/types vocabulary — what a parent's category lock is
+   * compared against. Distinct from `section`, which is the retailer's own free-text
+   * merchandising label. Omitted means 'other', which an allowlist denies.
+   */
+  category?: string;
   description?: string | null;
   photoUrl?: string | null;
   durationMinutes?: number | null;
@@ -29,6 +35,7 @@ export const catalogItemsRepo = {
         name: input.name,
         priceKobo: input.priceKobo,
         section: input.section,
+        ...(input.category !== undefined && { category: input.category }),
         description: input.description ?? null,
         photoUrl: input.photoUrl ?? null,
         durationMinutes: input.durationMinutes ?? null,
@@ -62,6 +69,7 @@ export const catalogItemsRepo = {
       name?: string;
       priceKobo?: Kobo;
       section?: string;
+      category?: string;
       description?: string | null;
       photoUrl?: string | null;
       durationMinutes?: number | null;

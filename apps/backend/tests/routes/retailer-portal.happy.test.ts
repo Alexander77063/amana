@@ -60,7 +60,12 @@ const post = (path: string, headers: HeadersInit, body: unknown) =>
   app.request(path, { method: 'POST', headers, body: JSON.stringify(body) });
 
 async function makeItem(headers: HeadersInit, name = 'Wash and set', priceNaira = '4820.50') {
-  const res = await post('/retailer/items', headers, { name, priceNaira, section: 'hair' });
+  const res = await post('/retailer/items', headers, {
+    name,
+    priceNaira,
+    section: 'hair',
+    category: 'health',
+  });
   expect(res.status).toBe(201);
   return ((await res.json()) as { item: { id: string } }).item;
 }

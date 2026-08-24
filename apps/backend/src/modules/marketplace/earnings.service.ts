@@ -13,7 +13,14 @@ export type EarningsSummary = {
   commissionKobo: bigint;
   /** Owed to the retailer: discounted price less commission. */
   netKobo: bigint;
-  /** Of the net, what has actually reached the bank vs. is still in flight. */
+  /**
+   * Of the net, what has actually reached the retailer's bank vs. is still in flight.
+   *
+   * `paid` is the terminal success state of `redemption_payout_status` — set by
+   * redemption-settlement when the NIP-out confirms. Everything else (`pending`,
+   * `failed_retryable`, `stuck`, and a null for a redemption whose payout row was never written)
+   * counts as pending, because from the retailer's side the money has not arrived.
+   */
   paidKobo: bigint;
   pendingKobo: bigint;
 };
@@ -52,8 +59,8 @@ export const earningsService = {
         grossKobo: sql<string>`coalesce(sum(${redemptions.grossKobo}), 0)::text`,
         commissionKobo: sql<string>`coalesce(sum(${redemptions.commissionKobo}), 0)::text`,
         netKobo: sql<string>`coalesce(sum(${redemptions.discountedKobo} - ${redemptions.commissionKobo}), 0)::text`,
-        paidKobo: sql<string>`coalesce(sum(${redemptions.discountedKobo} - ${redemptions.commissionKobo}) filter (where ${redemptions.payoutStatus} = 'settled'), 0)::text`,
-        pendingKobo: sql<string>`coalesce(sum(${redemptions.discountedKobo} - ${redemptions.commissionKobo}) filter (where ${redemptions.payoutStatus} is distinct from 'settled'), 0)::text`,
+        paidKobo: sql<string>`coalesce(sum(${redemptions.discountedKobo} - ${redemptions.commissionKobo}) filter (where ${redemptions.payoutStatus} = 'paid'), 0)::text`,
+        pendingKobo: sql<string>`coalesce(sum(${redemptions.discountedKobo} - ${redemptions.commissionKobo}) filter (where ${redemptions.payoutStatus} is distinct from 'paid'), 0)::text`,
       })
       .from(redemptions)
       .where(and(eq(redemptions.retailerId, retailerId), eq(redemptions.status, 'redeemed')));

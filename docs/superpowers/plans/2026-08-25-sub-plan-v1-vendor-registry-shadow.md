@@ -2332,6 +2332,25 @@ describe('lifecycle — vendor category shadow mode', () => {
     expect(result.kind).toBe('allow');
   });
 
+  it('writes no shadow row when the sub-wallet has no active rule set', async () => {
+    // No giveCategoryAllowlist call — fetchActiveRuleSet returns null, evaluate is never called,
+    // and the decision is a degenerate allow. There is nothing a category could have changed.
+    const { masterWalletId, subWalletId, principalUserId } = await makeFundedSubWallet(testDb);
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    await claimedTransportVendor(bankCode, accountNumber);
+    const txn = await makeDraftSpend(testDb, {
+      masterWalletId, subWalletId,
+      vendorBankCode: bankCode, vendorAccount: accountNumber, category: 'food',
+    });
+
+    const result = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id, initiatingUserId: principalUserId, now: NOW,
+    });
+    expect(result.kind).toBe('allow');
+    expect(await auditRepo.listByAction(testDb, 'vendor.category_shadow')).toEqual([]);
+  });
+
   it('allows a spend to an unregistered vendor exactly as before', async () => {
     const { masterWalletId, subWalletId, principalUserId } = await makeFundedSubWallet(testDb);
     await giveCategoryAllowlist(testDb, subWalletId, ['food']);
@@ -2475,7 +2494,46 @@ Then change the intent construction so `category` uses `liveCategory` and the tw
 
 - [ ] **Step 6: Add the shadow evaluation**
 
-Find where `evaluate(intent, ruleSet, ctx)` is called and capture its result as `decision` if it is not already named that. Immediately after it, insert:
+**Read the existing call before you edit.** It looks like this — `ruleSet` is nullable and the evaluation context is an inline object literal, not a named `ctx` variable:
+
+```ts
+      const ruleSet = await fetchActiveRuleSet(txDb, subWalletId);
+      const decision: Decision = ruleSet
+        ? evaluate(intent, ruleSet, {
+            ledger: {
+              subWalletAvailableKobo: subBalance,
+              spentLast24hKobo: spent24,
+              spentLast30dKobo: spent30d,
+            },
+            anomalyScore: anomaly.score,
+          })
+        : { kind: 'allow' };
+```
+
+Two consequences for the shadow evaluation, and getting either wrong is a real bug:
+
+1. **`ruleSet` can be null**, in which case `evaluate` is never called and the decision is a
+   degenerate `allow`. The shadow branch must be guarded on `ruleSet` too — passing `null` into
+   `evaluate` would throw. With no rule set there is nothing to shadow: no rule can behave
+   differently, so no audit row should be written.
+2. **There is no `ctx` variable to reuse.** Lift the context into one before the existing call so
+   both evaluations share it, rather than duplicating the literal:
+
+```ts
+      const evalCtx: RuleEvaluationContext = {
+        ledger: {
+          subWalletAvailableKobo: subBalance,
+          spentLast24hKobo: spent24,
+          spentLast30dKobo: spent30d,
+        },
+        anomalyScore: anomaly.score,
+      };
+      const decision: Decision = ruleSet ? evaluate(intent, ruleSet, evalCtx) : { kind: 'allow' };
+```
+
+Import `RuleEvaluationContext` from `../rules/types` alongside the existing `TxnIntent` import.
+
+Then, immediately after the `txnRuleEval` audit append and **before** the `if (decision.kind === 'allow')` branch (the allow branch returns, so anything placed after it would only run for bumps):
 
 ```ts
       // The counterfactual. `evaluate` is a pure function over an already-loaded rule set and an
@@ -2484,12 +2542,20 @@ Find where `evaluate(intent, ruleSet, ctx)` is called and capture its result as 
       //
       // The branch flips with `enforced` so the same instrument keeps working after enforcement is
       // switched on: before, it reports what enforcement WOULD change; after, what it IS changing.
-      if (registry !== null && registry.category !== null && registry.category !== txn.category) {
+      //
+      // `ruleSet` is in the guard because a sub-wallet with no active rule set never calls
+      // `evaluate` at all — there is nothing for a category to change.
+      if (
+        ruleSet &&
+        registry !== null &&
+        registry.category !== null &&
+        registry.category !== txn.category
+      ) {
         const shadowIntent: TxnIntent = {
           ...intent,
           category: enforced ? txn.category : registry.category,
         };
-        const shadowDecision = evaluate(shadowIntent, ruleSet, ctx);
+        const shadowDecision = evaluate(shadowIntent, ruleSet, evalCtx);
         if (shadowDecision.kind !== decision.kind) {
           await auditRepo.append(
             txDb,
@@ -2507,8 +2573,6 @@ Find where `evaluate(intent, ruleSet, ctx)` is called and capture its result as 
         }
       }
 ```
-
-Match the actual local names in the file for the rule set and context arguments — read the surrounding lines rather than assuming `ruleSet` and `ctx`.
 
 - [ ] **Step 7: Run test to verify it passes**
 

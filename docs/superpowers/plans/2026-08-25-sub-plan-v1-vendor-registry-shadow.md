@@ -1021,7 +1021,25 @@ describe('settlement → vendor registry observation', () => {
 });
 ```
 
-> Reuse whatever fixtures this test file already has for a funded sub-wallet and an in-flight spend; the names above (`makeFundedSubWallet`, `makeInFlightSpend`) stand in for them. Read the top of the file first and match what is there.
+> **Fixtures: reuse and extend what this file already has — `makeFundedSubWallet` / `makeInFlightSpend` above are placeholders, not real helpers.**
+>
+> `settlement.service.test.ts` already defines `seedAndSendNip()`, which builds the whole chain through the real code path (principal → household → master wallet → agent → sub-wallet → funded top-up → `txnIntentService.create` → `nipOutService.send`) and leaves the transaction `in_flight`. Use it. Two small changes make it serve these tests:
+>
+> 1. **Add `householdId: hh.id` to its return object.** The observation assertions need it, and it costs one line.
+> 2. **Give it an optional overrides parameter** — `opts: { vendorBankCode?: string; vendorAccountNumber?: string; category?: string | null } = {}` — defaulting to the current hardcoded `'058'` / `'0123456789'` / `null`, so every existing caller is unaffected. These tests need a per-test vendor account and `category: 'food'`.
+>
+> **The "no vendor account" test cannot use `seedAndSendNip`.** `txnIntentService.create`'s `CreateIntentInput` types `vendorBankCode` and `vendorAccountNumber` as non-nullable `string`, so a spend built through it always has a vendor. The underlying columns *are* nullable (a `topup` or `fee` row has no vendor), which is exactly why `finalise`'s guard exists. Build that case by inserting directly:
+>
+> ```ts
+> const txn = await transactionsRepo.insert(testDb, {
+>   masterWalletId, subWalletId, kind: 'spend',
+>   amountKobo: kobo(5_000n), idempotencyKey: factories.idempotencyKey(),
+>   vendorBankCode: null, vendorAccount: null, vendorResolvedName: null, category: null,
+> });
+> await transactionsRepo.setStatus(testDb, txn.id, 'in_flight');
+> ```
+>
+> Adapt each test's destructuring to `seedAndSendNip`'s actual return names (`txnId`, `masterId`, `principalId`, `agentId`, …) rather than the placeholder names used in the snippets above.
 
 - [ ] **Step 2: Run test to verify it fails**
 

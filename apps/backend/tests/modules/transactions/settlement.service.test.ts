@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { vendorObservations } from '../../../src/db/schema';
 import { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { AnchorClient } from '../../../src/integrations/anchor/client';
+import { drainBackgroundTasks } from '../../../src/lib/background';
 import { kobo } from '../../../src/lib/kobo';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
@@ -11,6 +13,8 @@ import {
   settlementService,
 } from '../../../src/modules/transactions/settlement.service';
 import { txnIntentService } from '../../../src/modules/transactions/txn-intent.service';
+import { vendorObservationService } from '../../../src/modules/vendors/vendor-observation.service';
+import { vendorObservationsRepo } from '../../../src/modules/vendors/vendor-observations.repo';
 import { ledgerService } from '../../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
@@ -28,7 +32,9 @@ vi.mock('expo-server-sdk', () => {
   return { Expo: ExpoMock };
 });
 
-async function seedAndSendNip() {
+async function seedAndSendNip(
+  opts: { vendorBankCode?: string; vendorAccountNumber?: string; category?: string | null } = {},
+) {
   const principal = await usersRepo.insert(testDb, {
     role: 'principal',
     phone: factories.phone(),
@@ -74,10 +80,10 @@ async function seedAndSendNip() {
     subWalletId: sw.sub.id,
     amountKobo: kobo(5_000n),
     idempotencyKey: factories.idempotencyKey(),
-    vendorBankCode: '058',
-    vendorAccountNumber: '0123456789',
+    vendorBankCode: opts.vendorBankCode ?? '058',
+    vendorAccountNumber: opts.vendorAccountNumber ?? '0123456789',
     vendorResolvedName: 'M',
-    category: null,
+    category: opts.category ?? null,
     agentNote: null,
   });
   await transactionsRepo.setStatus(testDb, txn.id, 'in_flight');
@@ -109,6 +115,7 @@ async function seedAndSendNip() {
     suspenseLA: mw.ledgerAccountIds.suspense,
     principalId: principal.id,
     agentId: agent.id,
+    householdId: hh.id,
   };
 }
 
@@ -188,5 +195,140 @@ describe('settlementService.finalise', () => {
     );
     expect(principalRow?.status).toBe('sent');
     expect(agentRow?.status).toBe('sent');
+  });
+});
+
+describe('settlement → vendor registry observation', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  it('records exactly one observation after the settle commits', async () => {
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    const { txnId, householdId } = await seedAndSendNip({
+      vendorBankCode: bankCode,
+      vendorAccountNumber: accountNumber,
+      category: 'food',
+    });
+
+    await settlementService.finalise(testDb, {
+      transactionId: txnId,
+      nibssSessionId: factories.nibssSessionId(),
+      settledAt: new Date('2026-08-25T10:00:00Z'),
+    });
+    await drainBackgroundTasks();
+
+    const rows = await vendorObservationsRepo.listForAccount(testDb, bankCode, accountNumber);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.householdId).toBe(householdId);
+    expect(rows[0]?.settledCount).toBe(1);
+    expect(rows[0]?.categoryCounts).toEqual({ food: 1 });
+  });
+
+  it('does not double-observe when the webhook fires twice', async () => {
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    const { txnId } = await seedAndSendNip({
+      vendorBankCode: bankCode,
+      vendorAccountNumber: accountNumber,
+      category: 'food',
+    });
+    const input = {
+      transactionId: txnId,
+      nibssSessionId: factories.nibssSessionId(),
+      settledAt: new Date('2026-08-25T10:00:00Z'),
+    };
+
+    await settlementService.finalise(testDb, input);
+    await settlementService.finalise(testDb, input); // idempotent replay
+    await drainBackgroundTasks();
+
+    const rows = await vendorObservationsRepo.listForAccount(testDb, bankCode, accountNumber);
+    expect(rows[0]?.settledCount).toBe(1);
+  });
+
+  it('settles successfully even when the observation write throws', async () => {
+    const { txnId } = await seedAndSendNip({
+      vendorBankCode: factories.bankCode(),
+      vendorAccountNumber: factories.bankAccount(),
+      category: 'food',
+    });
+    const spy = vi
+      .spyOn(vendorObservationService, 'recordSettlement')
+      .mockRejectedValue(new Error('boom'));
+
+    await settlementService.finalise(testDb, {
+      transactionId: txnId,
+      nibssSessionId: null,
+      settledAt: new Date(),
+    });
+    await drainBackgroundTasks();
+
+    const settled = await transactionsRepo.findById(testDb, txnId);
+    expect(settled?.status).toBe('settled');
+    spy.mockRestore();
+  });
+
+  it('records no observation for a transaction with no vendor account', async () => {
+    const principal = await usersRepo.insert(testDb, {
+      role: 'principal',
+      phone: factories.phone(),
+      nin: factories.nin(),
+      kycTier: '2',
+      bvn: factories.bvn(),
+    });
+    const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
+    const mw = await masterWalletsRepo.provision(testDb, {
+      householdId: hh.id,
+      anchorVirtualAccount: '1234567891',
+      anchorBankCode: '058',
+      anchorAccountId: 'anchor-acct-test-2',
+    });
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: mw.master.id,
+      kind: 'spend',
+      amountKobo: kobo(5_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: null,
+      vendorAccount: null,
+      vendorResolvedName: null,
+      category: null,
+    });
+    await transactionsRepo.setStatus(testDb, txn.id, 'in_flight');
+
+    await settlementService.finalise(testDb, {
+      transactionId: txn.id,
+      nibssSessionId: null,
+      settledAt: new Date(),
+    });
+    await drainBackgroundTasks();
+
+    const all = await testDb.select().from(vendorObservations);
+    expect(all).toEqual([]);
+  });
+
+  it('observes a settlement driven through an OPEN transaction, as the webhook does', async () => {
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    const { txnId, householdId } = await seedAndSendNip({
+      vendorBankCode: bankCode,
+      vendorAccountNumber: accountNumber,
+      category: 'food',
+    });
+
+    // Mirrors routes/webhooks.ts:102 — finalise runs INSIDE the caller's transaction.
+    await testDb.transaction(async (tx) => {
+      await settlementService.finalise(tx as typeof testDb, {
+        transactionId: txnId,
+        nibssSessionId: factories.nibssSessionId(),
+        settledAt: new Date('2026-08-25T10:00:00Z'),
+      });
+    });
+    await drainBackgroundTasks();
+
+    const rows = await vendorObservationsRepo.listForAccount(testDb, bankCode, accountNumber);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.householdId).toBe(householdId);
   });
 });

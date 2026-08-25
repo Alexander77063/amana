@@ -42,7 +42,10 @@ export const vendorObservationService = {
         now: input.now,
       });
     } catch (e) {
-      logger.warn({ err: (e as Error).message }, 'vendor observation write failed');
+      logger.warn(
+        { err: e instanceof Error ? e.message : String(e) },
+        'vendor observation write failed',
+      );
     }
   },
 };

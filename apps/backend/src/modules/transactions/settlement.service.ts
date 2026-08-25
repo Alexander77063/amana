@@ -1,15 +1,32 @@
 import { sql } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+// The connection POOL, not the caller's handle. `finalise` is called with an open transaction by
+// routes/webhooks.ts:102, and a task that outlives the commit cannot use that transaction.
+import { db as pool } from '../../db/client';
+import { runInBackground } from '../../lib/background';
 import { kobo } from '../../lib/kobo';
 import { logger } from '../../lib/logger';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
 import { notificationService } from '../notifications/notification.service';
+import { vendorObservationService } from '../vendors/vendor-observation.service';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { ledgerService } from '../wallet/ledger.service';
 import { transactionsRepo } from '../wallet/transactions.repo';
 
 type DbOrTx = PostgresJsDatabase;
+
+/**
+ * What the committed settlement wants the registry to record. Null when the settle was a no-op
+ * replay, or when the spend had no vendor account to observe.
+ */
+type ObservationIntent = {
+  masterWalletId: string;
+  bankCode: string;
+  accountNumber: string;
+  accountName: string;
+  category: string | null;
+};
 
 // ₦100 platform fee per spend — PRICING.md (confirmed 2026-06-30): ₦50 covers Anchor's NIP cost,
 // ₦50 is Amana's margin. Supersedes the ₦25 MVP placeholder ("Decision #10", 2026-05-03).
@@ -23,11 +40,11 @@ export type FinaliseInput = {
 
 export const settlementService = {
   async finalise(db: DbOrTx, input: FinaliseInput): Promise<void> {
-    return db.transaction(async (tx) => {
+    const observation = await db.transaction(async (tx): Promise<ObservationIntent | null> => {
       const txDb = tx as DbOrTx;
       const txn = await transactionsRepo.findById(txDb, input.transactionId);
       if (!txn) throw new Error(`transaction ${input.transactionId} not found`);
-      if (txn.status === 'settled') return; // idempotent: webhook may fire twice
+      if (txn.status === 'settled') return null; // idempotent: webhook may fire twice
       if (txn.status !== 'in_flight') {
         throw new Error(`cannot settle txn in status ${txn.status}`);
       }
@@ -154,6 +171,38 @@ export const settlementService = {
       } catch (e) {
         logger.error({ err: (e as Error).message }, 'txn_settled notification failed');
       }
+
+      // The registry write itself happens AFTER this transaction commits (see below).
+      return txn.vendorBankCode && txn.vendorAccount
+        ? {
+            masterWalletId: txn.masterWalletId,
+            bankCode: txn.vendorBankCode,
+            accountNumber: txn.vendorAccount,
+            accountName: txn.vendorResolvedName ?? 'Unknown',
+            category: txn.category,
+          }
+        : null;
     });
+
+    // Deliberately AFTER the commit and detached. The registry is a best-effort observer of money
+    // that has already moved: a fault here must not be able to roll back a settled payment. Note
+    // that a try/catch INSIDE the transaction would not be safe — a Postgres error aborts the
+    // whole transaction even when the JS error is caught, turning the COMMIT into a ROLLBACK.
+    //
+    // `pool`, NOT the `db` parameter: webhooks.ts calls finalise(tx, …), and by the time this task
+    // runs that transaction has committed and closed. This is the one call in the file that must
+    // not join the caller's transaction — which is exactly why it does not take the injected handle.
+    if (observation) {
+      runInBackground(
+        vendorObservationService
+          .recordSettlement(pool, { ...observation, now: input.settledAt })
+          .catch((e: unknown) => {
+            logger.warn(
+              { err: e instanceof Error ? e.message : String(e) },
+              'vendor observation task failed',
+            );
+          }),
+      );
+    }
   },
 };

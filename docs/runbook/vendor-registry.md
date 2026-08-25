@@ -45,8 +45,11 @@ the next pass re-derives everything from `vendor_observations`:
    `vendors` row (`onConflictDoNothing` on the account, so re-running the sweep promotes
    nothing twice and never rewrites the original `promotedHouseholdCount`).
 2. **Categorise.** Every vendor whose `categorySource = 'observed'` gets its consensus
-   recomputed from that account's observation rows (one household, one vote — see below).
-   A `claimed` or `ops` category is never touched by this pass.
+   recomputed from that account's observation rows. Each household contributes exactly one
+   vote — its own single most-tagged category, regardless of how many times it paid the
+   vendor — so a frequent customer can never outvote everyone else (D-V8,
+   `docs/brainstorm/locked-decisions.md`). A `claimed` or `ops` category is never touched by
+   this pass.
 3. **Prune.** Observations with no activity in `VENDOR_OBSERVATION_RETENTION_DAYS`
    (default 180) are deleted — **unless** the account has already been promoted (see
    Retention, below).
@@ -113,9 +116,8 @@ hand:
 UPDATE households SET vendor_category_enforced = TRUE WHERE id = '<household-uuid>';
 ```
 
-No deploy and no restart — the enforcement check that Task 10 wires into
-`lifecycleService.evaluate` reads this column, and `VENDOR_CATEGORY_ENFORCE_DEFAULT`,
-fresh on every transaction intent.
+No deploy and no restart — the enforcement check inside `lifecycleService.evaluate` reads
+this column, and `VENDOR_CATEGORY_ENFORCE_DEFAULT`, fresh on every transaction intent.
 
 `households.vendor_category_enforced` is **three-state**, and the states are not
 interchangeable:

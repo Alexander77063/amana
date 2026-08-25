@@ -462,6 +462,13 @@ import { makeHousehold } from '../../helpers/fixtures';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
 const NOW = new Date('2026-08-25T10:00:00Z');
+/**
+ * Deliberately later than NOW. `accountsAtOrAboveThreshold` picks the most recently seen
+ * `account_name`, so a test that asserts WHICH name comes back must give the winner a strictly
+ * later `last_seen_at`. With every observation at the same instant the ordering is arbitrary and
+ * the assertion is flaky — do not collapse these two timestamps.
+ */
+const LATER = new Date('2026-08-25T11:00:00Z');
 
 describe('vendorObservationsRepo', () => {
   beforeEach(async () => {
@@ -528,12 +535,13 @@ describe('vendorObservationsRepo', () => {
     }
     expect(await vendorObservationsRepo.accountsAtOrAboveThreshold(testDb, 3)).toEqual([]);
 
-    // Two more households, one payment each, does.
+    // Two more households, one payment each, does. They observe at LATER, so the name they saw is
+    // unambiguously the most recent one — the assertion below is about ordering, not luck.
     for (let i = 0; i < 2; i++) {
       const h = await makeHousehold(testDb);
       await vendorObservationsRepo.record(testDb, {
         bankCode, accountNumber, householdId: h.householdId,
-        accountName: 'MAMA PUT KITCHEN', category: 'food', now: NOW,
+        accountName: 'MAMA PUT KITCHEN', category: 'food', now: LATER,
       });
     }
     const found = await vendorObservationsRepo.accountsAtOrAboveThreshold(testDb, 3);

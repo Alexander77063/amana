@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { vendorObservations, vendors } from '../../src/db/schema';
 import { factories } from '../helpers/factories';
@@ -57,8 +58,7 @@ describe('vendor registry schema', () => {
   it('households.vendor_category_enforced defaults to NULL (inherit global)', async () => {
     const { householdId } = await makeHousehold(testDb);
     const rows = await testDb.execute<{ vendor_category_enforced: boolean | null }>(
-      // biome-ignore lint/style/noUnusedTemplateLiteral: raw column read
-      `SELECT vendor_category_enforced FROM households WHERE id = '${householdId}'` as never,
+      sql`SELECT vendor_category_enforced FROM households WHERE id = ${householdId}`,
     );
     expect(rows[0]?.vendor_category_enforced).toBeNull();
   });

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { err, ok } from '../../../src/lib/result';
 import { phoneLookupService } from '../../../src/modules/vendors/phone-lookup.service';
@@ -20,50 +20,55 @@ function mockLookup(bankCode: string, accountNumber: string) {
 }
 
 describe('vendorOwnershipService.proveByPhoneLookup', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('proves ownership when NIBSS resolves the phone to the same account', async () => {
-    const spy = mockLookup('058', '0123456789');
+    mockLookup('058', '0123456789');
     expect(await vendorOwnershipService.proveByPhoneLookup(adapter, TARGET)).toEqual({
       proved: true,
       proof: 'phone_lookup',
     });
-    spy.mockRestore();
   });
 
   it('refuses when the account number differs', async () => {
-    const spy = mockLookup('058', '9999999999');
+    mockLookup('058', '9999999999');
     expect(await vendorOwnershipService.proveByPhoneLookup(adapter, TARGET)).toEqual({
       proved: false,
       reason: 'mismatch',
     });
-    spy.mockRestore();
   });
 
   it('refuses when the bank differs even though the account number matches', async () => {
-    const spy = mockLookup('011', '0123456789');
+    mockLookup('011', '0123456789');
     expect(await vendorOwnershipService.proveByPhoneLookup(adapter, TARGET)).toEqual({
       proved: false,
       reason: 'mismatch',
     });
-    spy.mockRestore();
   });
 
   it('maps a NIBSS miss to not_found and an outage to partner_down', async () => {
-    const miss = vi
-      .spyOn(phoneLookupService, 'lookup')
-      .mockResolvedValue(err({ code: 'NOT_FOUND' }));
+    vi.spyOn(phoneLookupService, 'lookup').mockResolvedValue(err({ code: 'NOT_FOUND' }));
     expect(await vendorOwnershipService.proveByPhoneLookup(adapter, TARGET)).toEqual({
       proved: false,
       reason: 'not_found',
     });
-    miss.mockRestore();
 
-    const down = vi
-      .spyOn(phoneLookupService, 'lookup')
-      .mockResolvedValue(err({ code: 'PARTNER_DOWN' }));
+    vi.spyOn(phoneLookupService, 'lookup').mockResolvedValue(err({ code: 'PARTNER_DOWN' }));
     expect(await vendorOwnershipService.proveByPhoneLookup(adapter, TARGET)).toEqual({
       proved: false,
       reason: 'partner_down',
     });
-    down.mockRestore();
+  });
+
+  it('maps an unexpected phone-lookup error to bad_input', async () => {
+    vi.spyOn(phoneLookupService, 'lookup').mockResolvedValue(
+      err({ code: 'BAD_INPUT', message: 'phone not in E.164 format: +234801234567' }),
+    );
+    expect(await vendorOwnershipService.proveByPhoneLookup(adapter, TARGET)).toEqual({
+      proved: false,
+      reason: 'bad_input',
+    });
   });
 });

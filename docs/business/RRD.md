@@ -1,5 +1,14 @@
 # Amana — Release Requirements Document (RRD)
 
+
+> ⚠️ **STALE as of 2026-08-25 — read as history, not specification.**
+>
+> Written 2026-05-13 for the MVP release. The stack, integrations and constraints still hold; the
+> module inventory and acceptance criteria do not. Missing entirely: VAS, the marketplace, retailers,
+> the `merchant` rule kind, and the third actor kind (`retailer`).
+>
+> Current schema: [`docs/product/database-schema.md`](../product/database-schema.md) · Index: [`docs/product/README.md`](../product/README.md)
+
 **Version:** 1.0 — MVP Release | **Date:** 2026-05-13
 **Release name:** Amana MVP | **Target:** Private beta, Q3 2026
 

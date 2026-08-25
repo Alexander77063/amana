@@ -1,5 +1,15 @@
 # Amana — UI/UX Design Brief
 
+
+> ⚠️ **PARTIAL as of 2026-08-25.**
+>
+> The tokens and components here are real and shipped — `packages/ui` is the source of truth. Not
+> covered: the retailer portal, which is Next.js and cannot import React Native source, so it
+> duplicates the tokens in CSS. That duplication is the accepted cost of the Phase-2 platform
+> decision and is flagged at both sites in code.
+>
+> Index: [`docs/product/README.md`](../product/README.md)
+
 **Version:** 1.0 | **Date:** 2026-05-13
 **Audience:** Product designer, UI engineer, design agency
 **Apps:** Principal (iOS + Android) · Agent (Android first)

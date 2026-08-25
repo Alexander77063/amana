@@ -1,5 +1,14 @@
 # Amana — App Flow
 
+
+> ⚠️ **STALE as of 2026-08-25 — incomplete rather than wrong.**
+>
+> The principal and agent wallet flows here are still accurate. Three whole surfaces are missing:
+> the buyer marketplace (browse → buy → voucher), the retailer portal (onboard → KYB → redeem →
+> earnings), and digital VAS.
+>
+> Index: [`docs/product/README.md`](../product/README.md)
+
 **Version:** 1.0 | **Date:** 2026-05-13
 **Apps covered:** Principal (iOS + Android) · Agent (Android first, iOS secondary)
 

@@ -1,5 +1,15 @@
 # Amana — Product Design Requirements (PDR)
 
+
+> ⚠️ **STALE as of 2026-08-25 — read as history, not specification.**
+>
+> Written 2026-05-13, when the MVP wallet was the whole product. Since then 124 feature commits have
+> landed: digital VAS, the curated marketplace (SP1–SP5b), retailer onboarding with Anchor Business
+> KYB, the retailer portal, and the control fusion. The problem statement and market analysis still
+> hold; the product description does not.
+>
+> Current scope: [`docs/product/mvp-scope.md`](../product/mvp-scope.md) · Index: [`docs/product/README.md`](../product/README.md)
+
 **Version:** 1.0 | **Date:** 2026-05-13 | **Status:** Approved MVP
 **Author:** Alexander Adegbola | **Domain:** amana-ng.com
 

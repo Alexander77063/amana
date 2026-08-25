@@ -24,6 +24,11 @@
   `drizzle-orm` in any test file that needs it.
 - Coverage gate must hold: lines/statements 92, functions 90, branches 80.
 - The registry must never be able to block or fail a spend. Every registry read in the money path is wrapped so that failure yields `null` and evaluation proceeds.
+- **A swallow-catch must not itself be able to throw.** On the never-throws paths use
+  `e instanceof Error ? e.message : String(e)`, not `(e as Error).message` — the cast is a lie when
+  something rejects with a non-`Error`, and `.message` on `undefined` throws out of the very catch
+  that exists to contain it. The `(e as Error)` form is common elsewhere in this codebase; do not
+  copy it into these three sites.
 - Enforcement default is **off**. No task in this plan may make the registry category drive a rule outcome by default.
 
 ---
@@ -893,7 +898,7 @@ export const vendorObservationService = {
         now: input.now,
       });
     } catch (e) {
-      logger.warn({ err: (e as Error).message }, 'vendor observation write failed');
+      logger.warn({ err: e instanceof Error ? e.message : String(e) }, 'vendor observation write failed');
     }
   },
 };
@@ -1111,7 +1116,7 @@ Immediately after the closing `});` of the `db.transaction(...)` call, and befor
         vendorObservationService
           .recordSettlement(pool, { ...observation, now: input.settledAt })
           .catch((e: unknown) => {
-            logger.warn({ err: (e as Error).message }, 'vendor observation task failed');
+            logger.warn({ err: e instanceof Error ? e.message : String(e) }, 'vendor observation task failed');
           }),
       );
     }
@@ -2121,7 +2126,7 @@ export const vendorCategoryResolver = {
         enforceable: vendor.categorySource !== 'observed',
       };
     } catch (e) {
-      logger.warn({ err: (e as Error).message }, 'vendor category resolution failed');
+      logger.warn({ err: e instanceof Error ? e.message : String(e) }, 'vendor category resolution failed');
       return null;
     }
   },

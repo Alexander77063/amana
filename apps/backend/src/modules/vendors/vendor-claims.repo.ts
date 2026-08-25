@@ -1,4 +1,4 @@
-import { and, eq, gt, lte } from 'drizzle-orm';
+import { and, desc, eq, gt, lte } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { vendorClaimAttempts } from '../../db/schema';
 
@@ -25,6 +25,13 @@ export const vendorClaimsRepo = {
     return row ?? null;
   },
 
+  /**
+   * `ORDER BY createdAt DESC` is deliberate, not decorative: a phone can end up with more than one
+   * pending row (see `vendorClaimService.request`'s cross-vendor check, which closes most but not
+   * all of that window), and without an explicit order Postgres is free to return either one, so a
+   * `verify` could nondeterministically resolve a different attempt than the one the caller most
+   * recently opened. Newest-first matches what the caller actually did last.
+   */
   async findPendingByPhone(
     db: DbOrTx,
     phone: string,
@@ -40,6 +47,7 @@ export const vendorClaimsRepo = {
           gt(vendorClaimAttempts.expiresAt, now),
         ),
       )
+      .orderBy(desc(vendorClaimAttempts.createdAt))
       .limit(1);
     return row;
   },

@@ -1,7 +1,11 @@
 import { createHash } from 'node:crypto';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+// The connection POOL, not the caller's handle — see the comment at the `runInBackground` call
+// below for why the detached OTP send must not depend on the caller's transaction lifetime.
+import { db as pool } from '../../db/client';
 import { env } from '../../env';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
+import { runInBackground } from '../../lib/background';
 import { mintPrefixedCode } from '../../lib/crockford';
 import { logger } from '../../lib/logger';
 import { auditRepo } from '../audit/audit.repo';
@@ -37,6 +41,13 @@ export const vendorClaimService = {
    * whether an account is in the registry, because that is precisely the aggregate the promotion
    * threshold exists to protect — "has this account been paid by at least five Amana households".
    * The work simply does not happen for an account we do not hold, and no OTP is sent.
+   *
+   * The *value* returned is a uniform non-oracle, but the code paths leading to it are not
+   * equal-cost: an unknown account is one SELECT, an in-flight attempt adds an INSERT, and only
+   * the happy path used to also await an outbound Termii SMS round trip. That gap is a timing
+   * side-channel that recovers the exact bit the uniform response exists to hide, so the OTP send
+   * is detached (`runInBackground`) rather than awaited — the response leaves at the same point
+   * in the control flow regardless of whether an SMS goes out behind it.
    */
   async request(
     db: DbOrTx,
@@ -47,6 +58,20 @@ export const vendorClaimService = {
       const vendor = await vendorsRepo.findByAccount(db, input.bankCode, input.accountNumber);
       if (!vendor || vendor.status !== 'observed') return { accepted: true };
 
+      // A phone can only ever be mid-claim on one vendor at a time. Without this check, a caller
+      // who does not control the phone (proof only happens at verify) could pile a second pending
+      // attempt onto a victim's phone for a different vendor, stranding the victim's real attempt
+      // and burning a paid Anchor lookup when it later gets picked non-deterministically. This
+      // closes the interleaving where the attacker arrives while a legitimate attempt is already
+      // open; it cannot stop an attacker who calls first — that race is bounded by the route's
+      // rate limiter (Task 6), not by this check.
+      const existingForPhone = await vendorClaimsRepo.findPendingByPhone(
+        db,
+        input.phone,
+        input.now,
+      );
+      if (existingForPhone && existingForPhone.vendorId !== vendor.id) return { accepted: true };
+
       const expiresAt = new Date(input.now.getTime() + env.VENDOR_CLAIM_TTL_SECONDS * 1000);
       const attempt = await vendorClaimsRepo.openAttempt(db, {
         vendorId: vendor.id,
@@ -56,7 +81,19 @@ export const vendorClaimService = {
       // Null means someone else already has a claim in flight for this vendor. Same response.
       if (!attempt) return { accepted: true };
 
-      await otpService.requestCode(db, { phone: input.phone, purpose: 'vendor_claim' });
+      // Detached and on the connection pool, not the caller's `db` handle: this call must not
+      // block the response (the timing side-channel above), and it must not depend on a
+      // transaction the caller might still be holding open or that could later roll back. The
+      // task carries its own `.catch` per `runInBackground`'s contract — a send failure is
+      // exactly as invisible to the caller as every other failure mode of this method.
+      runInBackground(
+        otpService.requestCode(pool, { phone: input.phone, purpose: 'vendor_claim' }).catch((e) => {
+          logger.warn(
+            { err: e instanceof Error ? e.message : String(e) },
+            'vendor claim otp send failed',
+          );
+        }),
+      );
       return { accepted: true };
     } catch (e) {
       // Even a failure is invisible to the caller — an error shape would itself be a signal.
@@ -107,30 +144,41 @@ export const vendorClaimService = {
     }
 
     const publicCode = mintPrefixedCode('AMNV');
-    const claimed = await vendorsRepo.claim(db, {
-      vendorId: vendor.id,
-      phone: input.phone,
-      category: input.category,
-      publicCode,
-      now: input.now,
-    });
-    if (!claimed) return { kind: 'no_attempt' };
-
-    await vendorClaimsRepo.markVerified(db, attempt.id, verdict.proof, input.now);
-    await auditRepo.append(db, {
-      actorKind: 'system',
-      action: 'vendor.claimed',
-      subjectKind: 'vendor',
-      subjectId: vendor.id,
-      payloadJson: {
-        // Fingerprinted, never the raw number: the audit log is queried far more widely than the
-        // vendors table, and a claimant's phone is personal data that has no business spreading.
-        claimantPhone: phoneFingerprint(input.phone),
-        ownershipProof: verdict.proof,
+    // The state change is three writes that must land together: a vendor left `claimed` with its
+    // attempt still `pending` is a phantom ops-queue entry for a business that no longer needs
+    // review, and a claim with no audit row is an ownership transfer with no trail. Ownership
+    // proof and OTP verification stay OUTSIDE this transaction deliberately — they are slow
+    // external/pre-checked calls, and a Postgres error here must not be able to unwind either.
+    const claimed = await db.transaction(async (tx) => {
+      const txDb = tx as DbOrTx;
+      const claimedRow = await vendorsRepo.claim(txDb, {
+        vendorId: vendor.id,
+        phone: input.phone,
         category: input.category,
         publicCode,
-      },
+        now: input.now,
+      });
+      if (!claimedRow) return null;
+
+      await vendorClaimsRepo.markVerified(txDb, attempt.id, verdict.proof, input.now);
+      await auditRepo.append(txDb, {
+        actorKind: 'system',
+        action: 'vendor.claimed',
+        subjectKind: 'vendor',
+        subjectId: vendor.id,
+        payloadJson: {
+          // Fingerprinted, never the raw number: the audit log is queried far more widely than
+          // the vendors table, and a claimant's phone is personal data that has no business
+          // spreading.
+          claimantPhone: phoneFingerprint(input.phone),
+          ownershipProof: verdict.proof,
+          category: input.category,
+          publicCode,
+        },
+      });
+      return claimedRow;
     });
+    if (!claimed) return { kind: 'no_attempt' };
 
     return { kind: 'claimed', publicCode, displayName: claimed.displayName };
   },

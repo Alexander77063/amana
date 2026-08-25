@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { db as pool } from '../../../src/db/client';
 import type { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
+import { drainBackgroundTasks } from '../../../src/lib/background';
 import { auditRepo } from '../../../src/modules/audit/audit.repo';
 import { otpService } from '../../../src/modules/auth/otp.service';
 import { vendorClaimService } from '../../../src/modules/vendors/vendor-claim.service';
@@ -54,8 +56,56 @@ describe('vendorClaimService', () => {
       });
 
       expect(r.accepted).toBe(true);
-      expect(otp).toHaveBeenCalledWith(testDb, { phone, purpose: 'vendor_claim' });
+      // The send is detached (runInBackground) so the response time can't leak whether an SMS
+      // went out — drain before asserting it actually happened, on the pool, not the caller's db.
+      await drainBackgroundTasks();
+      expect(otp).toHaveBeenCalledWith(pool, { phone, purpose: 'vendor_claim' });
       expect(await vendorClaimsRepo.findPendingByPhone(testDb, phone, NOW)).toBeDefined();
+    });
+
+    it('does not open a second attempt when the phone already has a pending one on a different vendor', async () => {
+      const phone = factories.phone();
+      const v1 = await aPromotedVendor();
+      const otp = vi
+        .spyOn(otpService, 'requestCode')
+        .mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+
+      const r1 = await vendorClaimService.request(testDb, adapter, {
+        bankCode: v1.bankCode,
+        accountNumber: v1.accountNumber,
+        phone,
+        now: NOW,
+      });
+      await drainBackgroundTasks();
+      expect(r1.accepted).toBe(true);
+      expect(otp).toHaveBeenCalledTimes(1);
+
+      const v2 = await aPromotedVendor();
+      const r2 = await vendorClaimService.request(testDb, adapter, {
+        bankCode: v2.bankCode,
+        accountNumber: v2.accountNumber,
+        phone,
+        now: NOW,
+      });
+      await drainBackgroundTasks();
+
+      // Indistinguishable from every other outcome — the non-oracle contract holds even here.
+      expect(r2.accepted).toBe(true);
+      // No second OTP: the phone was already mid-claim on v1, so v2's request is a no-op.
+      expect(otp).toHaveBeenCalledTimes(1);
+
+      // v1's attempt is untouched and still the one on file for this phone.
+      const pending = await vendorClaimsRepo.findPendingByPhone(testDb, phone, NOW);
+      expect(pending?.vendorId).toBe(v1.id);
+
+      // No attempt row was ever created for v2 — proved by the vendor-scoped unique index: a
+      // direct open still succeeds (it would return null if a pending row already existed).
+      const directOpenForV2 = await vendorClaimsRepo.openAttempt(testDb, {
+        vendorId: v2.id,
+        phone: factories.phone(),
+        expiresAt: NOW,
+      });
+      expect(directOpenForV2).not.toBeNull();
     });
 
     it('sends NO OTP for an account that is not in the registry', async () => {

@@ -109,6 +109,10 @@ anywhere right now.
 
 ## Switching enforcement on for one household
 
+**See also:** [`vendor-claim.md` → "The enforcement switch"](./vendor-claim.md) for the
+`POST /vendors-admin/households/:id/enforcement` route that now wraps the SQL below —
+this section still owns the reasoning; that one adds the API surface.
+
 The only supported way to start enforcing the registry category is per household, by
 hand:
 

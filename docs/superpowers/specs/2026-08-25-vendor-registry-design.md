@@ -66,7 +66,7 @@ Two findings from that audit shape the design.
 
 ## 3. Decisions taken in this brainstorm
 
-These are inputs to implementation, not subjects of re-debate. They extend `docs/brainstorm/locked-decisions.md`.
+These are inputs to implementation, not subjects of re-debate. They are **not yet in** `docs/brainstorm/locked-decisions.md` — that file is the canonical registry and should only receive them once this spec is approved. Appending D-V1…D-V8 to it is the first task of implementation planning.
 
 **D-V1 — Vendor identity and marketplace retailer identity stay separate namespaces.**
 A vendor never receives a `retailerId`. `evaluateMerchant` is unchanged and remains `retailerId`-only.
@@ -306,6 +306,8 @@ At promotion and on each subsequent cron pass, for a vendor whose `category_sour
 
 Step 1 is the whole point and is easy to get wrong: summing `category_counts` across households would let one frequent customer decide a vendor's category by themselves.
 
+**A freshly promoted vendor always has `category = NULL`.** Promotion fires at 5 households and consensus needs 8, so the consensus pass cannot succeed on the run that promotes. This is intended — being listed is a weaker claim than being categorised (§6.3) — but it means the implementer should not wire the consensus call *into* the promotion path and wonder why it never sets anything. Consensus is a separate pass over all `observed` vendors on every cron tick, promotion included but not privileged.
+
 ---
 
 ## 7. The claim rail (SP-V2)
@@ -425,7 +427,7 @@ But the *attacks* they were invented against do have analogues, and two of them 
 We are deliberately **not** implementing the randomised threshold in v1, for three reasons, and the reasoning is recorded here so a future reader can reverse it on evidence rather than re-derive it:
 
 - **The sybil cost is already high.** Mounting the attack requires creating multiple households, and a household requires a KYC'd principal — real BVN, real NIN, a real Anchor customer (`routes/households.ts` does a live `createCustomer`). Amana's onboarding *is* the sybil defence.
-- **Promotion is unobservable from outside.** There is no public "new vendors" feed, promotion runs hourly in batch, and the claim endpoint is a deliberate non-oracle (§7.2). An attacker has no channel that reports promotion at all, let alone promptly.
+- **Promotion is unobservable to anyone not already paying the vendor.** There is no public "new vendors" feed, promotion runs hourly in batch, and the claim endpoint is a deliberate non-oracle (§7.2). One side channel does exist and is worth naming rather than glossing: once enforcement is on, a principal whose category rule starts behaving differently on a vendor they already pay has observed that vendor's promotion. It is a weak channel — the observer must already be one of the paying households, and what they learn is "at least five, including me" — but it is real, it arrives only with enforcement, and it bounds rather than removes the claim.
 - **The payoff is negligible.** The recovered fact is "at least four other households paid this shop" — about a business that, by construction, is public-facing.
 
 If any of those three change — a public directory, a real-time vendor feed, or cheap household creation — the randomised threshold becomes the correct next control, and it is a one-line change at the promotion query. It is listed in §14 as the trigger to revisit.

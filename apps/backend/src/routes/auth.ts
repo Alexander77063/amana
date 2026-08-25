@@ -38,10 +38,24 @@ export const authRoute = new Hono()
   .post('/otp/verify', async (c) => {
     const body = await parseBody(c, OtpVerifySchema);
     if (body instanceof Response) return body;
-    const v = await otpService.verifyCode(db, { phone: body.phone, code: body.code });
+    // This endpoint genuinely serves both flows in one place — with a pairingCode and no existing
+    // user it creates an agent and consumes the pairing token, otherwise it logs in or creates a
+    // principal. So `login` and `pair` remain interchangeable *within this endpoint*: both
+    // challenges are minted for the same phone and are consumed by whoever holds that phone,
+    // which is the same trust boundary either way. That is a bounded, deliberate residual, not an
+    // oversight. What allowedPurposes closes off is *cross-endpoint* reuse — e.g. the retailer
+    // portal, or any future purpose added on an unauthenticated endpoint, being satisfied by a
+    // challenge minted here (or vice versa).
+    const v = await otpService.verifyCode(db, {
+      phone: body.phone,
+      code: body.code,
+      allowedPurposes: ['login', 'pair'],
+    });
     if (v.kind !== 'verified') {
-      // Collapse no_challenge / wrong_code into one generic error so a caller
-      // can't distinguish "no OTP outstanding for this phone" from "wrong code".
+      // Collapse no_challenge / wrong_code / wrong_purpose into one generic error so a caller
+      // can't distinguish "no OTP outstanding for this phone" from "wrong code" from "this code is
+      // for a purpose this endpoint doesn't accept" (the last would otherwise leak which purpose a
+      // phone currently holds a challenge for).
       const error = v.kind === 'too_many_attempts' ? 'too_many_attempts' : 'invalid_code';
       return c.json({ error }, 401);
     }

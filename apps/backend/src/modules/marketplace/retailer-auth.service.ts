@@ -49,7 +49,14 @@ export const retailerAuthService = {
   },
 
   async verify(db: DbOrTx, input: RetailerVerifyInput): Promise<RetailerVerifyResult> {
-    const v = await otpService.verifyCode(db, { phone: input.phone, code: input.code });
+    // The portal only ever signs people in — never accept a `pair` challenge here, even though
+    // household pairing has nothing to do with retailers. A future purpose minted on some other
+    // unauthenticated endpoint must not be redeemable at this door either.
+    const v = await otpService.verifyCode(db, {
+      phone: input.phone,
+      code: input.code,
+      allowedPurposes: ['login'],
+    });
     if (v.kind !== 'verified') {
       return v.kind === 'too_many_attempts'
         ? { kind: 'too_many_attempts' }

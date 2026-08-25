@@ -10,12 +10,18 @@ type DbOrTx = PostgresJsDatabase;
 export type RequestCodeInput = { phone: string; purpose: OtpPurpose };
 export type RequestCodeResult = { challengeId: string; expiresAt: Date };
 
-export type VerifyCodeInput = { phone: string; code: string };
+export type VerifyCodeInput = {
+  phone: string;
+  code: string;
+  /** The purposes this call site legitimately accepts. A challenge minted for anything else is refused. */
+  allowedPurposes: readonly OtpPurpose[];
+};
 export type VerifyCodeResult =
   | { kind: 'verified'; challengeId: string; purpose: OtpPurpose }
   | { kind: 'no_challenge' }
   | { kind: 'too_many_attempts' }
-  | { kind: 'wrong_code' };
+  | { kind: 'wrong_code' }
+  | { kind: 'wrong_purpose' };
 
 async function sendSms(phone: string, code: string): Promise<void> {
   if (!env.TERMII_API_KEY) {
@@ -71,6 +77,13 @@ export const otpService = {
     const now = new Date();
     const ch = await otpChallengesRepo.findActiveByPhone(db, input.phone, now);
     if (!ch) return { kind: 'no_challenge' as const };
+    // Checked before claimAttempt, deliberately: a purpose mismatch is a caller/flow error, not a
+    // brute-force guess, so it must not burn one of the user's limited attempt slots. Doing so
+    // would let whatever endpoint mints the wrong purpose grief a legitimate challenge into
+    // too_many_attempts for its rightful owner.
+    if (!input.allowedPurposes.includes(ch.purpose)) {
+      return { kind: 'wrong_purpose' as const };
+    }
     // Atomically claim an attempt slot before checking the code — this is the
     // real brute-force cap; concurrent verifies can never exceed OTP_MAX_ATTEMPTS.
     const claimed = await otpChallengesRepo.claimAttempt(db, ch.id, env.OTP_MAX_ATTEMPTS, now);

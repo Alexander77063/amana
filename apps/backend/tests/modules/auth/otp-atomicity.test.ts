@@ -22,13 +22,25 @@ describe('OTP verify enforces the attempt cap atomically', () => {
     await otpService.requestCode(testDb, { phone, purpose: 'login' });
 
     for (let i = 0; i < MAX; i++) {
-      const r = await otpService.verifyCode(testDb, { phone, code: '000000' });
+      const r = await otpService.verifyCode(testDb, {
+        phone,
+        code: '000000',
+        allowedPurposes: ['login'],
+      });
       expect(r.kind).toBe('wrong_code');
     }
-    const blocked = await otpService.verifyCode(testDb, { phone, code: '000000' });
+    const blocked = await otpService.verifyCode(testDb, {
+      phone,
+      code: '000000',
+      allowedPurposes: ['login'],
+    });
     expect(blocked.kind).toBe('too_many_attempts');
     // The cap holds even for the correct code once exhausted.
-    const correct = await otpService.verifyCode(testDb, { phone, code: '123456' });
+    const correct = await otpService.verifyCode(testDb, {
+      phone,
+      code: '123456',
+      allowedPurposes: ['login'],
+    });
     expect(correct.kind).toBe('too_many_attempts');
   });
 
@@ -38,7 +50,9 @@ describe('OTP verify enforces the attempt cap atomically', () => {
     await otpService.requestCode(testDb, { phone, purpose: 'login' });
 
     const results = await Promise.all(
-      Array.from({ length: 12 }, () => otpService.verifyCode(testDb, { phone, code: '000000' })),
+      Array.from({ length: 12 }, () =>
+        otpService.verifyCode(testDb, { phone, code: '000000', allowedPurposes: ['login'] }),
+      ),
     );
     const wrong = results.filter((r) => r.kind === 'wrong_code').length;
     const tooMany = results.filter((r) => r.kind === 'too_many_attempts').length;

@@ -96,8 +96,14 @@ export const vendorClaimService = {
       );
       return { accepted: true };
     } catch (e) {
-      // Even a failure is invisible to the caller — an error shape would itself be a signal.
-      logger.warn({ err: (e as Error).message }, 'vendor claim request failed');
+      // Even a failure is invisible to the caller — an error shape would itself be a signal. This
+      // is that guarantee's last line of defence (the route has no try/catch of its own), so the
+      // log line must never itself throw: `(e as Error).message` on a non-Error rejection would
+      // escape this catch and hand the caller a distinguishable 500.
+      logger.warn(
+        { err: e instanceof Error ? e.message : String(e) },
+        'vendor claim request failed',
+      );
       return { accepted: true };
     }
   },

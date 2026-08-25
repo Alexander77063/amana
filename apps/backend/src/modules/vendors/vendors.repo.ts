@@ -76,4 +76,57 @@ export const vendorsRepo = {
       .returning({ id: vendors.id });
     return changed.length > 0;
   },
+
+  /**
+   * Move a vendor from `observed` to `claimed`, in one atomic write.
+   *
+   * The `status = 'observed'` predicate is the compare-and-set that makes a claim single-use: a
+   * second claim — a replay, or a race between two people who both control the phone — matches
+   * nothing and returns null. Category and source move together with the status because a claimed
+   * category that is still marked `observed` would silently fail to enforce.
+   */
+  async claim(
+    db: DbOrTx,
+    input: {
+      vendorId: string;
+      phone: string;
+      category: string | null;
+      publicCode: string;
+      now: Date;
+    },
+  ): Promise<VendorRow | null> {
+    const [row] = await db
+      .update(vendors)
+      .set({
+        status: 'claimed',
+        category: input.category,
+        categorySource: 'claimed',
+        categoryHouseholdCount: null,
+        publicCode: input.publicCode,
+        claimedByPhone: input.phone,
+        claimedAt: input.now,
+      })
+      .where(and(eq(vendors.id, input.vendorId), eq(vendors.status, 'observed')))
+      .returning();
+    return row ?? null;
+  },
+
+  /** Ops override. Outranks a claimed category — an operator is correcting a business's own answer. */
+  async setOpsCategory(db: DbOrTx, vendorId: string, category: string | null): Promise<boolean> {
+    const changed = await db
+      .update(vendors)
+      .set({ category, categorySource: 'ops', categoryHouseholdCount: null })
+      .where(eq(vendors.id, vendorId))
+      .returning({ id: vendors.id });
+    return changed.length > 0;
+  },
+
+  async setStatus(db: DbOrTx, vendorId: string, status: VendorRow['status']): Promise<boolean> {
+    const changed = await db
+      .update(vendors)
+      .set({ status })
+      .where(eq(vendors.id, vendorId))
+      .returning({ id: vendors.id });
+    return changed.length > 0;
+  },
 };

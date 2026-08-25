@@ -253,6 +253,13 @@
       "when": 1787655779372,
       "tag": "0035_broad_speedball",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787694559221,
+      "tag": "0036_illegal_star_brand",
+      "breakpoints": true
     }
   ]
 }

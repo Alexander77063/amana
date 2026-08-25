@@ -15,7 +15,7 @@ export type PairingTokenRow = typeof pairingTokens.$inferSelect;
  * so a new purpose reachable from an unauthenticated endpoint can cancel someone's in-flight login
  * OTP — weigh that before exposing one.
  */
-export type OtpPurpose = 'login' | 'pair';
+export type OtpPurpose = 'login' | 'pair' | 'vendor_claim';
 
 /**
  * Who a token can speak for.

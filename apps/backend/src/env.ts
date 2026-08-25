@@ -96,6 +96,9 @@ const EnvSchema = z.object({
         .map((c) => c.trim().toLowerCase())
         .filter(Boolean),
     ),
+  // How long a vendor has to enter the OTP that proves they control the claiming phone.
+  // Longer than the 5-minute OTP TTL on purpose: a shopkeeper mid-service is not at their phone.
+  VENDOR_CLAIM_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   // Marketplace (SP1 voucher/redemption ledger core). Additive with safe defaults; the fee is
   // an explicit TBD (pricing pass) kept at 0 so it never double-dips a discounted purchase.
   MARKETPLACE_COMMISSION_BPS: z.coerce.number().int().nonnegative().max(10_000).default(500),

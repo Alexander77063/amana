@@ -8,7 +8,7 @@ export const phoneOtpChallenges = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     phone: text('phone').notNull(),
     codeHash: text('code_hash').notNull(),
-    purpose: text('purpose', { enum: ['login', 'pair'] }).notNull(),
+    purpose: text('purpose', { enum: ['login', 'pair', 'vendor_claim'] }).notNull(),
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     attempts: integer('attempts').notNull().default(0),
     consumedAt: timestamp('consumed_at', { withTimezone: true }),

@@ -25,4 +25,27 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
+/** Escape a path (Windows separators included) for embedding in a RegExp. */
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const under = (...parts) => new RegExp(`${escapeRe(path.join(workspaceRoot, ...parts))}.*`);
+
+/**
+ * Keep Metro out of directories it has no business watching.
+ *
+ * `watchFolders` is the whole monorepo, so without this the file-map crawl also walks the demo
+ * harness's video output (tens of megabytes of .webm/.mp4/.wav), the retailer portal's `.next`
+ * build output, and coverage reports. That crawl has a hard four-minute ceiling inside
+ * metro-file-map (`MAX_WAIT_TIME`), and once the Next app joined the workspace it started
+ * exceeding it — at which point Metro does not start at all and reports "Failed to start watch
+ * mode", which reads like a broken install rather than a slow directory walk.
+ *
+ * None of these contain modules anything imports.
+ */
+config.resolver.blockList = [
+  under('tools', 'demo', 'out'),
+  under('apps', 'retailer-portal', '.next'),
+  under('coverage'),
+  under('.claude', 'worktrees'),
+];
+
 module.exports = config;

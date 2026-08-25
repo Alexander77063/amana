@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { api } from '../lib/api';
 import type { PayStackParamList } from '../nav/PayStack';
+import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'MarketplaceItem'>;
 
@@ -20,6 +21,9 @@ const DENIAL_COPY: Record<string, string> = {
 export function MarketplaceItemScreen({ navigation, route }: Props): JSX.Element {
   const theme = useTheme();
   const { itemId } = route.params;
+  // The purchase route resolves the buyer's wallet from `subWalletId`, and falls back to the
+  // PRINCIPAL's household when it is absent — which an agent does not have, so omitting it 404s.
+  const subWallet = useAgentStore((s) => s.selectedSubWallet);
   const [item, setItem] = useState<MarketplaceItem | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,6 +47,7 @@ export function MarketplaceItemScreen({ navigation, route }: Props): JSX.Element
     setError(null);
     try {
       const { voucher } = await api.marketplace.purchase({
+        subWalletId: subWallet?.id ?? null,
         catalogItemId: item.id,
         // The server prices from the catalogue; sending a price would be a spoof vector.
         idempotencyKey: `mkt:${item.id}:${Date.now()}`,
@@ -54,7 +59,13 @@ export function MarketplaceItemScreen({ navigation, route }: Props): JSX.Element
         const first = reasons.find((r) => DENIAL_COPY[r]);
         // Say WHICH rule stopped it. "Something went wrong" would leave the agent unable to tell
         // whether to ask their parent or simply wait until morning.
-        setError(first ? DENIAL_COPY[first] : 'That purchase was not allowed.');
+        //
+        // And do NOT claim a rule refused it when none did: everything that is not a rule denial
+        // is a failure, not a permission. Reporting a 404 as "not allowed" sent me looking for a
+        // rule that did not exist while recording this screen.
+        if (first) setError(DENIAL_COPY[first] ?? null);
+        else if (reasons.length > 0) setError('That purchase was not allowed.');
+        else setError('Could not complete that purchase. Please try again.');
       } else {
         setError('Could not complete that purchase.');
       }

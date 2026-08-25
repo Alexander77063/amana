@@ -17,6 +17,61 @@ const PRINCIPAL = process.env.PRINCIPAL_URL ?? 'http://localhost:19006';
 const AGENT = process.env.AGENT_URL ?? 'http://localhost:19007';
 const STUB = process.env.STUB_URL ?? 'http://localhost:3200';
 const OUT = process.env.OUT_DIR ?? 'tools/demo/out';
+const BACKEND = process.env.BACKEND_URL ?? 'http://localhost:3100';
+const ADMIN_KEY = process.env.ADMIN_API_KEY ?? 'demo-admin-key-000000000000000000';
+
+/**
+ * Put one item on a retailer's storefront.
+ *
+ * Written straight to the database rather than through the portal API, and that is a seeding
+ * shortcut rather than a mock: the portal's item route needs a retailer OTP session, which would
+ * mean onboarding a whole second human mid-recording for data the story never shows being
+ * created. Nothing in `src/` is bypassed — the buy path that follows reads these rows exactly as
+ * it reads any others. `category` is what the parent's lock matches on, and it is deliberately a
+ * different field from the retailer's own `section`.
+ */
+async function seedItem(retailerId, name, priceKobo) {
+  const { spawnSync } = await import('node:child_process');
+  const r = spawnSync(
+    'docker',
+    [
+      'exec',
+      'amana-postgres',
+      'psql',
+      '-U',
+      'amana',
+      '-d',
+      'amana_dev',
+      '-c',
+      `insert into catalog_items (retailer_id, name, price_kobo, section, category, status)
+       values ('${retailerId}', '${name}', ${priceKobo}, 'kitchen', 'food', 'active')`,
+    ],
+    { encoding: 'utf8' },
+  );
+  if (r.status !== 0) throw new Error(`seedItem failed: ${r.stderr?.slice(0, 200)}`);
+}
+
+/** Take every storefront item off sale, so each recording starts from a clean marketplace. */
+async function retireExistingStorefronts() {
+  const { spawnSync } = await import('node:child_process');
+  const r = spawnSync(
+    'docker',
+    [
+      'exec',
+      'amana-postgres',
+      'psql',
+      '-U',
+      'amana',
+      '-d',
+      'amana_dev',
+      '-c',
+      "update catalog_items set status = 'inactive' where status = 'active'",
+    ],
+    { encoding: 'utf8' },
+  );
+  if (r.status !== 0) throw new Error(`retire failed: ${r.stderr?.slice(0, 200)}`);
+}
+
 const SPEED = Number(process.env.SPEED ?? 1);
 
 mkdirSync(`${OUT}/video`, { recursive: true });
@@ -663,6 +718,152 @@ await step('airtime purchase succeeds', async () => {
 });
 await wait(4000);
 await page.screenshot({ path: `${OUT}/record-vas-receipt.png` });
+
+// ── 11 · The marketplace & the control fusion ──────────────────────────────
+// The point of this chapter is NOT that Amana has a marketplace. It is that approving a shop and
+// setting a spending limit are the same act, enforced by the same engine. So the order matters:
+// show the agent an EMPTY marketplace first, then have the parent approve, then show it appear.
+// Reversing that would make it look like an ordinary storefront with a permission bolted on.
+await cap(
+  '11 · The marketplace',
+  'A marketplace, built out of the same control.',
+  'Local businesses — distribution, not advertising.',
+);
+
+// Seed a live retailer the way ops onboard one: admin key, then approve. Doing it through the
+// real API keeps the "no mock branch anywhere" property this whole harness rests on.
+const adminPost = async (path, body) => {
+  const res = await fetch(`${BACKEND}${path}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-admin-api-key': ADMIN_KEY },
+    body: JSON.stringify(body ?? {}),
+  });
+  return res.ok ? res.json() : null;
+};
+
+let retailerId = null;
+await step('two live retailers with storefronts', async () => {
+  // Retire anything a previous run left behind. Households are tagged per run so they never
+  // collide, but retailers and their items persist, and by the fifth recording the "two nearby
+  // kitchens" the narration describes had become nine items from five shops.
+  //
+  // Deactivated rather than deleted: redemptions reference catalog items and retailers with
+  // `on delete restrict`, because a sold voucher must still be able to name what was bought.
+  // Browse only ever shows active items, so this is enough and destroys no history.
+  await retireExistingStorefronts();
+
+  // Two, so that narrowing is something the viewer can SEE happen. With one shop, approving it
+  // changes nothing on screen and the claim has to be taken on trust.
+  for (const [name, dish, price] of [
+    ['Mama Nkechi Kitchen', 'Lunch special', 120_000],
+    ['Corner Buka', 'Rice and stew', 90_000],
+  ]) {
+    const created = await adminPost('/retailers', {
+      businessName: name,
+      payoutBankCode: '000014',
+      payoutAccountNumber: '0123456789',
+    });
+    const id = created?.retailer?.id ?? created?.id;
+    if (!id) throw new Error(`could not create ${name}`);
+    await adminPost(`/retailers/${id}/approve`);
+    await seedItem(id, dish, price);
+    if (name === 'Mama Nkechi Kitchen') retailerId = id;
+  }
+  // Food, because the parent's allowlist earlier in the recording is transport / school / food.
+  // The category lock and the merchant rule are SEPARATE controls and this chapter is about the
+  // second one, so the item has to clear the first — otherwise it would be showing a category
+  // refusal while claiming to show merchant approval.
+});
+await wait(1500);
+
+await focus('agent');
+await cap(
+  '11 · The marketplace',
+  'The agent only sees what this wallet is already allowed to buy.',
+  'Filtered by the category lock the parent already set.',
+);
+await step('agent sees both kitchens', async () => {
+  af = await reboot('agent', AGENT, (f) =>
+    f.getByRole('button', { name: /SHOP WITH THIS WALLET/i }),
+  );
+  await af.getByRole('button', { name: /SHOP WITH THIS WALLET/i }).click();
+  // NOT an empty marketplace: with no merchant rule set, the catalogue is unrestricted apart
+  // from the category lock. Claiming otherwise would have the demo assert something about the
+  // product that is not true.
+  await af.getByText('Corner Buka').first().waitFor({ state: 'visible', timeout: 30_000 });
+  await af.getByText('Mama Nkechi Kitchen').first().waitFor({ state: 'visible', timeout: 30_000 });
+});
+await wait(3500);
+await page.screenshot({ path: `${OUT}/record-marketplace-empty.png` });
+
+await focus('principal');
+await cap(
+  '11 · The marketplace',
+  'The parent narrows it to one shop.',
+  'Approving writes a rule — into the same set as the limit and the category lock.',
+);
+await step('parent approves the shop', async () => {
+  pf = await reboot('principal', PRINCIPAL, (f) => f.getByRole('button', { name: 'Sub-wallets' }));
+  await pf.getByRole('button', { name: 'Sub-wallets' }).click();
+  await wait(2000);
+  await pf.getByText('Tunde — school run').first().click();
+  await wait(2500);
+  await pf.getByText('Choose shops', { exact: true }).first().click();
+  await wait(3000);
+  await pf
+    .getByRole('button', { name: /APPROVE THIS SHOP/i })
+    .first()
+    .click();
+  await pf
+    .getByText(/1 shop approved/i)
+    .first()
+    .waitFor({ state: 'visible', timeout: 30_000 });
+});
+await wait(3500);
+await page.screenshot({ path: `${OUT}/record-marketplace-approved.png` });
+
+await focus('agent');
+await cap(
+  '11 · The marketplace',
+  'Now the agent sees that one — and only that one.',
+  'The other kitchen is gone.',
+);
+await step('the other kitchen disappears', async () => {
+  af = await reboot('agent', AGENT, (f) =>
+    f.getByRole('button', { name: /SHOP WITH THIS WALLET/i }),
+  );
+  await af.getByRole('button', { name: /SHOP WITH THIS WALLET/i }).click();
+  await af
+    .getByText(/Lunch special|Rice and stew/)
+    .first()
+    .waitFor({ state: 'visible', timeout: 30_000 });
+  // Assert the NARROWING, not a particular shop: which card the principal screen renders first
+  // is not something this script controls, so naming the survivor would test render order
+  // instead of the thing being demonstrated.
+  const remaining = await af.getByText(/Mama Nkechi Kitchen|Corner Buka/).count();
+  if (remaining !== 1) throw new Error(`expected one kitchen to remain, saw ${remaining}`);
+});
+await wait(3000);
+
+await cap(
+  '11 · The marketplace',
+  'Buying gives them a code, not cash.',
+  'The shop is paid when the service is actually delivered.',
+);
+await step('agent buys a voucher', async () => {
+  await af
+    .getByText(/Lunch special|Rice and stew/)
+    .first()
+    .click();
+  await wait(2500);
+  await af.getByRole('button', { name: /BUY VOUCHER/i }).click();
+  await af
+    .getByText(/SHOW THIS CODE/i)
+    .first()
+    .waitFor({ state: 'visible', timeout: 45_000 });
+});
+await wait(4500);
+await page.screenshot({ path: `${OUT}/record-marketplace-voucher.png` });
 
 // ── outro ──────────────────────────────────────────────────────────────────
 await cap(

@@ -63,6 +63,20 @@ export const LINES = {
     'If the parent wants to allow it, that is one tap in the same editor.',
   'And now it goes through.':
     'And now it goes through. Same purchase, same wallet. The only thing that changed is the parent’s rule.',
+  // ── The marketplace & the control fusion ─────────────────────────────────
+  // Framed as the control primitive pointing outward, not as a shopping feature. The
+  // interesting claim is that approving a shop is the SAME act as setting a limit.
+  'A marketplace, built out of the same control.':
+    'The last piece turns that control outward. Amana has a marketplace of local businesses — salons, clinics, schools, mechanics. Not advertising. Distribution, paid for by the retailer only when someone actually turns up.',
+  'The agent only sees what this wallet is already allowed to buy.':
+    'The agent opens it and sees two nearby kitchens. Only two, because the marketplace is filtered by the same category lock the parent already set. Nobody is shown something they cannot buy, and nobody is upsold anything.',
+  'The parent narrows it to one shop.':
+    'The parent can go further and name the exact shops this wallet may use. Here is the part that is hard to copy: approving a shop is not a marketplace setting. It writes a rule into the same rule set that holds the spending limit and the category lock, and the same engine enforces all three. The marketplace and the control system are one thing.',
+  'Now the agent sees that one — and only that one.':
+    'And the other kitchen is gone. The agent sees the approved shop, and only that shop, at the price the retailer set.',
+  'Buying gives them a code, not cash.':
+    'Buying gives them a code to show at the counter. The money leaves the wallet now and reaches the shop when the service is actually delivered. If it never is, it expires and the money comes back.',
+
   'One wallet. Many agents. Every naira under control.':
     'One wallet. Many people spending from it. Every naira under control.',
 };

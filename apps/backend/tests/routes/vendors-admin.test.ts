@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it } from 'vitest';
+import { auditRepo } from '../../src/modules/audit/audit.repo';
 import { vendorClaimsRepo } from '../../src/modules/vendors/vendor-claims.repo';
 import { vendorsRepo } from '../../src/modules/vendors/vendors.repo';
 import { createServer } from '../../src/server';
@@ -104,6 +105,15 @@ describe('/vendors-admin', () => {
     );
     expect(rows[0]?.status).toBe('verified');
     expect(rows[0]?.ownership_proof).toBe('ops');
+
+    // Spec §7.1: the approval must be recorded in the audit log with the operator as actor.
+    const auditRows = await auditRepo.listByAction(testDb, 'vendor.claim_approved_by_ops');
+    expect(auditRows).toHaveLength(1);
+    expect(auditRows[0]?.actorKind).toBe('ops');
+    expect(auditRows[0]?.subjectId).toBe(v.id);
+    // The claimant's phone must never appear raw anywhere in the serialised payload.
+    const serialised = JSON.stringify(auditRows[0]?.payloadJson);
+    expect(serialised).not.toContain(phone);
 
     // A second approval hits the CAS in `vendorsRepo.claim` — the vendor is no longer `observed`.
     const again = await adminPost(`/vendors-admin/vendors/${v.id}/approve-claim`, {

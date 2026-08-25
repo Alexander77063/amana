@@ -26,8 +26,12 @@ export type ClaimVerifyResult =
   | { kind: 'ownership_unproved'; reason: string }
   | { kind: 'partner_down' };
 
-/** Last four digits only — enough to recognise a number in the audit log, useless if leaked. */
-function phoneFingerprint(phone: string): string {
+/**
+ * Last four digits only — enough to recognise a number in the audit log, useless if leaked.
+ * Exported so `routes/vendors-admin.ts`'s `approve-claim` writes the identical shape rather than
+ * a second, subtly different hash — the audit log is read far more widely than the vendors table.
+ */
+export function phoneFingerprint(phone: string): string {
   const tail = phone.slice(-4);
   const digest = createHash('sha256').update(phone).digest('hex').slice(0, 8);
   return `***${tail}:${digest}`;

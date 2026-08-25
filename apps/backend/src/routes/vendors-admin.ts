@@ -5,7 +5,9 @@ import { db } from '../db/client';
 import { mintPrefixedCode } from '../lib/crockford';
 import { parseBody, parseParams } from '../lib/validate';
 import { adminAuth } from '../middleware/admin-auth';
+import { auditRepo } from '../modules/audit/audit.repo';
 import { householdsRepo } from '../modules/identity/households.repo';
+import { phoneFingerprint } from '../modules/vendors/vendor-claim.service';
 import { vendorClaimsRepo } from '../modules/vendors/vendor-claims.repo';
 import { vendorsRepo } from '../modules/vendors/vendors.repo';
 
@@ -34,7 +36,10 @@ const ApproveBody = z.object({
  * - `approve-claim` mints a code and assigns a business identity on an operator's say-so — the
  *   escape hatch for the claim rail's 409 dead end (a real business account whose phone isn't the
  *   one NIBSS has on file for it). It records `ownership_proof` as `'ops'`, never `'phone_lookup'`,
- *   so the two trust levels stay distinguishable in the data forever after.
+ *   so the two trust levels stay distinguishable in the data forever after, and it writes an
+ *   `audit_log` entry (`actorKind: 'ops'`, action `vendor.claim_approved_by_ops`) in the same
+ *   transaction as the claim itself, per spec §7.1 — the most powerful action in this rail is not
+ *   allowed to be the one that leaves no trace.
  * - `category` (`setOpsCategory`) outranks even a *claimed* category with no CAS guard at all —
  *   unlike `setObservedCategory`, which only wins against `observed`. That is correct here: an
  *   operator is correcting a business's own answer about itself, and that must always win. Both
@@ -77,6 +82,24 @@ export const vendorsAdminRoute = new Hono()
       if (attempt && attempt.vendorId === params.id) {
         await vendorClaimsRepo.markVerified(txDb, attempt.id, 'ops', now);
       }
+
+      // Spec §7.1: an ops manual approval must be recorded in the audit log with the operator as
+      // actor. `actorKind: 'ops'` (never `'system'`) so this is queryable as distinct from the
+      // self-service `vendor.claimed` path — the whole point of the two trust levels is that they
+      // stay separable after the fact. Same commit as the claim itself: an approval with no
+      // record, or a record for an approval that rolled back, are both wrong.
+      await auditRepo.append(txDb, {
+        actorKind: 'ops',
+        action: 'vendor.claim_approved_by_ops',
+        subjectKind: 'vendor',
+        subjectId: params.id,
+        payloadJson: {
+          claimantPhone: phoneFingerprint(body.phone),
+          publicCode,
+          category: body.category,
+          ownershipProof: 'ops',
+        },
+      });
       return claimedRow;
     });
     if (!claimed) return c.json({ error: 'not_claimable' }, 409);

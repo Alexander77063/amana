@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { jsonb, pgEnum, pgTable, text, timestamp, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { users } from './identity';
 
-export const actorKindEnum = pgEnum('actor_kind', ['user', 'system', 'partner']);
+export const actorKindEnum = pgEnum('actor_kind', ['user', 'system', 'partner', 'ops']);
 
 export const auditLog = pgTable(
   'audit_log',

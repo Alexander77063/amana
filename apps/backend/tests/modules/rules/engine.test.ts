@@ -9,6 +9,8 @@ const intent = (overrides: Partial<TxnIntent> = {}): TxnIntent => ({
   vendorBankCode: '058',
   vendorAccountNumber: '0123456789',
   vendorResolvedName: 'MUSA',
+  vendorId: null,
+  resolvedCategory: null,
   confirmedAt: new Date('2026-05-03T12:00:00Z'),
   ...overrides,
 });

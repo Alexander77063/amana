@@ -76,6 +76,9 @@ export const lifecycleService = {
         // A bank transfer has no retailer. A merchant rule therefore denies it — which is why a
         // merchant rule is only ever evaluated on the marketplace path, never here.
         retailerId: null,
+        // Task 11 replaces these with the registry-resolved vendor and category.
+        vendorId: null,
+        resolvedCategory: null,
         confirmedAt: input.now,
       };
 

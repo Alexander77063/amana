@@ -12,6 +12,8 @@ const intent = (iso: string): TxnIntent => ({
   vendorBankCode: null,
   vendorAccountNumber: null,
   vendorResolvedName: null,
+  vendorId: null,
+  resolvedCategory: null,
   confirmedAt: new Date(iso),
 });
 

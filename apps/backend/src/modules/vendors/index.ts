@@ -9,3 +9,9 @@ export {
   vendorResolutionService,
   type ResolveInput,
 } from './vendor-resolution.service';
+export { vendorObservationsRepo } from './vendor-observations.repo';
+export { vendorObservationService } from './vendor-observation.service';
+export { vendorsRepo } from './vendors.repo';
+export { vendorRegistryService } from './vendor-registry.service';
+export { vendorCategoryResolver } from './vendor-category-resolver.service';
+export { computeConsensus } from './consensus';

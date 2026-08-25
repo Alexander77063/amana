@@ -1,5 +1,12 @@
 # Amana — Backend Schema
 
+
+> ⚠️ **SUPERSEDED as of 2026-08-25.**
+>
+> Predates five of the fifteen schema files (VAS, marketplace, sticker, recents, and the retailer
+> additions). Use [`docs/product/database-schema.md`](../product/database-schema.md), which is
+> generated from `apps/backend/src/db/schema/` and states the money invariants.
+
 **Version:** 1.0 | **Date:** 2026-05-13
 **Stack:** Hono · Drizzle ORM 0.34.1 · Postgres 15 (Supabase + PostGIS)
 **API base:** `https://amana-api.fly.dev` (staging) / `https://api.amana-ng.com` (production)

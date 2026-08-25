@@ -34,12 +34,13 @@ Nigerian middle-class principals — parents, employers, household heads — rou
 
 The status quo fails all parties:
 
-| Mechanism           | Principal control   | Auditability          | Agent friction                      
-| Cash                | None                | Zero                  | Counting, accusations 
-| Debit card          | None (PIN ≠ rule)   | Statement only        | Loss, fraud 
-| Bank transfer       | None                | Sender statement only | No category, no limit 
-| WhatsApp + bank app | None                | Screenshots           | High manual overhead 
-| **Amana**           | **Real-time rules** | **Signed audit log**  | **Normal NIP transfer** 
+| Mechanism           | Principal control   | Auditability          | Agent friction
+|---|---|---|---|
+| Cash                | None                | Zero                  | Counting, accusations
+| Debit card          | None (PIN ≠ rule)   | Statement only        | Loss, fraud
+| Bank transfer       | None                | Sender statement only | No category, no limit
+| WhatsApp + bank app | None                | Screenshots           | High manual overhead
+| **Amana**           | **Real-time rules** | **Signed audit log**  | **Normal NIP transfer**
 
 The core insight: *"What did you do with the ₦15,000 I gave you yesterday?"* is the most frequent source of low-grade household financial friction in Nigeria. SMB owners have the exact same conversation about staff.
 
@@ -239,14 +240,15 @@ the demand side worth anything, and it is acquired differently.
 
 ## 7. Non-Functional Requirements
 
-| Category           | Requirement 
-| **Availability**   | 99.5% uptime (MVP target). 1 min machine minimum on Fly.io prevents cold-start latency. 
-| **Latency**        | P95 API response < 500 ms (non-NIP paths). NIP settlement is async and subject to NIBSS SLAs. 
-| **Security**       | JWT auth (RS256 preferred, HS256 at MVP). All secrets via Fly secrets manager. DB over TLS (`sslmode=require`). BVN/NIN stored at rest, never returned in API responses. 
-| **Compliance**     | CBN KYC Tier 2 (principal): Phone + BVN + NIN, ₦300K wallet cap. Agent: Phone + NIN. AML narration: `AMN/AGT/[hash]` — NIN never in NIBSS narration. 
-| **Scalability**    | Stateless Hono server. Horizontal scale via Fly Machines. DB connection via postgres-js pool. 
-| **Observability**  | Health endpoint `/health`. Fly health checks every 15s. Structured logs (stdout). 
-| **Data integrity** | Immutable postings ledger. Audit log append-only. Idempotency keys on all financial mutations. 
+| Category           | Requirement
+|---|---|
+| **Availability**   | 99.5% uptime (MVP target). 1 min machine minimum on Fly.io prevents cold-start latency.
+| **Latency**        | P95 API response < 500 ms (non-NIP paths). NIP settlement is async and subject to NIBSS SLAs.
+| **Security**       | JWT auth (RS256 preferred, HS256 at MVP). All secrets via Fly secrets manager. DB over TLS (`sslmode=require`). BVN/NIN stored at rest, never returned in API responses.
+| **Compliance**     | CBN KYC Tier 2 (principal): Phone + BVN + NIN, ₦300K wallet cap. Agent: Phone + NIN. AML narration: `AMN/AGT/[hash]` — NIN never in NIBSS narration.
+| **Scalability**    | Stateless Hono server. Horizontal scale via Fly Machines. DB connection via postgres-js pool.
+| **Observability**  | Health endpoint `/health`. Fly health checks every 15s. Structured logs (stdout).
+| **Data integrity** | Immutable postings ledger. Audit log append-only. Idempotency keys on all financial mutations.
 
 ---
 
@@ -268,11 +270,12 @@ the demand side worth anything, and it is acquired differently.
 
 ## 9. Success Metrics
 
-| Metric                                     | MVP target (month 3 post-launch) 
-| Registered principal households            | 500 
-| Active sub-wallets (spent in last 30 days) | 1,000 
-| Weekly transaction volume                  | ₦5M 
-| Bump approval rate                         | > 70% (proxy for principal engagement) 
-| Push notification opt-in                   | > 80% 
-| Transaction failure rate                   | < 5% 
-| Support tickets per 100 transactions       | < 2 
+| Metric                                     | MVP target (month 3 post-launch)
+|---|---|
+| Registered principal households            | 500
+| Active sub-wallets (spent in last 30 days) | 1,000
+| Weekly transaction volume                  | ₦5M
+| Bump approval rate                         | > 70% (proxy for principal engagement)
+| Push notification opt-in                   | > 80%
+| Transaction failure rate                   | < 5%
+| Support tickets per 100 transactions       | < 2

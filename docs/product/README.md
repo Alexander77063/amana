@@ -55,20 +55,40 @@ been load-bearing all along.
 
 ### The design brief was wrong, not just incomplete
 
-The refresh was scoped as "add a note about the retailer portal". Checking the brief against
+The refresh was scoped as "add a note about the retailer portal". Diffing the brief against
 `packages/ui/src/theme/tokens.ts` before writing that note found that **v1.0's entire palette and
 typeface never shipped**: it specified a green (`#1A6B4A`) and off-white system set in Inter, and
 `#1A6B4A` appears **nowhere** in `packages/ui` or either app. What shipped is dark navy and gold in
 Georgia + Plus Jakarta Sans. Anyone designing from that brief would have produced work that could
 not be built.
 
-The old values are kept in the brief as *superseded* rather than deleted, so a v1.0 mock can be
-recognised for what it is.
+Because §3 and §4 were dead, everything downstream that cited them was dead too. §5 Component
+Patterns specified primary buttons as white-on-`--amana-green`; they ship gold-on-navy. §6 screens
+cited a `display` type token that does not exist. Four things were not merely stale but **false**:
 
-Auditing the portal's duplicated tokens the same way found a third thing: its `--border` alpha had
-been copied as `0.08` against a source of `0.06`. Invisible in review, invisible in a screenshot,
-and found only by reading the two files side by side. Fixed. **The lesson generalises — "add a
-note" is not a safe scope for a document nobody has diffed against the code.**
+| Said | Actually |
+|---|---|
+| §3/§4 — green + off-white, Inter | Navy + gold, Georgia + Plus Jakarta Sans |
+| §5.1 — primary button is white on green | Gold ground, `bg.base` text (white on `#C9A227` fails AA) |
+| §6.2 — SubWalletDetail shows a **balance card** | Sub-wallets are **limits-only**; a sub-wallet balance is structurally always ₦0.00, and the app rendered exactly that until it was fixed. It shows a spend summary. |
+| §8 — "Dark mode: not in MVP scope. Light mode only." | Dark ships, and follows the OS. This was the most misleading line in the document. |
+
+Old values are kept as *superseded* rather than deleted, so a v1.0 mock can be recognised for what
+it is.
+
+Two more problems surfaced from auditing rather than reading. The portal's duplicated tokens had
+copied `--border` as alpha `0.08` against a source of `0.06` — invisible in review, invisible in a
+screenshot, found only by diffing the two files. And **every table in the design brief was missing
+its `|---|` delimiter row** — all six of them rendered as literal pipe text rather than tables, in
+the one document written to be handed to an outside design agency.
+
+Worth admitting: the tables added during this refresh had *copied the broken pattern*, because it
+looked like house style. Four more, propagated by the very pass that was meant to fix the document.
+A sweep then found 37 more across four other files. All 44 fixed, and now checked by
+[`tools/docs/validate-tables.py`](../../tools/docs/validate-tables.py) — a rendering bug that is
+invisible in an editor and obvious in a browser needs a machine, not a reader.
+
+**"Add a note" is not a safe scope for a document nobody has diffed against the code.**
 
 ## Related operational docs
 

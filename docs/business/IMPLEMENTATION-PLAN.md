@@ -45,13 +45,14 @@ Async:
 ### 1.2 Why this stack
 
 | Choice                  | Rationale |
-| **Hono**                | Fastest Node.js HTTP framework; edge-ready; typed middleware; tiny bundle for Docker 
-| **Drizzle ORM**         | Type-safe SQL without query-builder magic; migration files are plain SQL (reviewable); no runtime overhead 
-| **Postgres (Supabase)** | PostGIS for geolocation; managed ops; free tier for early-stage; direct connection string for our backend 
-| **Expo / React Native** | Single codebase for iOS + Android; Expo managed workflow; Expo Push handles FCM + APNS routing 
-| **pnpm monorepo**       | Fast installs; strict hoisting; `pnpm deploy --prod` produces a self-contained backend bundle for Docker 
-| **Fly.io (JNB)**        | Johannesburg region; closest Fly region to Nigeria; Machines v2; `release_command` for zero-downtime migrations 
-| **vitest**              | Fastest TypeScript test runner; no transpile step; ESM-native 
+|---|---|
+| **Hono**                | Fastest Node.js HTTP framework; edge-ready; typed middleware; tiny bundle for Docker
+| **Drizzle ORM**         | Type-safe SQL without query-builder magic; migration files are plain SQL (reviewable); no runtime overhead
+| **Postgres (Supabase)** | PostGIS for geolocation; managed ops; free tier for early-stage; direct connection string for our backend
+| **Expo / React Native** | Single codebase for iOS + Android; Expo managed workflow; Expo Push handles FCM + APNS routing
+| **pnpm monorepo**       | Fast installs; strict hoisting; `pnpm deploy --prod` produces a self-contained backend bundle for Docker
+| **Fly.io (JNB)**        | Johannesburg region; closest Fly region to Nigeria; Machines v2; `release_command` for zero-downtime migrations
+| **vitest**              | Fastest TypeScript test runner; no transpile step; ESM-native
 
 ---
 
@@ -245,10 +246,11 @@ Supabase Postgres 15 (eu-west-2 / London)
 ### 5.1 Environment variables (Fly secrets)
 
 | Secret                  | Description |
-| `DATABASE_URL`          | Supabase direct connection URI 
-| `JWT_SECRET`            | 32-byte hex random 
-| `ANCHOR_API_KEY`        | Anchor Bearer token (pending KYB) 
-| `ANCHOR_WEBHOOK_SECRET` | HMAC signing secret (pending webhook config) 
+|---|---|
+| `DATABASE_URL`          | Supabase direct connection URI
+| `JWT_SECRET`            | 32-byte hex random
+| `ANCHOR_API_KEY`        | Anchor Bearer token (pending KYB)
+| `ANCHOR_WEBHOOK_SECRET` | HMAC signing secret (pending webhook config)
 
 ### 5.2 Health check
 
@@ -261,12 +263,13 @@ Supabase Postgres 15 (eu-west-2 / London)
 ### 6.1 Known MVP limitations
 
 | Limitation                                                       | Severity | Plan |
-| Anchor KYB pending — NIP transfers non-functional until approved | High     | Apply now; typically 1–2 weeks 
-| No staging environment                                           | Medium   | Add before beta invite 
-| Cron job not deployed (bump expiry, notification digest)         | Low      | Separate Fly machine in v1.1 
-| iOS NFC pairing not available                                    | Low      | Architectural constraint; QR covers iOS 
-| Wallet balance computed from ledger scan (no cache)              | Low      | Materialised balance view in v1.1 when volume justifies 
-| No custom domain configured                                      | Low      | DNS CNAME + `fly certs add api.amana-ng.com` 
+|---|---|---|
+| Anchor KYB pending — NIP transfers non-functional until approved | High     | Apply now; typically 1–2 weeks
+| No staging environment                                           | Medium   | Add before beta invite
+| Cron job not deployed (bump expiry, notification digest)         | Low      | Separate Fly machine in v1.1
+| iOS NFC pairing not available                                    | Low      | Architectural constraint; QR covers iOS
+| Wallet balance computed from ledger scan (no cache)              | Low      | Materialised balance view in v1.1 when volume justifies
+| No custom domain configured                                      | Low      | DNS CNAME + `fly certs add api.amana-ng.com`
 
 ### 6.2 v1.1 roadmap
 

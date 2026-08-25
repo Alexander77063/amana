@@ -2131,7 +2131,17 @@ In `apps/backend/src/modules/rules/types.ts`, add to `TxnIntent` after `retailer
   resolvedCategory: string | null;
 ```
 
-Fix every construction site the compiler now flags — `lifecycle.service.ts` and the rule/anomaly tests — by adding `vendorId: null, resolvedCategory: null`. Task 11 gives `lifecycle.service.ts` its real values.
+Fix every construction site the compiler now flags by adding `vendorId: null, resolvedCategory: null`. There are **three production sites**, not one — do not stop at the obvious one:
+
+| Site | What to pass, and why |
+|---|---|
+| `modules/transactions/lifecycle.service.ts:70` | `null` for both here; **Task 11** replaces them with the resolved values. This is the only site that ever gets a non-null vendor |
+| `modules/marketplace/purchase.service.ts` (the literal ending `confirmedAt: input.now`) | `null` for both, permanently. A marketplace purchase goes to a **retailer**, which is a different namespace from a registry vendor (D-V1) — `retailerId` is already populated there and that is the correct identifier for that path |
+| `modules/vas/purchase.service.ts` (same shape) | `null` for both, permanently. Airtime and bills are bought from a biller through Anchor; there is neither a retailer nor a registry vendor |
+
+Plus the rule and anomaly test files. `tests/modules/rules/engine.test.ts:6` has a shared `intent(overrides)` factory — adding the fields there covers that file's cases in one edit; the per-evaluator and anomaly tests build their own literals.
+
+Run `pnpm --filter @amana/backend typecheck` to enumerate the full list rather than trusting this table to be complete.
 
 - [ ] **Step 5: Export from the module barrel**
 

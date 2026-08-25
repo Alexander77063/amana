@@ -92,7 +92,7 @@ export const vendorObservationsRepo = {
       SELECT bank_code,
              account_number,
              COUNT(*)::int AS household_count,
-             (array_agg(account_name ORDER BY last_seen_at DESC, ctid DESC))[1] AS account_name
+             (array_agg(account_name ORDER BY last_seen_at DESC))[1] AS account_name
       FROM vendor_observations
       GROUP BY bank_code, account_number
       HAVING COUNT(*) >= ${minHouseholds}

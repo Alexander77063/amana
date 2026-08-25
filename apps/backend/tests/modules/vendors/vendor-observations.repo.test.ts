@@ -7,6 +7,14 @@ import { makeHousehold } from '../../helpers/vendor-seed';
 
 const NOW = new Date('2026-08-25T10:00:00Z');
 
+/**
+ * Deliberately later than NOW. `accountsAtOrAboveThreshold` picks the most recently seen
+ * `account_name`, so a test that asserts WHICH name comes back must give the winner a strictly
+ * later `last_seen_at`. With every observation at the same instant the ordering is arbitrary and
+ * the assertion is flaky — do not collapse these two timestamps.
+ */
+const LATER = new Date('2026-08-25T11:00:00Z');
+
 describe('vendorObservationsRepo', () => {
   beforeEach(async () => {
     await truncateAll();
@@ -80,7 +88,8 @@ describe('vendorObservationsRepo', () => {
     }
     expect(await vendorObservationsRepo.accountsAtOrAboveThreshold(testDb, 3)).toEqual([]);
 
-    // Two more households, one payment each, does.
+    // Two more households, one payment each, does. Later timestamp ensures 'MAMA PUT KITCHEN'
+    // is the most recently seen name and will be returned by the query.
     for (let i = 0; i < 2; i++) {
       const h = await makeHousehold(testDb);
       await vendorObservationsRepo.record(testDb, {
@@ -89,7 +98,7 @@ describe('vendorObservationsRepo', () => {
         householdId: h.householdId,
         accountName: 'MAMA PUT KITCHEN',
         category: 'food',
-        now: NOW,
+        now: LATER,
       });
     }
     const found = await vendorObservationsRepo.accountsAtOrAboveThreshold(testDb, 3);

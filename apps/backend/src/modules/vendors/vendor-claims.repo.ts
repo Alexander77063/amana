@@ -76,4 +76,14 @@ export const vendorClaimsRepo = {
       .returning({ id: vendorClaimAttempts.id });
     return changed.length;
   },
+
+  /** Pending attempts an operator may need to approve by hand. Newest first. */
+  async listPendingForOps(db: DbOrTx, now: Date): Promise<ClaimAttemptRow[]> {
+    return db
+      .select()
+      .from(vendorClaimAttempts)
+      .where(and(eq(vendorClaimAttempts.status, 'pending'), gt(vendorClaimAttempts.expiresAt, now)))
+      .orderBy(desc(vendorClaimAttempts.createdAt))
+      .limit(200);
+  },
 };

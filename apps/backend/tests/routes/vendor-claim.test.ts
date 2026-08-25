@@ -143,4 +143,37 @@ describe('POST /vendor-claim', () => {
     });
     expect(unproved.status).toBe(409);
   });
+
+  it('503s when the ownership partner is down', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+    await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
+      kind: 'verified',
+      challengeId: 'c1',
+      purpose: 'vendor_claim',
+    });
+    vi.spyOn(vendorOwnershipService, 'proveByPhoneLookup').mockResolvedValue({
+      proved: false,
+      reason: 'partner_down',
+    });
+    const res = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '123456',
+      category: 'food',
+    });
+    expect(res.status).toBe(503);
+  });
 });

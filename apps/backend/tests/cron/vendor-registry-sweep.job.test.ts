@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { vendorRegistrySweepJob } from '../../src/cron/jobs/vendor-registry-sweep.job';
+import { vendorClaimsRepo } from '../../src/modules/vendors/vendor-claims.repo';
 import { vendorRegistryService } from '../../src/modules/vendors/vendor-registry.service';
 
 describe('vendorRegistrySweepJob', () => {
@@ -12,6 +13,7 @@ describe('vendorRegistrySweepJob', () => {
     const spy = vi
       .spyOn(vendorRegistryService, 'sweep')
       .mockResolvedValue({ promoted: 0, categorised: 0, pruned: 0 });
+    const expirySpy = vi.spyOn(vendorClaimsRepo, 'expireOverdue').mockResolvedValue(0);
 
     await vendorRegistrySweepJob.run();
 
@@ -23,5 +25,10 @@ describe('vendorRegistrySweepJob', () => {
     expect(cfg?.retentionDays).toBe(180);
     expect(cfg?.sensitiveCategories).toContain('pharmacy');
     spy.mockRestore();
+
+    // Wired so an abandoned claim attempt releases its partial-unique slot — without this, a
+    // vendor abandoned mid-claim can never be claimed again.
+    expect(expirySpy).toHaveBeenCalledTimes(1);
+    expirySpy.mockRestore();
   });
 });

@@ -25,6 +25,7 @@ import { transactionsRoute } from './routes/transactions';
 import { vasRoute } from './routes/vas';
 import { vendorClaimRoute } from './routes/vendor-claim';
 import { vendorsRoute } from './routes/vendors';
+import { vendorsAdminRoute } from './routes/vendors-admin';
 import { webhooksRoute } from './routes/webhooks';
 
 function buildMeRouter(): Hono {
@@ -200,6 +201,7 @@ export function createServer(): Hono {
   app.route('/retailer', retailerPortalRoute);
   app.route('/vas', vasRoute);
   app.route('/vendor-claim', vendorClaimRoute);
+  app.route('/vendors-admin', vendorsAdminRoute);
   app.route('/media', mediaRoute);
   app.route('/', buildMeRouter());
   app.onError(errorHandler);

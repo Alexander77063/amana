@@ -89,4 +89,23 @@ export const householdsRepo = {
     const row = rows[0];
     return row ? { id: row.id, vendorCategoryEnforced: row.vendor_category_enforced } : undefined;
   },
+
+  /**
+   * Set (or clear) a household's registry-enforcement override.
+   *
+   * `null` is a meaningful value, not a missing one: it means "inherit the global default", and it
+   * is how a household is returned to the fleet-wide setting after being pinned either way.
+   */
+  async setVendorCategoryEnforced(
+    db: DbOrTx,
+    householdId: string,
+    value: boolean | null,
+  ): Promise<boolean> {
+    const changed = await db
+      .update(households)
+      .set({ vendorCategoryEnforced: value })
+      .where(eq(households.id, householdId))
+      .returning({ id: households.id });
+    return changed.length > 0;
+  },
 };

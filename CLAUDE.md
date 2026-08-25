@@ -117,13 +117,9 @@ Fly.io app `amana-api`, region `jnb`. Two process groups: `app` (web, `/health` 
 
 `docs/product/` (**the ten foundation docs and their status — start here**), `docs/adr/` (decisions), `docs/superpowers/plans/` (sub-plan implementation docs), `docs/superpowers/specs/` (design spec), `docs/runbook/` (`local-dev.md`, `anchor-sandbox.md`, `funds-model.md` — the limits-only sub-wallet funds model & money flows, `vas.md` — digital VAS (airtime/data/electricity/cable) money model, cash-out control & webhook flow, `retailer-onboarding.md` — marketplace retailer state machine, admin auth, `kyb.*` webhooks & the retailer portal, `marketplace-buyer.md` — buyer browse, the category-vs-section distinction & the merchant-rule control fusion, `go-live-checklist.md` — pre-production readiness), `docs/brainstorm/locked-decisions.md`.
 
-`python3 tools/docs/validate-tables.py` checks every Markdown table under `docs/` and runs as its
-own CI job. A pipe table missing its `|---|` delimiter row renders as literal pipe text rather than
-a table — invisible in an editor, obvious in a browser — so it needs a machine, not a reader. **If
-you add a table to a doc, run it.**
+**Add a table to a doc, then run `python3 tools/docs/validate-tables.py`** (Python, in an otherwise
+Node repo; its own CI job). A pipe table missing its `|---|` delimiter row renders as literal pipe
+text — invisible in an editor, obvious in a browser — so it needs a machine, not a reader.
 
-**The four May documents (`PDR`, `RRD`, `APP-FLOW`, `UI-UX-DESIGN-BRIEF`) were refreshed 2026-08-25
-and each carries a dated banner saying what changed and what was already right.** Extend the real
-document; never write a second copy. Two versions of a PRD drift within a week and then neither can
-be trusted. Before adding "just a note" to any of them, diff the section you are touching against
-the code — the design brief's whole palette and typeface turned out never to have shipped.
+**Before adding "just a note" to a requirement doc, diff the section against the code.** The design
+brief's entire palette and typeface turned out never to have shipped.

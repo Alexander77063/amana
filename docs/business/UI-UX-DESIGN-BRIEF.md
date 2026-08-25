@@ -418,6 +418,11 @@ matters visually:
 
 ## 8. Platform Notes
 
+> **Verified against code 2026-08-25.** The NFC claims below were checked rather than assumed —
+> `react-native-nfc-manager` is a dependency of both apps, `apps/agent/src/screens/NFCPairScreen.tsx`
+> exists, and `PairingMethodScreen.tsx:44` gates the NFC option behind `Platform.OS === 'android'`.
+> Everything in this section stands.
+
 ### iOS
 - Safe area insets respected via `SafeAreaView` on all screens
 - NFC pairing is not available (OS limitation) — show QR path only

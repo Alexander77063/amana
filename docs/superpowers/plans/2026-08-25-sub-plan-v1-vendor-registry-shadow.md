@@ -914,6 +914,10 @@ git commit -m "feat(vendors): observation service, never throws into the settlem
 
 **Why this shape:** `finalise` currently wraps everything in `db.transaction`. The observation write must happen **after that transaction commits**, not inside it. A caught error inside a Postgres transaction can still have aborted it — every subsequent statement then fails and the COMMIT silently becomes a ROLLBACK. Putting a best-effort registry write inside the money transaction risks exactly that. `runInBackground` is the existing seam for detached best-effort work (`bump-workflow.service.ts:81`, `lifecycle.service.ts:176`), and `truncateAll()` already drains it, so tests stay deterministic without any new harness.
 
+**The handle the background task uses is NOT `finalise`'s `db` parameter.** This was verified, not assumed: `routes/webhooks.ts:102` calls `settlementService.finalise(tx, …)` with an open transaction handle, while `reconciliation.service.ts:54` passes the pool. A detached task holding that `tx` would run against a handle whose transaction has already committed and closed — precisely the thing the post-commit placement exists to avoid, reintroduced one line later. Step 4 therefore imports the module-level pool and hands the background task *that*.
+
+This is the one place in the sub-plan that deliberately departs from the repo's dependency-injection convention, and the departure is the point: every other call in `finalise` must join the caller's transaction, and this one must not.
+
 - [ ] **Step 1: Write the failing test**
 
 Append to `apps/backend/tests/modules/transactions/settlement.service.test.ts`:
@@ -1019,6 +1023,9 @@ In `apps/backend/src/modules/transactions/settlement.service.ts`, add the import
 
 ```ts
 import { runInBackground } from '../../lib/background';
+// The connection POOL, not the caller's handle. `finalise` is called with an open transaction by
+// routes/webhooks.ts:102, and a task that outlives the commit cannot use that transaction.
+import { db as pool } from '../../db/client';
 import { vendorObservationService } from '../vendors/vendor-observation.service';
 ```
 
@@ -1066,10 +1073,14 @@ Immediately after the closing `});` of the `db.transaction(...)` call, and befor
     // that has already moved: a fault here must not be able to roll back a settled payment. Note
     // that a try/catch INSIDE the transaction would not be safe — a Postgres error aborts the
     // whole transaction even when the JS error is caught, turning the COMMIT into a ROLLBACK.
+    //
+    // `pool`, NOT the `db` parameter: webhooks.ts calls finalise(tx, …), and by the time this task
+    // runs that transaction has committed and closed. This is the one call in the file that must
+    // not join the caller's transaction — which is exactly why it does not take the injected handle.
     if (observation) {
       runInBackground(
         vendorObservationService
-          .recordSettlement(db, { ...observation, now: input.settledAt })
+          .recordSettlement(pool, { ...observation, now: input.settledAt })
           .catch((e: unknown) => {
             logger.warn({ err: (e as Error).message }, 'vendor observation task failed');
           }),
@@ -1078,6 +1089,35 @@ Immediately after the closing `});` of the `db.transaction(...)` call, and befor
 ```
 
 `logger` is already imported in this file.
+
+**Add a regression test for the handle**, because this is the failure that would otherwise only appear in production under the webhook path:
+
+```ts
+  it('observes a settlement driven through an OPEN transaction, as the webhook does', async () => {
+    const { masterWalletId, subWalletId, householdId } = await makeFundedSubWallet(testDb);
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    const txn = await makeInFlightSpend(testDb, {
+      masterWalletId, subWalletId,
+      vendorBankCode: bankCode, vendorAccount: accountNumber,
+      vendorResolvedName: 'MAMA PUT KITCHEN', category: 'food',
+    });
+
+    // Mirrors routes/webhooks.ts:102 — finalise runs INSIDE the caller's transaction.
+    await testDb.transaction(async (tx) => {
+      await settlementService.finalise(tx as typeof testDb, {
+        transactionId: txn.id,
+        nibssSessionId: factories.nibssSessionId(),
+        settledAt: new Date('2026-08-25T10:00:00Z'),
+      });
+    });
+    await drainBackgroundTasks();
+
+    const rows = await vendorObservationsRepo.listForAccount(testDb, bankCode, accountNumber);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.householdId).toBe(householdId);
+  });
+```
 
 - [ ] **Step 5: Run test to verify it passes**
 
@@ -2125,6 +2165,8 @@ git commit -m "feat(vendors): category resolver and registry fields on TxnIntent
 
 **This is the task the user's rollout decision lives in.** With enforcement off, the decision returned must be identical to what it would have been without a registry at all.
 
+**Principal direct spends are deliberately not covered here.** `lifecycleService.evaluate` returns early for `txn.subWalletId === null` — no rule evaluation, per decision #17 — and that early return sits *above* the transaction block this task edits. So a principal's own spend never gets `vendor_id` or `resolved_category` written. That is correct and needs no fix: there are no rules to shadow, nothing reads the attribution column, and the settlement observation in Task 5 still fires, so the registry learns from principal spending exactly as it does from agent spending. Stated because a reader comparing the two paths will otherwise assume it is an oversight.
+
 - [ ] **Step 1: Write the failing test**
 
 Create `apps/backend/tests/modules/transactions/lifecycle.shadow.test.ts`:
@@ -2327,6 +2369,15 @@ In `apps/backend/src/modules/audit/events.ts`, add to the `auditEvents` object:
     vendorId: string;
     appCategory: string | null;
     registryCategory: string | null;
+    /**
+     * Where the registry category came from. Load-bearing for the operator query, not decoration:
+     * an `observed` category NEVER enforces (D-V7), so rows carrying one describe a difference that
+     * will not happen. Grouping the shadow log without this field blends "enforcement would change
+     * this" with "enforcement can never change this", and the whole point of the log is deciding
+     * whether to switch enforcement on. In V1 every vendor is `observed` and the field looks
+     * redundant; from SP-V2 onward both sources coexist and it is the only thing separating them.
+     */
+    categorySource: 'observed' | 'claimed' | 'ops';
     liveDecision: 'allow' | 'require_bump';
     shadowDecision: 'allow' | 'require_bump';
     enforced: boolean;
@@ -2340,6 +2391,7 @@ In `apps/backend/src/modules/audit/events.ts`, add to the `auditEvents` object:
         vendorId: input.vendorId,
         appCategory: input.appCategory,
         registryCategory: input.registryCategory,
+        categorySource: input.categorySource,
         liveDecision: input.liveDecision,
         shadowDecision: input.shadowDecision,
         enforced: input.enforced,
@@ -2443,6 +2495,7 @@ Find where `evaluate(intent, ruleSet, ctx)` is called and capture its result as 
               vendorId: registry.vendorId,
               appCategory: txn.category,
               registryCategory: registry.category,
+              categorySource: registry.categorySource,
               liveDecision: decision.kind,
               shadowDecision: shadowDecision.kind,
               enforced,
@@ -2500,15 +2553,18 @@ Create `docs/runbook/vendor-registry.md` covering, with real values rather than 
 - **How to read the shadow data** — the query an operator actually runs:
 
 ```sql
-SELECT payload_json ->> 'registryCategory' AS registry_category,
+SELECT payload_json ->> 'categorySource'   AS category_source,
+       payload_json ->> 'registryCategory' AS registry_category,
        payload_json ->> 'appCategory'      AS app_category,
        COUNT(*)                            AS n
 FROM audit_log
 WHERE action = 'vendor.category_shadow'
   AND created_at > now() - interval '30 days'
-GROUP BY 1, 2
+GROUP BY 1, 2, 3
 ORDER BY n DESC;
 ```
+
+**Read `category_source` first, and say why in the runbook:** only `claimed` and `ops` rows describe a change enforcement would actually make. `observed` rows are the registry disagreeing in a way it will never be allowed to act on, and counting them as evidence for switching enforcement on would overstate the case — usually by a lot, since in V1 they are all of them.
 
 - **How to switch enforcement on for one household**, and that this is the only supported way to start:
 

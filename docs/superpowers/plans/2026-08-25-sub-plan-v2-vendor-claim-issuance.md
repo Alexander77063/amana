@@ -52,6 +52,9 @@ What ships instead: phone-lookup match as the primary proof, and **ops manual ap
 | `src/modules/marketplace/codes.ts` | Delegate to `lib/crockford.ts`, keep the `AMN-` prefix |
 | `src/db/schema/auth.ts` | Add `'vendor_claim'` to the `purpose` enum list |
 | `src/modules/auth/types.ts` | Add `'vendor_claim'` to `OtpPurpose` |
+| `src/modules/auth/otp.service.ts` | **Bind verification to the purpose** (Task 2b) |
+| `src/routes/auth.ts` | Pass `purpose` to `verifyCode` (Task 2b) |
+| `src/modules/marketplace/retailer-auth.service.ts` | Pass `purpose: 'login'` (Task 2b) |
 | `src/db/schema/index.ts` | Export `./vendor-claims` |
 | `src/modules/vendors/vendors.repo.ts` | `claim`, `setOpsCategory`, `setStatus` |
 | `src/modules/identity/households.repo.ts` | `setVendorCategoryEnforced` |
@@ -389,6 +392,144 @@ Expected: PASS (3 tests).
 ```bash
 git add apps/backend/src apps/backend/tests
 git commit -m "feat(vendors): claim-attempt table and the vendor_claim OTP purpose"
+```
+
+---
+
+## Task 2b: Make OTP verification purpose-aware — PREREQUISITE
+
+**Files:**
+- Modify: `apps/backend/src/modules/auth/otp.service.ts`
+- Modify: `apps/backend/src/routes/auth.ts:41`
+- Modify: `apps/backend/src/modules/marketplace/retailer-auth.service.ts:52`
+- Test: `apps/backend/tests/modules/auth/otp.service.test.ts` (append)
+
+**Interfaces:**
+- Consumes: `OtpPurpose` (Task 2).
+- Produces: `VerifyCodeInput` gains a required `purpose: OtpPurpose`; `VerifyCodeResult` gains `{ kind: 'wrong_purpose' }`.
+
+**Why this task exists, and why it is not optional.** `otpService.verifyCode` returns the challenge's `purpose`, and **no caller checks it**. Verified against the code: `routes/auth.ts:41` and `retailer-auth.service.ts:52` both accept any verified challenge for the phone. Today that means a `pair` OTP is a valid login credential and vice versa — a pre-existing gap, live in `main`, that this plan did not create.
+
+Task 2 makes it worse. `requestCode` invalidates every active challenge for a phone before inserting a new one, so once `vendor_claim` exists, `POST /vendor-claim/request` becomes an unauthenticated endpoint that (a) can invalidate a legitimate in-flight login OTP for an arbitrary phone, and (b) mints a challenge that would satisfy `/auth/otp/verify` for that phone. Shipping V2 without this task turns a latent gap into a reachable one.
+
+Fixing it by adding one `if` to the claim service would leave the other two callers unguarded. Making `purpose` a **required parameter** instead means the compiler names every call site, now and for whoever adds the fourth purpose.
+
+- [ ] **Step 1: Write the failing test**
+
+Append to `apps/backend/tests/modules/auth/otp.service.test.ts`:
+
+```ts
+describe('purpose binding', () => {
+  it('refuses a correct code issued for a different purpose', async () => {
+    const phone = factories.phone();
+    await otpService.requestCode(testDb, { phone, purpose: 'login' });
+    const r = await otpService.verifyCode(testDb, {
+      phone, code: BYPASS_CODE, purpose: 'vendor_claim',
+    });
+    expect(r.kind).toBe('wrong_purpose');
+  });
+
+  it('accepts a correct code for its own purpose', async () => {
+    const phone = factories.phone();
+    await otpService.requestCode(testDb, { phone, purpose: 'vendor_claim' });
+    const r = await otpService.verifyCode(testDb, {
+      phone, code: BYPASS_CODE, purpose: 'vendor_claim',
+    });
+    expect(r.kind).toBe('verified');
+  });
+
+  it('does NOT consume the challenge on a purpose mismatch', async () => {
+    const phone = factories.phone();
+    await otpService.requestCode(testDb, { phone, purpose: 'login' });
+    await otpService.verifyCode(testDb, { phone, code: BYPASS_CODE, purpose: 'vendor_claim' });
+    // The legitimate login must still work — a mismatched attempt is not the user's fault.
+    const r = await otpService.verifyCode(testDb, { phone, code: BYPASS_CODE, purpose: 'login' });
+    expect(r.kind).toBe('verified');
+  });
+
+  it('does not spend an attempt slot on a purpose mismatch', async () => {
+    const phone = factories.phone();
+    await otpService.requestCode(testDb, { phone, purpose: 'login' });
+    for (let i = 0; i < 10; i++) {
+      await otpService.verifyCode(testDb, { phone, code: BYPASS_CODE, purpose: 'vendor_claim' });
+    }
+    const r = await otpService.verifyCode(testDb, { phone, code: BYPASS_CODE, purpose: 'login' });
+    expect(r.kind).toBe('verified');
+  });
+});
+```
+
+> `BYPASS_CODE` is whatever `DEV_OTP_BYPASS_CODE` the existing OTP tests set. Read the top of that file and reuse it.
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `pnpm --filter @amana/backend exec vitest run tests/modules/auth/otp.service.test.ts -t "purpose binding"`
+Expected: FAIL — the first test gets `verified`, which is exactly the gap.
+
+- [ ] **Step 3: Bind the purpose**
+
+In `apps/backend/src/modules/auth/otp.service.ts`:
+
+```ts
+export type VerifyCodeInput = { phone: string; code: string; purpose: OtpPurpose };
+
+export type VerifyCodeResult =
+  | { kind: 'verified'; challengeId: string; purpose: OtpPurpose }
+  | { kind: 'no_challenge' }
+  | { kind: 'too_many_attempts' }
+  | { kind: 'wrong_code' }
+  | { kind: 'wrong_purpose' };
+```
+
+and in `verifyCode`, immediately after the `if (!ch) return { kind: 'no_challenge' }` line and **before** `claimAttempt`:
+
+```ts
+    // Purpose is bound, not merely reported. A challenge minted to claim a shop must not log
+    // anyone in, and the reverse matters more: /vendor-claim/request is unauthenticated, so
+    // without this an attacker could mint a login-capable challenge for any phone.
+    //
+    // Checked BEFORE claiming an attempt slot deliberately — a mismatch is a caller bug, not a
+    // brute-force guess, and burning the user's real challenge over it would be a denial of
+    // service triggerable from an unauthenticated endpoint.
+    if (ch.purpose !== input.purpose) return { kind: 'wrong_purpose' as const };
+```
+
+- [ ] **Step 4: Fix the two existing call sites**
+
+`apps/backend/src/routes/auth.ts:41` — pass the purpose the request asked for:
+
+```ts
+    const v = await otpService.verifyCode(db, {
+      phone: body.phone,
+      code: body.code,
+      purpose: body.purpose,
+    });
+```
+
+Confirm `body.purpose` exists on that route's verify schema; if the verify body does not carry it while the request body does, add it to the schema as a required field and update `packages/api-client/src/auth-api.ts` to send it. Handle `wrong_purpose` with the same response as `invalid_code` — a caller must not be told which of the two it was.
+
+`apps/backend/src/modules/marketplace/retailer-auth.service.ts:52` — the portal only ever issues `login`:
+
+```ts
+    const v = await otpService.verifyCode(db, {
+      phone: input.phone,
+      code: input.code,
+      purpose: 'login',
+    });
+```
+
+Map `wrong_purpose` onto that service's existing `invalid_code` outcome.
+
+- [ ] **Step 5: Run the full suite**
+
+Run: `pnpm --filter @amana/backend test` and `pnpm --filter @amana/backend typecheck`
+Expected: PASS. The typecheck is the point — it enumerates every `verifyCode` caller, including any this plan has not named.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/backend/src apps/backend/tests
+git commit -m "fix(auth): bind OTP verification to the purpose the challenge was issued for"
 ```
 
 ---
@@ -1013,6 +1154,22 @@ describe('vendorClaimService', () => {
         .toBe('observed');
     });
 
+    it('does not claim on an OTP minted for a different purpose', async () => {
+      const phone = factories.phone();
+      const v = await openAttempt(phone);
+      // What a real login OTP looks like coming back from the purpose-bound verifyCode.
+      vi.spyOn(otpService, 'verifyCode').mockResolvedValue({ kind: 'wrong_purpose' });
+      const prove = proveOwnership(true);
+
+      const r = await vendorClaimService.verify(testDb, adapter, {
+        phone, code: '123456', category: 'food', now: NOW,
+      });
+      expect(r.kind).toBe('invalid_code');
+      expect(prove).not.toHaveBeenCalled();
+      expect((await vendorsRepo.findByAccount(testDb, v.bankCode, v.accountNumber))?.status)
+        .toBe('observed');
+    });
+
     it('returns no_attempt when the phone has no pending claim', async () => {
       const r = await vendorClaimService.verify(testDb, adapter, {
         phone: factories.phone(), code: '123456', category: 'food', now: NOW,
@@ -1134,7 +1291,14 @@ export const vendorClaimService = {
     const attempt = await vendorClaimsRepo.findPendingByPhone(db, input.phone, input.now);
     if (!attempt) return { kind: 'no_attempt' };
 
-    const otp = await otpService.verifyCode(db, { phone: input.phone, code: input.code });
+    // `purpose` is required (Task 2b) — a login OTP must not complete a claim, and a claim OTP
+    // must not complete a login. `wrong_purpose` falls into the same response as a wrong code:
+    // the caller learns that it failed, not which of the two ways.
+    const otp = await otpService.verifyCode(db, {
+      phone: input.phone,
+      code: input.code,
+      purpose: 'vendor_claim',
+    });
     if (otp.kind === 'too_many_attempts') return { kind: 'too_many_attempts' };
     if (otp.kind !== 'verified') return { kind: 'invalid_code' };
 
@@ -1795,5 +1959,7 @@ git commit -m "docs: vendor claim runbook — ops queue and the enforcement swit
 **Placeholder scan.** No TBDs. `makeHousehold` in Task 7 reuses the V1 fixture. Task 8's runbook lists its required contents rather than its prose, which is the correct granularity for a document whose value is operational accuracy rather than exact wording — but every command in it is given in full.
 
 **Type consistency.** `ClaimAttemptRow` is produced in Task 3 and consumed in Tasks 5 and 7. `OwnershipVerdict.proof` is `'phone_lookup'` in Task 4 and is what Task 5 passes to `markVerified`, whose parameter is `proof: string` — deliberately widened there because Task 7 writes `'ops'` through the same column. `vendorsRepo.claim` returns `VendorRow | null` in Task 3 and both callers (Tasks 5, 7) treat null as a 409-equivalent. `mintPrefixedCode` is defined in Task 1 and called in Tasks 5 and 7 with the same `'AMNV'` prefix.
+
+**One pre-existing defect this plan now fixes.** Task 2b is not part of the vendor feature — it repairs a gap already live in `main`, where `verifyCode` reports a challenge's `purpose` and no caller checks it, making `login` and `pair` OTPs interchangeable. It sits in this plan because Task 2 is what makes the gap reachable from an unauthenticated endpoint, and shipping the one without the other would be knowingly widening it. If SP-V2 is descoped or deferred, **Task 2b should be lifted out and shipped on its own** rather than deferred with it.
 
 **Two risks worth stating.** First, Task 7's `approve-claim` mints a code and claims a vendor on an operator's say-so with no proof recorded beyond `ownership_proof = 'ops'` — that is intentional, but it means the admin key is now a credential that can assign a business identity, and the runbook must say so. Second, `vendorsRepo.setOpsCategory` deliberately outranks a claimed category and has no CAS guard; an operator can overwrite a business's own answer about itself. Both are correct for an ops tool and both would be wrong if this route ever moved behind anything less than `adminAuth`.

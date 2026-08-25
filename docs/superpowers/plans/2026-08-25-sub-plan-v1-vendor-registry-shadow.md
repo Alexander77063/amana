@@ -2244,7 +2244,7 @@ describe('lifecycle — vendor category shadow mode', () => {
   });
 
   it('does NOT change the decision while enforcement is off, even when the registry disagrees', async () => {
-    const { masterWalletId, subWalletId, principalUserId } = await makeFundedSubWallet(testDb);
+    const { masterWalletId, subWalletId, agentId } = await makeFundedSubWallet(testDb);
     await giveCategoryAllowlist(testDb, subWalletId, ['food']);
     const bankCode = factories.bankCode();
     const accountNumber = factories.bankAccount();
@@ -2258,13 +2258,13 @@ describe('lifecycle — vendor category shadow mode', () => {
     });
 
     const result = await lifecycleService.evaluate(testDb, {
-      transactionId: txn.id, initiatingUserId: principalUserId, now: NOW,
+      transactionId: txn.id, initiatingUserId: agentId, now: NOW,
     });
     expect(result.kind).toBe('allow');
   });
 
   it('records the registry answer on the transaction regardless of enforcement', async () => {
-    const { masterWalletId, subWalletId, principalUserId } = await makeFundedSubWallet(testDb);
+    const { masterWalletId, subWalletId, agentId } = await makeFundedSubWallet(testDb);
     await giveCategoryAllowlist(testDb, subWalletId, ['food']);
     const bankCode = factories.bankCode();
     const accountNumber = factories.bankAccount();
@@ -2275,7 +2275,7 @@ describe('lifecycle — vendor category shadow mode', () => {
     });
 
     await lifecycleService.evaluate(testDb, {
-      transactionId: txn.id, initiatingUserId: principalUserId, now: NOW,
+      transactionId: txn.id, initiatingUserId: agentId, now: NOW,
     });
 
     const rows = await testDb.execute<{ vendor_id: string; resolved_category: string }>(
@@ -2286,7 +2286,7 @@ describe('lifecycle — vendor category shadow mode', () => {
   });
 
   it('audits the counterfactual when the shadow decision differs', async () => {
-    const { masterWalletId, subWalletId, principalUserId } = await makeFundedSubWallet(testDb);
+    const { masterWalletId, subWalletId, agentId } = await makeFundedSubWallet(testDb);
     await giveCategoryAllowlist(testDb, subWalletId, ['food']);
     const bankCode = factories.bankCode();
     const accountNumber = factories.bankAccount();
@@ -2297,7 +2297,7 @@ describe('lifecycle — vendor category shadow mode', () => {
     });
 
     await lifecycleService.evaluate(testDb, {
-      transactionId: txn.id, initiatingUserId: principalUserId, now: NOW,
+      transactionId: txn.id, initiatingUserId: agentId, now: NOW,
     });
 
     const entries = await auditRepo.listByAction(testDb, 'vendor.category_shadow');
@@ -2311,7 +2311,7 @@ describe('lifecycle — vendor category shadow mode', () => {
   });
 
   it('writes no shadow audit row when the registry agrees with the app', async () => {
-    const { masterWalletId, subWalletId, principalUserId } = await makeFundedSubWallet(testDb);
+    const { masterWalletId, subWalletId, agentId } = await makeFundedSubWallet(testDb);
     await giveCategoryAllowlist(testDb, subWalletId, ['transport']);
     const bankCode = factories.bankCode();
     const accountNumber = factories.bankAccount();
@@ -2322,13 +2322,13 @@ describe('lifecycle — vendor category shadow mode', () => {
     });
 
     await lifecycleService.evaluate(testDb, {
-      transactionId: txn.id, initiatingUserId: principalUserId, now: NOW,
+      transactionId: txn.id, initiatingUserId: agentId, now: NOW,
     });
     expect(await auditRepo.listByAction(testDb, 'vendor.category_shadow')).toEqual([]);
   });
 
   it('ENFORCES the registry category when the household opts in', async () => {
-    const { masterWalletId, subWalletId, principalUserId, householdId } =
+    const { masterWalletId, subWalletId, agentId, householdId } =
       await makeFundedSubWallet(testDb);
     await giveCategoryAllowlist(testDb, subWalletId, ['food']);
     await testDb.execute(
@@ -2343,13 +2343,13 @@ describe('lifecycle — vendor category shadow mode', () => {
     });
 
     const result = await lifecycleService.evaluate(testDb, {
-      transactionId: txn.id, initiatingUserId: principalUserId, now: NOW,
+      transactionId: txn.id, initiatingUserId: agentId, now: NOW,
     });
     expect(result.kind).toBe('bump_pending');
   });
 
   it('never enforces an OBSERVED category, even for an opted-in household', async () => {
-    const { masterWalletId, subWalletId, principalUserId, householdId } =
+    const { masterWalletId, subWalletId, agentId, householdId } =
       await makeFundedSubWallet(testDb);
     await giveCategoryAllowlist(testDb, subWalletId, ['food']);
     await testDb.execute(
@@ -2368,7 +2368,7 @@ describe('lifecycle — vendor category shadow mode', () => {
       vendorBankCode: bankCode, vendorAccount: accountNumber, category: 'food',
     });
     const result = await lifecycleService.evaluate(testDb, {
-      transactionId: txn.id, initiatingUserId: principalUserId, now: NOW,
+      transactionId: txn.id, initiatingUserId: agentId, now: NOW,
     });
     expect(result.kind).toBe('allow');
   });
@@ -2376,7 +2376,7 @@ describe('lifecycle — vendor category shadow mode', () => {
   it('writes no shadow row when the sub-wallet has no active rule set', async () => {
     // No giveCategoryAllowlist call — fetchActiveRuleSet returns null, evaluate is never called,
     // and the decision is a degenerate allow. There is nothing a category could have changed.
-    const { masterWalletId, subWalletId, principalUserId } = await makeFundedSubWallet(testDb);
+    const { masterWalletId, subWalletId, agentId } = await makeFundedSubWallet(testDb);
     const bankCode = factories.bankCode();
     const accountNumber = factories.bankAccount();
     await claimedTransportVendor(bankCode, accountNumber);
@@ -2386,14 +2386,14 @@ describe('lifecycle — vendor category shadow mode', () => {
     });
 
     const result = await lifecycleService.evaluate(testDb, {
-      transactionId: txn.id, initiatingUserId: principalUserId, now: NOW,
+      transactionId: txn.id, initiatingUserId: agentId, now: NOW,
     });
     expect(result.kind).toBe('allow');
     expect(await auditRepo.listByAction(testDb, 'vendor.category_shadow')).toEqual([]);
   });
 
   it('allows a spend to an unregistered vendor exactly as before', async () => {
-    const { masterWalletId, subWalletId, principalUserId } = await makeFundedSubWallet(testDb);
+    const { masterWalletId, subWalletId, agentId } = await makeFundedSubWallet(testDb);
     await giveCategoryAllowlist(testDb, subWalletId, ['food']);
     const txn = await makeDraftSpend(testDb, {
       masterWalletId, subWalletId,
@@ -2401,7 +2401,7 @@ describe('lifecycle — vendor category shadow mode', () => {
       category: 'food',
     });
     const result = await lifecycleService.evaluate(testDb, {
-      transactionId: txn.id, initiatingUserId: principalUserId, now: NOW,
+      transactionId: txn.id, initiatingUserId: agentId, now: NOW,
     });
     expect(result.kind).toBe('allow');
     expect(await auditRepo.listByAction(testDb, 'vendor.category_shadow')).toEqual([]);
@@ -2416,7 +2416,7 @@ describe('lifecycle — vendor category shadow mode', () => {
 > | `makeFundedSubWallet(testDb)` | `seedFundedSubWallet()` — file-local, returns `{ principalId, agentId, subWalletId, masterId }`. **Add `householdId: hh.id` to its return** (one line); these tests need it to flip enforcement, and nothing else in the file is affected |
 > | `giveCategoryAllowlist(testDb, subWalletId, ['food'])` | `ruleSetService.publishNewVersion(testDb, { subWalletId, createdByUserId: principalId, rules: [{ kind: 'category', priority: 10, config: { mode: 'allowlist', categories: ['food'] } }] })` — already imported in that file |
 > | `makeDraftSpend(testDb, {...})` | `transactionsRepo.insert(testDb, { masterWalletId, subWalletId, kind: 'spend', amountKobo: kobo(10_000n), idempotencyKey: factories.idempotencyKey(), vendorBankCode, vendorAccount, vendorResolvedName: 'M', category, agentNote: null })` — the pattern the file's existing tests use. Note the column is `vendorAccount`, not `vendorAccountNumber` |
-> | `principalUserId` in the snippets | `principalId` from the seed |
+> | the initiating user | **`agentId`** from the seed, NOT the principal. `assertWalletAccess` is agent-only when `subWalletId` is set (`wallet-access.service.ts:17-18`): "only the sub-wallet's owning AGENT may act". The principal is the initiator only for a `subWalletId: null` direct spend, which these tests do not exercise. Passing the principal here 403s |
 >
 > The file already has a test named *"allows a small spend with no rule set (permissive default)"*, which confirms the null-`ruleSet` path is real — that is the path the new guard in Step 6 protects.
 

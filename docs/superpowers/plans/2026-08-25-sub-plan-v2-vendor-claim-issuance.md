@@ -56,9 +56,9 @@ What ships instead: phone-lookup match as the primary proof, and **ops manual ap
 | `src/modules/marketplace/codes.ts` | Delegate to `lib/crockford.ts`, keep the `AMN-` prefix |
 | `src/db/schema/auth.ts` | Add `'vendor_claim'` to the `purpose` enum list |
 | `src/modules/auth/types.ts` | Add `'vendor_claim'` to `OtpPurpose` |
-| `src/modules/auth/otp.service.ts` | **Bind verification to the purpose** (Task 2b) |
-| `src/routes/auth.ts` | Pass `purpose` to `verifyCode` (Task 2b) |
-| `src/modules/marketplace/retailer-auth.service.ts` | Pass `purpose: 'login'` (Task 2b) |
+| ~~`src/modules/auth/otp.service.ts`~~ | ~~Bind verification to the purpose~~ — **shipped already**, see Task 2b |
+| ~~`src/routes/auth.ts`~~ | ~~Pass the purpose to `verifyCode`~~ — **shipped already**, see Task 2b |
+| ~~`src/modules/marketplace/retailer-auth.service.ts`~~ | ~~Pass `'login'`~~ — **shipped already**, see Task 2b |
 | `src/db/schema/index.ts` | Export `./vendor-claims` |
 | `src/modules/vendors/vendors.repo.ts` | `claim`, `setOpsCategory`, `setStatus` |
 | `src/modules/identity/households.repo.ts` | `setVendorCategoryEnforced` |
@@ -400,7 +400,32 @@ git commit -m "feat(vendors): claim-attempt table and the vendor_claim OTP purpo
 
 ---
 
-## Task 2b: Make OTP verification purpose-aware — PREREQUISITE
+## Task 2b: OTP purpose binding — ALREADY SHIPPED, DO NOT IMPLEMENT
+
+> **Status: done, ahead of this sub-plan.** Branch `fix/otp-purpose-binding`, PR #42, commits `1ac87fb` and `eeed18f`. If SP-V2 runs after that merges, **skip this task** — the work is in `main`.
+>
+> It was lifted out because it repairs a defect already live in `main` that had nothing to do with vendors: `otpService.verifyCode` returned a challenge's `purpose` and no caller checked it, so a `pair` OTP was a valid login credential at the retailer portal. Holding that behind a nine-task feature would have been the wrong call.
+>
+> **What shipped differs from what this task specified below — read this before Task 2 or Task 5.**
+>
+> The text below calls for a single required `purpose: OtpPurpose`. That is not what was built. `/auth/otp/verify` legitimately serves *both* login and pair in one endpoint; `VerifyOtpInput` carries no `purpose` (so requiring one is a breaking API change plus the api-client and both Expo apps); and deriving it from `pairingCode` misfires for an existing user sending a stray one. The shipped shape binds an **allowed set** instead:
+>
+> ```ts
+> export type VerifyCodeInput = {
+>   phone: string;
+>   code: string;
+>   /** The purposes this call site legitimately accepts. A challenge minted for anything else is refused. */
+>   allowedPurposes: readonly OtpPurpose[];
+> };
+> ```
+>
+> `VerifyCodeResult` gained `{ kind: 'wrong_purpose' }`. `/auth/otp/verify` passes `['login', 'pair']`; the retailer portal passes `['login']`. The check sits **before** `claimAttempt`, so a mismatch does not burn one of the user's five attempts. Both call sites collapse `wrong_purpose` into their existing `invalid_code` / 401.
+>
+> **Consequences for the rest of SP-V2:**
+>
+> - **Task 2** still adds `'vendor_claim'` to `OtpPurpose` and the `phoneOtpChallenges.purpose` list. Nothing more — the value is now safe to add by construction, since no existing call site's allow-list includes it. Read the warning comment on `OtpPurpose`'s declaration first; it exists for this moment.
+> - **Task 5** must pass `allowedPurposes: ['vendor_claim']`, **not** `purpose: 'vendor_claim'`. The claim rail accepts only its own challenges.
+> - **A deliberate residual:** within `/auth/otp/verify`, `login` and `pair` stay interchangeable, because that endpoint serves both. The security review confirmed this is inert, not merely bounded — that handler never reads the verified challenge's `purpose` to branch. What the change closes is cross-endpoint reuse, the hazard SP-V2 would otherwise have created.
 
 **Files:**
 - Modify: `apps/backend/src/modules/auth/otp.service.ts`
@@ -1301,7 +1326,7 @@ export const vendorClaimService = {
     const otp = await otpService.verifyCode(db, {
       phone: input.phone,
       code: input.code,
-      purpose: 'vendor_claim',
+      allowedPurposes: ['vendor_claim'],
     });
     if (otp.kind === 'too_many_attempts') return { kind: 'too_many_attempts' };
     if (otp.kind !== 'verified') return { kind: 'invalid_code' };

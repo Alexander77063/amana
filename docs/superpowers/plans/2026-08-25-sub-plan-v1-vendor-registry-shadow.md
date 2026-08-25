@@ -2199,7 +2199,7 @@ git commit -m "feat(vendors): category resolver and registry fields on TxnIntent
 - Modify: `apps/backend/src/modules/transactions/lifecycle.service.ts`
 - Modify: `apps/backend/src/modules/audit/events.ts`
 - Modify: `apps/backend/src/modules/wallet/transactions.repo.ts`
-- Test: `apps/backend/tests/modules/transactions/lifecycle.shadow.test.ts`
+- Test: `apps/backend/tests/modules/transactions/lifecycle.service.test.ts` (append a new `describe` block; see the fixture note below for why this is not a new file)
 
 **Interfaces:**
 - Consumes: `vendorCategoryResolver.resolve` (Task 10), `householdsRepo.findByMasterWalletId` (Task 4), `env.VENDOR_CATEGORY_ENFORCE_DEFAULT` (Task 1).
@@ -2409,7 +2409,16 @@ describe('lifecycle — vendor category shadow mode', () => {
 });
 ```
 
-> `makeFundedSubWallet`, `makeDraftSpend` and `giveCategoryAllowlist` stand in for whatever the existing lifecycle/rules tests already use to build a funded sub-wallet, a draft spend and an active category rule. Read `tests/modules/transactions/` and `tests/modules/rules/` first and reuse those; do not build a parallel set.
+> **Fixtures: `makeFundedSubWallet`, `makeDraftSpend` and `giveCategoryAllowlist` above are placeholders, not real helpers.** Everything you need already exists in `tests/modules/transactions/lifecycle.service.test.ts` — which is why these tests belong in that file as a new `describe` block rather than in a new file. A new file could not reach its file-local seed helper and would have to duplicate it.
+>
+> | Placeholder | What to actually use |
+> |---|---|
+> | `makeFundedSubWallet(testDb)` | `seedFundedSubWallet()` — file-local, returns `{ principalId, agentId, subWalletId, masterId }`. **Add `householdId: hh.id` to its return** (one line); these tests need it to flip enforcement, and nothing else in the file is affected |
+> | `giveCategoryAllowlist(testDb, subWalletId, ['food'])` | `ruleSetService.publishNewVersion(testDb, { subWalletId, createdByUserId: principalId, rules: [{ kind: 'category', priority: 10, config: { mode: 'allowlist', categories: ['food'] } }] })` — already imported in that file |
+> | `makeDraftSpend(testDb, {...})` | `transactionsRepo.insert(testDb, { masterWalletId, subWalletId, kind: 'spend', amountKobo: kobo(10_000n), idempotencyKey: factories.idempotencyKey(), vendorBankCode, vendorAccount, vendorResolvedName: 'M', category, agentNote: null })` — the pattern the file's existing tests use. Note the column is `vendorAccount`, not `vendorAccountNumber` |
+> | `principalUserId` in the snippets | `principalId` from the seed |
+>
+> The file already has a test named *"allows a small spend with no rule set (permissive default)"*, which confirms the null-`ruleSet` path is real — that is the path the new guard in Step 6 protects.
 
 - [ ] **Step 2: Run test to verify it fails**
 

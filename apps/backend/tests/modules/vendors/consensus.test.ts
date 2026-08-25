@@ -68,6 +68,11 @@ describe('computeConsensus', () => {
     expect(computeConsensus(votes, CFG)).toEqual({ category: null, householdCount: 20 });
   });
 
+  it('blocks a sensitive category regardless of casing — the winner is client-supplied and unvalidated', () => {
+    const votes: HouseholdCategoryCounts[] = Array.from({ length: 20 }, () => ({ Pharmacy: 1 }));
+    expect(computeConsensus(votes, CFG)).toEqual({ category: null, householdCount: 20 });
+  });
+
   it('ignores households that tagged nothing, and counts only voters', () => {
     const votes: HouseholdCategoryCounts[] = [{}, {}, { food: 1 }, { food: 1 }, { food: 1 }];
     expect(computeConsensus(votes, CFG)).toEqual({ category: 'food', householdCount: 3 });

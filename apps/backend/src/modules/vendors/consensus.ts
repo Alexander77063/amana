@@ -75,7 +75,10 @@ export function computeConsensus(
   if (winner === null || winnerN / householdCount < cfg.ratio) {
     return { category: null, householdCount };
   }
-  if (cfg.sensitiveCategories.includes(winner)) {
+  // `sensitiveCategories` is lowercased once at env-parse time (env.ts), but `winner` is a raw
+  // jsonb key copied verbatim from an app-supplied, unvalidated category string — so the
+  // comparison must normalise casing too, or e.g. "Pharmacy" slips the block that "pharmacy" hits.
+  if (cfg.sensitiveCategories.includes(winner.toLowerCase())) {
     return { category: null, householdCount };
   }
   return { category: winner, householdCount };

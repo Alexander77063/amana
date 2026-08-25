@@ -65,25 +65,35 @@ export const lifecycleService = {
     // subWalletId is non-null: the null branch returned early above
     const subWalletId = txn.subWalletId;
 
+    // --- Vendor registry: resolve, then decide whether it may drive the outcome. ---
+    //
+    // Both reads run on the pool handle, BEFORE the transaction below opens — never inside it.
+    // vendorCategoryResolver.resolve already swallows its own errors, but that swallow only
+    // works on its own connection: a caught Postgres error still poisons a surrounding
+    // transaction (SQLSTATE 25P02), which would fail every later statement in it even though
+    // this call itself returned cleanly. The realistic trigger is a stale test/dev DB missing
+    // migration 0035 ("relation vendors does not exist").
+    const registry = await vendorCategoryResolver.resolve(
+      db,
+      txn.vendorBankCode,
+      txn.vendorAccount,
+    );
+    // Same hazard applies here — there is no registry-style built-in swallow, so match it.
+    const household = await householdsRepo
+      .findByMasterWalletId(db, txn.masterWalletId)
+      .catch(() => undefined);
+    // Three-state: an explicit household setting wins in BOTH directions; NULL inherits the
+    // global default. `?? env...` and not `||` — `false` is a real answer, not a missing one.
+    const householdEnforces =
+      household?.vendorCategoryEnforced ?? env.VENDOR_CATEGORY_ENFORCE_DEFAULT;
+    // An observed category is never enforced however strong its consensus (spec D-V7).
+    const enforced = householdEnforces && registry !== null && registry.enforceable;
+    const liveCategory = enforced ? (registry?.category ?? txn.category) : txn.category;
+
     const result = await db.transaction(async (tx) => {
       const txDb = tx as DbOrTx;
 
       await transactionsRepo.setStatus(txDb, txn.id, 'rule_eval');
-
-      // --- Vendor registry: resolve, then decide whether it may drive the outcome. ---
-      const registry = await vendorCategoryResolver.resolve(
-        txDb,
-        txn.vendorBankCode,
-        txn.vendorAccount,
-      );
-      const household = await householdsRepo.findByMasterWalletId(txDb, txn.masterWalletId);
-      // Three-state: an explicit household setting wins in BOTH directions; NULL inherits the
-      // global default. `?? env...` and not `||` — `false` is a real answer, not a missing one.
-      const householdEnforces =
-        household?.vendorCategoryEnforced ?? env.VENDOR_CATEGORY_ENFORCE_DEFAULT;
-      // An observed category is never enforced however strong its consensus (spec D-V7).
-      const enforced = householdEnforces && registry !== null && registry.enforceable;
-      const liveCategory = enforced ? (registry?.category ?? txn.category) : txn.category;
 
       if (registry) {
         await transactionsRepo.setRegistryAttribution(

@@ -22,9 +22,15 @@ export const vendorCategoryResolver = {
   /**
    * Look up what the registry knows about a vendor bank account.
    *
-   * **Never throws, and returns null on any failure.** This runs inside the spend path, and a
+   * **Never throws, and returns null on any failure.** This runs on the spend path, and a
    * registry outage must not be able to block a payment — the caller falls back to the
    * app-supplied category exactly as it behaved before the registry existed.
+   *
+   * **Must be called outside any open transaction.** The swallow only works on its own
+   * connection: a caught Postgres error still poisons the surrounding transaction (SQLSTATE
+   * `25P02`, "current transaction is aborted"), so calling this with a `tx` handle would make
+   * every later statement in that transaction fail even though this function itself returned
+   * cleanly.
    */
   async resolve(
     db: DbOrTx,

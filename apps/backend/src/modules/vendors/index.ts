@@ -11,7 +11,10 @@ export {
 } from './vendor-resolution.service';
 export { vendorObservationsRepo } from './vendor-observations.repo';
 export { vendorObservationService } from './vendor-observation.service';
-export { vendorsRepo } from './vendors.repo';
+export { vendorsRepo, type VendorCategorySource } from './vendors.repo';
 export { vendorRegistryService } from './vendor-registry.service';
-export { vendorCategoryResolver } from './vendor-category-resolver.service';
+export {
+  vendorCategoryResolver,
+  type ResolvedVendorCategory,
+} from './vendor-category-resolver.service';
 export { computeConsensus } from './consensus';

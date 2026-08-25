@@ -189,9 +189,16 @@ export const settlementService = {
     // that a try/catch INSIDE the transaction would not be safe — a Postgres error aborts the
     // whole transaction even when the JS error is caught, turning the COMMIT into a ROLLBACK.
     //
-    // `pool`, NOT the `db` parameter: webhooks.ts calls finalise(tx, …), and by the time this task
-    // runs that transaction has committed and closed. This is the one call in the file that must
-    // not join the caller's transaction — which is exactly why it does not take the injected handle.
+    // `pool`, NOT the `db` parameter: this write is detached from the caller's transaction and
+    // must run on its own connection. When `finalise` is called with an already-open transaction
+    // (webhooks.ts calls finalise(tx, …)), drizzle's postgres-js driver implements that nested
+    // `db.transaction()` as a SAVEPOINT, so the "commit" above is a RELEASE SAVEPOINT — the outer
+    // webhook transaction is still open when this background task fires, and per webhooks.ts it
+    // can still roll back and be redelivered. That is accepted: an observation recorded for a
+    // payment that ends up not settling is harmless (nothing reads `settled_count`, and it cannot
+    // change the distinct-household promotion count), and Anchor's redelivery on rollback just
+    // re-increments a counter nothing reads. This is the one call in the file that must not join
+    // the caller's transaction — which is exactly why it does not take the injected handle.
     if (observation) {
       runInBackground(
         vendorObservationService

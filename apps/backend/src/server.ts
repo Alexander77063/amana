@@ -23,6 +23,7 @@ import { retailersRoute } from './routes/retailers';
 import { subWalletsRoute } from './routes/sub-wallets';
 import { transactionsRoute } from './routes/transactions';
 import { vasRoute } from './routes/vas';
+import { vendorClaimRoute } from './routes/vendor-claim';
 import { vendorsRoute } from './routes/vendors';
 import { webhooksRoute } from './routes/webhooks';
 
@@ -83,6 +84,29 @@ function attachRateLimiters(app: Hono): void {
         limit: env.RATE_LIMIT_OTP_PER_IP,
         windowSeconds,
         keyPrefix: `retailer-otp:ip:${path}`,
+        key: clientIp,
+      }),
+    );
+  }
+
+  // The vendor claim rail is the second unauthenticated OTP surface. Same reasoning as the
+  // retailer portal's, plus one more: an unrated /request is a way to walk the registry.
+  for (const path of ['/vendor-claim/request', '/vendor-claim/verify']) {
+    app.use(
+      path,
+      rateLimit({
+        limit: env.RATE_LIMIT_OTP_PER_PHONE,
+        windowSeconds,
+        keyPrefix: `vendor-claim:phone:${path}`,
+        key: bodyFieldKey('phone'),
+      }),
+    );
+    app.use(
+      path,
+      rateLimit({
+        limit: env.RATE_LIMIT_OTP_PER_IP,
+        windowSeconds,
+        keyPrefix: `vendor-claim:ip:${path}`,
         key: clientIp,
       }),
     );
@@ -175,6 +199,7 @@ export function createServer(): Hono {
   app.route('/retailer/auth', retailerAuthRoute);
   app.route('/retailer', retailerPortalRoute);
   app.route('/vas', vasRoute);
+  app.route('/vendor-claim', vendorClaimRoute);
   app.route('/media', mediaRoute);
   app.route('/', buildMeRouter());
   app.onError(errorHandler);

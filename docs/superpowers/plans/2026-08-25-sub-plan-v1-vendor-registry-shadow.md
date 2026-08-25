@@ -2663,7 +2663,9 @@ UPDATE households SET vendor_category_enforced = TRUE WHERE id = '<household-uui
 
 - [ ] **Step 2: Append the decisions**
 
-Append D-V1 through D-V8 to `docs/brainstorm/locked-decisions.md`, numbered to continue that file's existing sequence, each with its *Why*, copied from spec §3. The spec asserts this file is the canonical registry; until this step runs, that assertion is false.
+Append D-V1 through D-V8 to `docs/brainstorm/locked-decisions.md`, each with its *Why*, copied from spec §3. The spec asserts this file is the canonical registry; until this step runs, that assertion is false.
+
+The file's existing sequence ends at **18**, so these become **19–26** in order (D-V1 → 19, … D-V8 → 26). Keep the spec's `D-Vn` labels alongside the numbers — every reference in the spec and all three plans is by `D-Vn`, and renumbering without them would orphan those references. Format each as the file's existing entries do: a bold one-line statement, then the reasoning.
 
 - [ ] **Step 3: Add the runbook to the index**
 

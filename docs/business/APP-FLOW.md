@@ -1,11 +1,9 @@
 # Amana — App Flow
 
 
-> ⚠️ **STALE as of 2026-08-25 — incomplete rather than wrong.**
->
-> The principal and agent wallet flows here are still accurate. Three whole surfaces are missing:
-> the buyer marketplace (browse → buy → voucher), the retailer portal (onboard → KYB → redeem →
-> earnings), and digital VAS.
+> **Refreshed 2026-08-25.** The principal and agent wallet flows below were accurate and are
+> unchanged. Three surfaces that did not exist when this was written have been added: digital VAS
+> (§3.6), the buyer marketplace and the control fusion (§6), and the retailer portal (§7).
 >
 > Index: [`docs/product/README.md`](../product/README.md)
 
@@ -270,6 +268,33 @@ SettingsTab → SettingsScreen
 
 ---
 
+### 3.6 Buying airtime, data or a bill *(added 2026-08-25)*
+
+```
+HomeScreen → "Buy airtime, data or pay a bill"
+  └── TopUpScreen
+        ├── category chips: Airtime · Data · Electricity · Cable TV
+        ├── select provider (GET /vas/billers?category=…)
+        ├── enter recipient
+        │     ├── airtime / data  → phone number
+        │     ├── electricity     → meter number  → validate (GET /vas/validate)
+        │     └── cable TV        → smartcard no. → validate  ← resolves the ACCOUNT HOLDER
+        │                                                        before any money moves
+        ├── enter amount (or pick a fixed bundle)
+        └── "BUY"  → POST /vas/purchase
+              ├── 201 → TopUpReceiptScreen  (electricity returns a prepaid token)
+              └── 409 rule_denied → inline reason
+                    "Your parent has not allowed this category"
+```
+
+**The point of this flow is the refusal.** Airtime is a spend, so the parent's category lock reaches
+it. Before that was true, a locked wallet could buy airtime freely — a hole, not a feature gap.
+
+**Known gap:** an out-of-rule VAS purchase rejects rather than raising a bump. The agent is told
+which rule stopped them, but cannot ask from here.
+
+---
+
 ## 4. Shared Flows
 
 ### 4.1 Push → Deep-link navigation
@@ -347,3 +372,119 @@ Write deepLink to NFC tag
    │ reversed │
    └──────────┘
 ```
+
+---
+
+## 6. Marketplace flows *(added 2026-08-25)*
+
+### 6.1 The control fusion — the sequence is the argument
+
+Read top to bottom. The ORDER is the product claim: the catalogue narrows because a rule was
+written, not because a marketplace setting was toggled.
+
+```
+AGENT                                   PRINCIPAL
+─────                                   ─────────
+HomeScreen
+  └── "SHOP WITH THIS WALLET"
+        └── MarketplaceScreen
+              GET /marketplace/items
+              → sees the shops their CATEGORY LOCK already allows
+                (two kitchens; not everything on the platform)
+
+                                        SubWalletDetail → "Choose shops"
+                                          └── MarketplaceScreen
+                                                "Any approved shop.
+                                                 Approve one below to limit
+                                                 this wallet to only the
+                                                 shops you choose."
+                                                └── "APPROVE THIS SHOP"
+                                                      POST /marketplace/merchants/approve
+                                                      ⇒ WRITES a `merchant` rule into the
+                                                        SAME rule set as the limit and the
+                                                        category lock
+                                                      → "1 shop approved."
+  (reopens marketplace)
+  └── sees ONLY the approved shop
+        the other kitchen is gone
+```
+
+**Three states, and they are not two:** no `merchant` rule = unrestricted; a populated list = only
+those; an EMPTY list = nothing may be bought. Revoking the last shop closes the marketplace rather
+than reopening it.
+
+### 6.2 Buy → voucher
+
+```
+MarketplaceScreen → tap an item
+  └── MarketplaceItemScreen
+        ├── price shown is the EFFECTIVE price (deal applied), never the list price
+        ├── list price appears only when a deal is reducing it, struck through beside the real one
+        └── "BUY VOUCHER" → POST /marketplace/purchase { subWalletId, catalogItemId }
+              ├── 201 → VoucherScreen
+              │     ├── the code, large and spaced — read aloud across a counter
+              │     ├── what was paid, and what was saved if a deal applied
+              │     └── valid until … "if you do not use it, the money goes back to the wallet"
+              └── 409 rule_denied → the specific rule is named:
+                    CATEGORY_NOT_ALLOWED  → "This is not one of the things you are allowed to buy."
+                    MERCHANT_NOT_ALLOWED  → "This shop has not been approved for your wallet."
+                    OUTSIDE_TIME_WINDOW   → "This is outside the hours you are allowed to spend in."
+                    LIMIT_EXCEEDED        → "This would go over your spending limit."
+```
+
+Naming the rule matters: "something went wrong" leaves an agent unable to tell whether to ask their
+parent or simply wait until morning.
+
+---
+
+## 7. Retailer portal flows *(added 2026-08-25)*
+
+A separate Next.js web app (`apps/retailer-portal`, port 3300), not a mobile app. The retailer
+opens a web page; they do not install anything.
+
+### 7.1 Claiming the business
+
+```
+ops (admin key)                         RETAILER OWNER
+───────────────                         ──────────────
+POST /retailers  { businessName,
+                   payout account }
+  → records the CONTACT PHONE the
+    owner will sign in with
+                                        opens the portal → SignIn
+                                          ├── phone number → "Send code"
+                                          ├── six-digit code
+                                          └── NIN — first sign-in only, offered UP FRONT
+                                                POST /retailer/auth/otp/verify
+                                                ⇒ creates the owner user (role: retailer)
+                                                ⇒ CLAIMS the retailer
+```
+
+**Why the NIN sits on the form from the start:** the server cannot know a NIN is needed until it has
+verified the code — and verifying CONSUMES it. Revealing the requirement afterwards leaves the owner
+holding a spent OTP. Checking first would answer "does this number have a retailer waiting?" for
+anyone who asks.
+
+**There is no self-registration.** A business nobody vetted must not be able to appear by signing up.
+
+### 7.2 Running the shop
+
+```
+Business & KYB → submit BVN (+ CAC if registered) → POST /retailer/me/kyb → kyb_pending
+                 ⇒ Anchor rules on it → kyb.approved → approved (stamps approved_at)
+                                      → kyb.rejected → suspended (approved_at stays NULL)
+Storefront    → add a service: name, price (₦), section, SPENDING CATEGORY, duration
+                 ⇒ the category is what a parent's lock matches on — NOT the free-text section
+Deals         → percentage or fixed amount, over a window; pause / resume / end (end is terminal)
+Redeem        → type the voucher code → "Service delivered"
+                 ├── redeemed → payout on its way to the retailer's own bank
+                 └── redeemed, payout delayed → the voucher IS used and the customer served;
+                       the transfer is retried. NOT reported as a failure.
+Orders        → every voucher bought, newest first, paginated
+Earnings      → paid to your bank · on its way · earned in total · vouchers redeemed
+                 ⇒ settlement HISTORY, never a balance — Amana holds no retailer funds
+```
+
+**Suspended is asymmetric, and the banner says so:** a suspended retailer cannot publish or run
+deals, but can still redeem vouchers already sold, and those payouts still reach them. The buyer
+already paid; stranding them to punish the retailer puts the cost on the wrong party.

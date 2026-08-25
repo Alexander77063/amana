@@ -76,6 +76,15 @@ jobs:
         # the DB suite twice and exhaust Postgres connections).
         run: pnpm exec turbo run test --filter='!@amana/backend'
 
+  docs:
+    # Cheap and independent of the build — a broken Markdown table renders as literal pipe text,
+    # which is invisible in an editor and obvious in a browser, so it needs a machine to catch.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate Markdown tables
+        run: python3 tools/docs/validate-tables.py
+
   deploy:
     needs: build-and-test
     runs-on: ubuntu-24.04

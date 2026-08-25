@@ -116,3 +116,10 @@ Fly.io app `amana-api`, region `jnb`. Two process groups: `app` (web, `/health` 
 ## Docs
 
 `docs/product/` (**the ten foundation docs and their status — start here**), `docs/adr/` (decisions), `docs/superpowers/plans/` (sub-plan implementation docs), `docs/superpowers/specs/` (design spec), `docs/runbook/` (`local-dev.md`, `anchor-sandbox.md`, `funds-model.md` — the limits-only sub-wallet funds model & money flows, `vas.md` — digital VAS (airtime/data/electricity/cable) money model, cash-out control & webhook flow, `retailer-onboarding.md` — marketplace retailer state machine, admin auth, `kyb.*` webhooks & the retailer portal, `marketplace-buyer.md` — buyer browse, the category-vs-section distinction & the merchant-rule control fusion, `go-live-checklist.md` — pre-production readiness), `docs/brainstorm/locked-decisions.md`.
+
+**Add a table to a doc, then run `python3 tools/docs/validate-tables.py`** (Python, in an otherwise
+Node repo; its own CI job). A pipe table missing its `|---|` delimiter row renders as literal pipe
+text — invisible in an editor, obvious in a browser — so it needs a machine, not a reader.
+
+**Before adding "just a note" to a requirement doc, diff the section against the code.** The design
+brief's entire palette and typeface turned out never to have shipped.

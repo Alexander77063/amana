@@ -271,16 +271,21 @@ curl -X POST "$API/vendors-admin/vendors/<vendor-uuid>/suspend" \
   same uniform `{accepted: true}` as an unknown account, with no OTP sent. `verify` re-reads
   the vendor and re-checks `status === 'observed'` before proving ownership, so an attempt
   opened just before a suspension still gets refused (`no_attempt`) at the verify step.
-- **Does NOT currently stop an already-`claimed` vendor's category from being enforced.**
-  `vendorCategoryResolver.resolve` (`vendor-category-resolver.service.ts`) looks the vendor
-  up by `(bankCode, accountNumber)` alone and returns `{category, categorySource,
-  enforceable}` with no read of `status` at all; `lifecycleService.evaluate`
-  (`modules/transactions/lifecycle.service.ts`) consumes exactly that shape and likewise
-  never checks `status`. So suspending a vendor that was already `claimed` (or ops-approved)
-  **does not by itself pull its category out of enforcement** — if you need that, clear or
-  reassign the category separately (`POST /vendors-admin/vendors/:id/category` with
-  `category: null`, which sets `categorySource = 'ops'`) alongside the suspend, or check
-  whether that gap has closed before relying on suspend alone for this purpose.
+- **Revokes enforcement immediately for an already-`claimed` vendor.**
+  `vendorCategoryResolver.resolve` (`vendor-category-resolver.service.ts`) reads `status`
+  alongside `categorySource`: `enforceable` is `vendor.categorySource !== 'observed' &&
+  vendor.status !== 'suspended'`. `lifecycleService.evaluate`
+  (`modules/transactions/lifecycle.service.ts`) consumes exactly that flag, so the moment a
+  `claimed` (or ops-approved) vendor is suspended, its category can no longer drive a rule
+  outcome for any subsequent spend — this is the documented remedy for a vendor that
+  self-asserted a permissive category to evade a household's category lock, and it now
+  actually performs the revocation rather than only recording that ops noticed.
+  **The category is still visible, on purpose:** `resolve` keeps returning the row (not
+  `null`) for a suspended vendor, so `lifecycleService`'s shadow-mode divergence logging
+  (`vendor.category_shadow`) keeps recording what the registry believed even after
+  suspension — a suspended vendor's continued traffic against its old category is precisely
+  what an operator watching the queue wants to keep seeing. Suspension strips the
+  *authority* to decide, not the *signal*.
 - **Makes its code resolve `410` for every payer — this is SP-V3, not live yet.**
   `GET /vendors/code/:code` doesn't exist in this sub-plan; suspension is future-proofed for
   it (a suspended vendor keeping its `publicCode` is what lets SP-V3 distinguish "this code
@@ -364,7 +369,3 @@ bounded only by rate limits, same as Gate 1.
   overwrites `observed`) — an operator's category write always wins, including over a
   vendor's own `claimed` answer about itself. Correct for a tool gated by `adminAuth`;
   would be dangerous behind anything weaker.
-- **Suspend doesn't pull an already-enforced category out of enforcement** — see
-  "Suspending a vendor" above. If this gap needs closing before SP-V3 ships the scan path,
-  it's a one-line status check in either `vendorCategoryResolver.resolve` or
-  `lifecycleService.evaluate`.

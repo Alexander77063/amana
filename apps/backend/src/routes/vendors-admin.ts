@@ -13,11 +13,17 @@ import { vendorsRepo } from '../modules/vendors/vendors.repo';
 
 type DbOrTx = PostgresJsDatabase;
 
+// Same shape as `routes/vendor-claim.ts`'s `PHONE_RE` — a local const rather than a shared import
+// so the two routes stay independent, but a phone stored on `vendors.claimedByPhone` must meet
+// the same bar whichever rail wrote it. The public rail's OTP round trip would catch a malformed
+// number; this one has no such check, so the format gate has to be the schema.
+const PHONE_RE = /^\+\d{10,15}$/;
+
 const IdParams = z.object({ id: z.string().uuid() });
 const CategoryBody = z.object({ category: z.string().min(1).max(64).nullable() });
 const EnforcementBody = z.object({ enforced: z.boolean().nullable() });
 const ApproveBody = z.object({
-  phone: z.string().min(1),
+  phone: z.string().regex(PHONE_RE, 'invalid_phone'),
   category: z.string().min(1).max(64).nullable(),
 });
 

@@ -607,6 +607,61 @@ describe('lifecycle — vendor category shadow mode', () => {
     expect(result.kind).toBe('allow');
   });
 
+  it('does NOT enforce a SUSPENDED claimed vendor, even for an opted-in household', async () => {
+    // The abuse this guards against: a fraudster claims their own account, self-asserts a
+    // permissive category to evade a household's category lock, ops notices and suspends the
+    // vendor — and enforcement must be revoked from that instant, not merely recorded as noticed.
+    const { agentId, subWalletId, masterId, principalId, householdId } =
+      await seedFundedSubWallet();
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId,
+      createdByUserId: principalId,
+      rules: [
+        { kind: 'category', priority: 10, config: { mode: 'allowlist', categories: ['food'] } },
+      ],
+    });
+    await testDb.execute(
+      sql`UPDATE households SET vendor_category_enforced = TRUE WHERE id = ${householdId}`,
+    );
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    const vendorId = await claimedTransportVendor(bankCode, accountNumber);
+    // Ops suspends the vendor. Its `category_source` is still `claimed` — suspension, not the
+    // category source, is what must strip enforcement here.
+    await testDb.execute(sql`UPDATE vendors SET status = 'suspended' WHERE id = ${vendorId}`);
+
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: bankCode,
+      vendorAccount: accountNumber,
+      vendorResolvedName: 'M',
+      category: 'food',
+    });
+
+    const result = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: NOW,
+    });
+    // The app-supplied category ('food', allowed) drives the decision, not the registry's
+    // ('transport', which would deny under this allowlist). Before the fix, this asserted
+    // 'bump_pending' — enforcement kept running against a vendor ops had already suspended.
+    expect(result.kind).toBe('allow');
+
+    // Suspension strips authority, not the signal: the registry disagreed with the app, and that
+    // divergence must still be visible to an operator watching a suspended vendor's traffic.
+    const entries = await auditRepo.listByAction(testDb, 'vendor.category_shadow');
+    expect(entries).toHaveLength(1);
+    const payload = entries[0]?.payloadJson as Record<string, unknown>;
+    expect(payload.enforced).toBe(false);
+    expect(payload.registryCategory).toBe('transport');
+    expect(payload.appCategory).toBe('food');
+  });
+
   it('writes no shadow row when the sub-wallet has no active rule set', async () => {
     // No category rule published — fetchActiveRuleSet returns null, evaluate is never called,
     // and the decision is a degenerate allow. There is nothing a category could have changed.

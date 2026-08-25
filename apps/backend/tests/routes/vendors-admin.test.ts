@@ -23,6 +23,12 @@ function adminPost(path: string, body: unknown, key: string | null = KEY) {
   });
 }
 
+function adminGet(path: string, key: string | null = KEY) {
+  return app.request(path, {
+    headers: { ...(key ? { 'x-admin-api-key': key } : {}) },
+  });
+}
+
 describe('/vendors-admin', () => {
   beforeEach(async () => {
     await truncateAll();
@@ -121,6 +127,72 @@ describe('/vendors-admin', () => {
       category: 'food',
     });
     expect(again.status).toBe(409);
+  });
+
+  it('claim-queue lists pending attempts but not expired ones', async () => {
+    const pendingVendor = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'PENDING SHOP',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!pendingVendor) throw new Error('promotion failed');
+    const pendingAttempt = await vendorClaimsRepo.openAttempt(testDb, {
+      vendorId: pendingVendor.id,
+      phone: factories.phone(),
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    if (!pendingAttempt) throw new Error('open attempt failed');
+
+    const expiredVendor = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'EXPIRED SHOP',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!expiredVendor) throw new Error('promotion failed');
+    const expiredAttempt = await vendorClaimsRepo.openAttempt(testDb, {
+      vendorId: expiredVendor.id,
+      phone: factories.phone(),
+      expiresAt: new Date(Date.now() - 60_000),
+    });
+    if (!expiredAttempt) throw new Error('open attempt failed');
+    // Actually expire it, the way the sweep job would — a stale-but-still-`pending` row would be
+    // exactly the false positive this test exists to catch.
+    await vendorClaimsRepo.expireOverdue(testDb, new Date());
+
+    const res = await adminGet('/vendors-admin/claim-queue');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { attempts: Array<{ id: string }> };
+    const ids = body.attempts.map((a) => a.id);
+    expect(ids).toContain(pendingAttempt.id);
+    expect(ids).not.toContain(expiredAttempt.id);
+  });
+
+  it('suspend actually flips the stored vendor status', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'BAD ACTOR SHOP',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    await vendorsRepo.claim(testDb, {
+      vendorId: v.id,
+      phone: factories.phone(),
+      category: 'food',
+      publicCode: 'AMNV-CCCCC-DDDDD',
+      now: NOW,
+    });
+
+    const res = await adminPost(`/vendors-admin/vendors/${v.id}/suspend`, {});
+    expect(res.status).toBe(200);
+
+    const after = await vendorsRepo.findById(testDb, v.id);
+    expect(after?.status).toBe('suspended');
   });
 
   it('400s a non-uuid vendor id rather than 500ing on the driver', async () => {

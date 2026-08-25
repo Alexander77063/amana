@@ -1,16 +1,15 @@
 # Amana — Product Design Requirements (PDR)
 
 
-> ⚠️ **STALE as of 2026-08-25 — read as history, not specification.**
+> **Refreshed 2026-08-25.** Originally written 2026-05-13, when the MVP wallet was the whole
+> product. Sections 1–4 (vision, problem, market, personas) held up and are unchanged apart from the
+> new retailer persona. Everything describing WHAT WE BUILT has been brought current: digital VAS,
+> the curated marketplace, retailer onboarding with Anchor Business KYB, the retailer portal, and
+> the control fusion.
 >
-> Written 2026-05-13, when the MVP wallet was the whole product. Since then 124 feature commits have
-> landed: digital VAS, the curated marketplace (SP1–SP5b), retailer onboarding with Anchor Business
-> KYB, the retailer portal, and the control fusion. The problem statement and market analysis still
-> hold; the product description does not.
->
-> Current scope: [`docs/product/mvp-scope.md`](../product/mvp-scope.md) · Index: [`docs/product/README.md`](../product/README.md)
+> Index: [`docs/product/README.md`](../product/README.md)
 
-**Version:** 1.0 | **Date:** 2026-05-13 | **Status:** Approved MVP
+**Version:** 1.1 | **Date:** 2026-05-13, refreshed 2026-08-25 | **Status:** Shipped; pre-production
 **Author:** Alexander Adegbola | **Domain:** amana-ng.com
 
 > **Executive summary:** Amana is a phone-to-phone controlled-spend wallet for Nigeria. A principal (parent or employer) funds a master wallet and issues sub-wallets to dependents and staff with real-time spending limits, category locks, and time-window rules. Payments reach any Nigerian bank account via NIP transfer — no vendor app required. The product closes the gap between unconstrained cash/transfers (no control) and full expense management software (too complex for households and micro-SMBs). MVP is fully built and in pre-deployment.
@@ -91,6 +90,32 @@ Principal sees full audit log + anomaly flags
 3. **Bump flow, not block-and-call.** Exceptional spends go through an in-app one-tap approval — not a phone call, not a WhatsApp back-and-forth.
 4. **Vendors are passive.** No merchant sign-up, no terminal, no QR registration. Any Nigerian bank account is a valid vendor.
 5. **Principal is a first-class spender too.** The principal app exposes the full vendor-capture stack for direct spend from the master wallet (bypass rules, no bump, full anomaly audit).
+6. **The marketplace and the rule engine are one system** *(added 2026-08-25)*. Approving a shop is
+   not a marketplace setting — it writes a `merchant` rule into the same rule set that holds the
+   spending limit and the category lock, evaluated by the same engine on every purchase. See §3.3.
+
+### 3.3 The control fusion — why the marketplace is not a bolt-on *(added 2026-08-25)*
+
+Every wallet can add a marketplace. The reason ours is hard to copy is that we already own the
+signal it needs.
+
+A parent using Amana has *already* expressed what may be bought: transport, school, food, and only
+between 6am and 8pm on weekdays. That expression exists, is enforced on every spend, and cost the
+parent nothing extra to produce. So the marketplace can do two things a standalone one cannot:
+
+1. **Show an agent only what they are already allowed to buy.** Not a filter bolted on top — the
+   catalogue is derived from the same active rule set that enforces at purchase time, so browse
+   cannot show something buying would refuse.
+2. **Let a parent narrow it further, in the same vocabulary.** "Only these shops" becomes a rule
+   sitting beside "only these categories", and the same engine enforces both.
+
+The competitive consequence: a wallet without a control layer would have to *ask* users what they
+want to see, and would be building an ad-targeting problem. We derive it from a control the user
+set for their own reasons, which is contextual by construction and NDPR-friendly without a
+compliance argument. **The moat is not the marketplace. It is that the marketplace is made of the
+control layer.**
+
+Commercially it is distribution, not advertising: the retailer pays when someone actually turns up.
 
 ---
 
@@ -120,6 +145,24 @@ Goals: no more petty-cash box; per-category spend visibility; one-tap bump appro
 
 ---
 
+### 4.4 Retailer persona (added 2026-08-25)
+
+**Who:** the owner of a small local business — a salon, a kitchen, a clinic, a mechanic — with one
+to five staff and no software. Takes cash and bank transfers today, reconciles neither.
+
+**What they want:** customers who turn up, and to be paid without chasing. Not a dashboard.
+
+**What they will not do:** install an app, pay a subscription, or learn a system. The portal is a
+web page they open when they need it, and the redemption flow is a code typed at a counter.
+
+**Why they are a second CUSTOMER and not a feature:** they have their own surface (the portal),
+their own onboarding (curated, KYB-verified), their own money flow (payout on redemption, not on
+sale), and their own reason to tell other people about Amana. Treating them as an afterthought of
+the buyer marketplace is the mistake this section exists to prevent — the supply side is what makes
+the demand side worth anything, and it is acquired differently.
+
+---
+
 ## 5. Feature Matrix
 
 ### 5.1 Core (MVP — shipped)
@@ -144,6 +187,20 @@ Goals: no more petty-cash box; per-category spend visibility; one-tap bump appro
 | Photo / note / GPS capture at payment time | — | ✓ |
 | Audit log (server-side, immutable) | — | — |
 | Principal direct spend (master wallet) | ✓ | — |
+
+### 5.1b Shipped since the MVP (2026-05 → 2026-08)
+
+| Feature | Principal | Agent | Retailer |
+|---|---|---|---|
+| Digital VAS — airtime, data, electricity, cable, paid to the biller | ✓ | ✓ | — |
+| Category locks reach VAS (airtime is a spend, not an exception) | Set | Constrained by | — |
+| Curated marketplace — browse, buy a voucher, show a code | ✓ | ✓ | Sells into |
+| Browse filtered by the buyer's own rules (never upsold) | — | ✓ | — |
+| **Merchant approval writes a rule** (the control fusion) | ✓ | Constrained by | — |
+| Retailer onboarding — ops-curated, Anchor Business KYB | — | — | ✓ |
+| Retailer portal — storefront, deals, redeem, orders, earnings | — | — | ✓ |
+| Payout on redemption (not on sale), settled to the retailer's own bank | — | — | ✓ |
+| Time windows evaluate in `Africa/Lagos` | Set | Constrained by | — |
 
 ### 5.2 Planned (v1.1+)
 

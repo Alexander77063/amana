@@ -1,13 +1,12 @@
 # Amana — Release Requirements Document (RRD)
 
 
-> ⚠️ **STALE as of 2026-08-25 — read as history, not specification.**
+> **Refreshed 2026-08-25.** Originally 2026-05-13 for the MVP release. The technical requirements,
+> integrations and constraints (§2–§4) held up and are unchanged. The functional requirements have
+> been extended with what shipped since: a third actor kind, the sixth rule kind, digital VAS, the
+> marketplace, and retailer onboarding with its portal.
 >
-> Written 2026-05-13 for the MVP release. The stack, integrations and constraints still hold; the
-> module inventory and acceptance criteria do not. Missing entirely: VAS, the marketplace, retailers,
-> the `merchant` rule kind, and the third actor kind (`retailer`).
->
-> Current schema: [`docs/product/database-schema.md`](../product/database-schema.md) · Index: [`docs/product/README.md`](../product/README.md)
+> Schema: [`docs/product/database-schema.md`](../product/database-schema.md) · Index: [`docs/product/README.md`](../product/README.md)
 
 **Version:** 1.0 — MVP Release | **Date:** 2026-05-13
 **Release name:** Amana MVP | **Target:** Private beta, Q3 2026
@@ -27,9 +26,14 @@
 | AUTH-4 | Access tokens must have a short TTL (15 min); refresh tokens must have a long TTL (30 days) | ✓ 
 | AUTH-5 | Any authenticated endpoint must reject requests with expired or invalid JWTs with HTTP 401  | ✓ 
 | AUTH-6 | Logout must invalidate the refresh token server-side                                        | ✓ 1
-| AUTH-7 | Each user must have a role (`principal` or `agent`) that is immutable after creation        | ✓ 
+| AUTH-7 | Each user must have a role (`principal`, `agent` or `retailer`) that is immutable after creation | ✓ 
 | AUTH-8 | Principal registration requires Phone + BVN + NIN (KYC Tier 2)                              | ✓ 
 | AUTH-9 | Agent registration requires Phone + NIN only                                                | ✓ 
+| AUTH-10 | A `retailer` actor must sign in through a SEPARATE OTP surface (`/retailer/auth/*`); the household route must refuse one and point at the portal | ✓ 
+| AUTH-11 | Retailer sign-in must not reveal whether a phone belongs to a retailer (no enumeration oracle) | ✓ 
+| AUTH-12 | There must be NO retailer self-registration: ops create the business and record the contact number, and the first OTP from that number claims it | ✓ 
+| AUTH-13 | A claimed retailer must not be takeable by re-registering its contact number | ✓ 
+| AUTH-14 | Both retailer OTP endpoints must be rate-limited alongside the household ones | ✓ 
 
 ### 1.2 Households & Members
 
@@ -70,6 +74,12 @@
 | RULE-6 | A `time_window` rule must block transactions outside the configured day/hour range                                         | ✓ 
 | RULE-7 | Rule violations must transition the transaction to `bump_pending` (not outright fail)                                      | ✓ 
 | RULE-8 | Principal direct spend must bypass the rule engine                                                                         | ✓ 
+| RULE-9 | A `merchant` rule must restrict a sub-wallet to an explicit allowlist of retailers | ✓ 
+| RULE-10 | A `merchant` rule must be evaluated ONLY on the marketplace path; every other path passes `retailerId: null`, which the rule denies | ✓ 
+| RULE-11 | An EMPTY merchant allowlist must deny everything; NO merchant rule must mean unrestricted. The two states are distinct | ✓ 
+| RULE-12 | Approving a merchant must merge into the active rule set and republish the WHOLE set, never replace it | ✓ 
+| RULE-13 | `time_window` must evaluate in `Africa/Lagos`, not UTC | ✓ 
+| RULE-14 | Category locks must apply to VAS and marketplace purchases, not only bank transfers | ✓ 
 
 ### 1.6 Transaction Lifecycle
 
@@ -131,6 +141,49 @@
 | ID    | Requirement                                                                                      | Status |
 | REF-1 | System must support initiating a reversal of a settled transaction                               | ✓ 
 | REF-2 | On refund received from Anchor webhook, transaction must be credited back and principal notified | ✓ 
+
+---
+
+### 1.12 Digital VAS *(added 2026-08-25)*
+
+| ID | Requirement | Status |
+|---|---|---|
+| VAS-1 | The wallet must buy airtime, data, electricity and cable, paid to the biller via Anchor's VAS APIs | ✓ |
+| VAS-2 | Electricity and cable must resolve the account holder BEFORE any money moves | ✓ |
+| VAS-3 | A VAS purchase must be subject to the principal's `category` and `time_window` rules | ✓ |
+| VAS-4 | The spend limit must be enforced under an advisory lock; the engine must NOT re-evaluate `limit` outside it | ✓ |
+| VAS-5 | An out-of-rule VAS purchase currently REJECTS rather than raising a bump | ✓ `[KNOWN GAP]` |
+
+### 1.13 Marketplace *(added 2026-08-25)*
+
+| ID | Requirement | Status |
+|---|---|---|
+| MKT-1 | A buyer must be able to browse a curated catalogue and buy a voucher | ✓ |
+| MKT-2 | Browse must be filtered by the buyer's OWN active rule set — never show what buying would refuse | ✓ |
+| MKT-3 | An agent's browse scope must always be their own sub-wallet; a supplied id must be ignored, not honoured | ✓ |
+| MKT-4 | Prices shown must come from `effectivePriceKobo`, never the gross list price | ✓ |
+| MKT-5 | The client must never supply a price — the server prices from the catalogue (closes the discount-spoof vector) | ✓ |
+| MKT-6 | A catalogue item must carry a spend `category` from the CLOSED vocabulary, distinct from the retailer's free-text `section` | ✓ |
+| MKT-7 | A purchase must be evaluated against `category`, `time_window` and `merchant` rules | ✓ |
+| MKT-8 | An out-of-rule purchase currently REJECTS; `bump_pending` is unreachable from this path | ✓ `[KNOWN GAP]` |
+| MKT-9 | A voucher must expire and refund the buyer automatically if never redeemed (`VOUCHER_TTL_HOURS`) | ✓ |
+
+### 1.14 Retailer onboarding & portal *(added 2026-08-25)*
+
+| ID | Requirement | Status |
+|---|---|---|
+| RET-1 | Onboarding must be curated: `applied → kyb_pending → approved \| suspended`, driven by ops | ✓ |
+| RET-2 | Every guarded transition must be an atomic compare-and-set, never a read-then-write | ✓ |
+| RET-3 | KYB must go through Anchor Business KYB; a retailer may SUBMIT but never approve itself | ✓ |
+| RET-4 | `approved_at` must record when KYB actually cleared — status alone cannot distinguish an ops suspension from a KYB rejection | ✓ |
+| RET-5 | A suspended retailer must NOT publish items or run deals | ✓ |
+| RET-6 | A suspended retailer MUST still be able to redeem vouchers already sold, and those payouts must still settle | ✓ (deliberate) |
+| RET-7 | A retailer that never passed KYB must not be able to redeem at all | ✓ |
+| RET-8 | Redemption must be idempotent and row-locked; a double scan must settle once | ✓ |
+| RET-9 | The retailer must be paid on REDEMPTION, not on sale | ✓ |
+| RET-10 | Earnings must be settlement history, never a held balance — Amana holds no retailer funds | ✓ |
+| RET-11 | Every portal route must authorise by OWNERSHIP in the service layer, never the `actor` claim | ✓ |
+| RET-12 | Retailer A must not read or mutate retailer B's data; "not yours" and "does not exist" must be indistinguishable | ✓ |
 
 ---
 

@@ -11,7 +11,7 @@ Controlled-spend wallet where a principal (parent or employer) funds a master wa
 
 **Phone-to-phone is the main thing.** It is the differentiating mechanic and must remain visible in the architecture, the UX, and the brand. Card-centric or merchant-centric framings are explicitly rejected.
 
-## The 13 locked decisions
+## The locked decisions
 
 1. **Licensing path** — Hybrid. Start on a BaaS partner; transition to own CBN license once volume justifies.
 2. **Wedge** — Household domestic-staff + family allowance, unified as a single primitive (principal funds, dependent spends within rules, principal controls).

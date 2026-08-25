@@ -2676,10 +2676,12 @@ SELECT payload_json ->> 'categorySource'   AS category_source,
        COUNT(*)                            AS n
 FROM audit_log
 WHERE action = 'vendor.category_shadow'
-  AND created_at > now() - interval '30 days'
+  AND occurred_at > now() - interval '30 days'
 GROUP BY 1, 2, 3
 ORDER BY n DESC;
 ```
+
+> The column is `occurred_at`. `audit_log` has no `created_at` — see `db/schema/audit.ts:17`.
 
 **Read `category_source` first, and say why in the runbook:** only `claimed` and `ops` rows describe a change enforcement would actually make. `observed` rows are the registry disagreeing in a way it will never be allowed to act on, and counting them as evidence for switching enforcement on would overstate the case — usually by a lot, since in V1 they are all of them.
 

@@ -29,6 +29,11 @@ export const vendorsRepo = {
     return row;
   },
 
+  async findById(db: DbOrTx, vendorId: string): Promise<VendorRow | undefined> {
+    const [row] = await db.select().from(vendors).where(eq(vendors.id, vendorId)).limit(1);
+    return row;
+  },
+
   /**
    * Promote an account into the registry, or do nothing if it is already there.
    *

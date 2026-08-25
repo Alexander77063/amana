@@ -16,6 +16,10 @@
 - Repos and services take `db` as their **first argument**; routes live in `apps/backend/src/routes/`.
 - Biome: single quotes, 2-space indent, 100-column line width.
 - Validate every mutating route through `lib/validate.ts` — never raw `c.req.json()`.
+- **Raw SQL in tests goes through drizzle's `sql` tag** — `sql\`… WHERE id = ${id}\``, never a template
+  string interpolated into `db.execute(… as never)`. The `as never` form defeats drizzle's typing and
+  builds the statement by string concatenation; parameters belong in the tag. Import `sql` from
+  `drizzle-orm` in any test file that needs it.
 - **The claim surface must never reveal whether an account is in the registry.** Identical status and body for registered and unregistered accounts. This is a spec requirement (§7.2), not a nicety: the endpoint would otherwise be an oracle for "has this account been paid by ≥5 Amana households".
 - Every public endpoint added here is rate-limited in `attachRateLimiters`. An unrated OTP route is an SMS bill and an enumeration oracle.
 - Ops endpoints sit behind `adminAuth(process.env.ADMIN_API_KEY)`. An unset key means **deny**, never open.
@@ -269,7 +273,7 @@ describe('vendor_claim_attempts schema', () => {
       .returning();
     if (!first) throw new Error('insert failed');
     await testDb.execute(
-      `UPDATE vendor_claim_attempts SET status = 'expired' WHERE id = '${first.id}'` as never,
+      sql`UPDATE vendor_claim_attempts SET status = 'expired' WHERE id = ${first.id}`,
     );
     await expect(
       testDb.insert(vendorClaimAttempts).values({
@@ -1727,7 +1731,7 @@ describe('/vendors-admin', () => {
       });
       expect(res.status).toBe(200);
       const rows = await testDb.execute<{ vendor_category_enforced: boolean | null }>(
-        `SELECT vendor_category_enforced FROM households WHERE id = '${householdId}'` as never,
+        sql`SELECT vendor_category_enforced FROM households WHERE id = ${householdId}`,
       );
       expect(rows[0]?.vendor_category_enforced).toBe(expected);
     }

@@ -18,6 +18,10 @@
 - Biome: single quotes, 2-space indent, 100-column line width.
 - Tests run against a **real Postgres**; `docker compose up -d` first, and migrations must be applied to the test DB before running (`global-setup.ts` only checks reachability).
 - `truncateAll()` in `beforeEach`. New tables must be added to `TABLES_TO_TRUNCATE`.
+- **Raw SQL in tests goes through drizzle's `sql` tag** — `sql\`… WHERE id = ${id}\``, never a template
+  string interpolated into `db.execute(… as never)`. The `as never` form defeats drizzle's typing and
+  builds the statement by string concatenation; parameters belong in the tag. Import `sql` from
+  `drizzle-orm` in any test file that needs it.
 - Coverage gate must hold: lines/statements 92, functions 90, branches 80.
 - The registry must never be able to block or fail a spend. Every registry read in the money path is wrapped so that failure yields `null` and evaluation proceeds.
 - Enforcement default is **off**. No task in this plan may make the registry category drive a rule outcome by default.
@@ -236,8 +240,7 @@ describe('vendor registry schema', () => {
   it('households.vendor_category_enforced defaults to NULL (inherit global)', async () => {
     const { householdId } = await makeHousehold(testDb);
     const rows = await testDb.execute<{ vendor_category_enforced: boolean | null }>(
-      // biome-ignore lint/style/noUnusedTemplateLiteral: raw column read
-      `SELECT vendor_category_enforced FROM households WHERE id = '${householdId}'` as never,
+      sql`SELECT vendor_category_enforced FROM households WHERE id = ${householdId}`,
     );
     expect(rows[0]?.vendor_category_enforced).toBeNull();
   });
@@ -1208,7 +1211,7 @@ describe('vendorsRepo', () => {
 
     // Simulate SP-V2 having claimed this vendor.
     await testDb.execute(
-      `UPDATE vendors SET category = 'pharmacy', category_source = 'claimed' WHERE id = '${v.id}'` as never,
+      sql`UPDATE vendors SET category = 'pharmacy', category_source = 'claimed' WHERE id = ${v.id}`,
     );
 
     expect(await vendorsRepo.setObservedCategory(testDb, v.id, 'food', 20)).toBe(false);
@@ -1229,7 +1232,7 @@ describe('vendorsRepo', () => {
     });
     if (!b) throw new Error('promotion failed');
     await testDb.execute(
-      `UPDATE vendors SET category_source = 'claimed' WHERE id = '${b.id}'` as never,
+      sql`UPDATE vendors SET category_source = 'claimed' WHERE id = ${b.id}`,
     );
 
     const observed = await vendorsRepo.listByCategorySource(testDb, 'observed');
@@ -2021,7 +2024,7 @@ describe('vendorCategoryResolver.resolve', () => {
     });
     if (!v) throw new Error('promotion failed');
     await testDb.execute(
-      `UPDATE vendors SET category = 'transport', category_source = 'claimed' WHERE id = '${v.id}'` as never,
+      sql`UPDATE vendors SET category = 'transport', category_source = 'claimed' WHERE id = ${v.id}`,
     );
 
     const r = await vendorCategoryResolver.resolve(testDb, bankCode, accountNumber);
@@ -2189,7 +2192,7 @@ async function claimedTransportVendor(bankCode: string, accountNumber: string): 
   });
   if (!v) throw new Error('promotion failed');
   await testDb.execute(
-    `UPDATE vendors SET category = 'transport', category_source = 'claimed' WHERE id = '${v.id}'` as never,
+    sql`UPDATE vendors SET category = 'transport', category_source = 'claimed' WHERE id = ${v.id}`,
   );
   return v.id;
 }
@@ -2235,7 +2238,7 @@ describe('lifecycle — vendor category shadow mode', () => {
     });
 
     const rows = await testDb.execute<{ vendor_id: string; resolved_category: string }>(
-      `SELECT vendor_id, resolved_category FROM transactions WHERE id = '${txn.id}'` as never,
+      sql`SELECT vendor_id, resolved_category FROM transactions WHERE id = ${txn.id}`,
     );
     expect(rows[0]?.vendor_id).toBe(vendorId);
     expect(rows[0]?.resolved_category).toBe('transport');
@@ -2288,7 +2291,7 @@ describe('lifecycle — vendor category shadow mode', () => {
       await makeFundedSubWallet(testDb);
     await giveCategoryAllowlist(testDb, subWalletId, ['food']);
     await testDb.execute(
-      `UPDATE households SET vendor_category_enforced = TRUE WHERE id = '${householdId}'` as never,
+      sql`UPDATE households SET vendor_category_enforced = TRUE WHERE id = ${householdId}`,
     );
     const bankCode = factories.bankCode();
     const accountNumber = factories.bankAccount();
@@ -2309,7 +2312,7 @@ describe('lifecycle — vendor category shadow mode', () => {
       await makeFundedSubWallet(testDb);
     await giveCategoryAllowlist(testDb, subWalletId, ['food']);
     await testDb.execute(
-      `UPDATE households SET vendor_category_enforced = TRUE WHERE id = '${householdId}'` as never,
+      sql`UPDATE households SET vendor_category_enforced = TRUE WHERE id = ${householdId}`,
     );
     const bankCode = factories.bankCode();
     const accountNumber = factories.bankAccount();

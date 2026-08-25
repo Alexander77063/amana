@@ -1,6 +1,7 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
 import { usersRepo } from '../../src/modules/identity/users.repo';
+import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo';
 import { factories } from './factories';
 
 /**
@@ -27,4 +28,24 @@ export async function makeHousehold(
     name: 'Test household',
   });
   return { householdId: household.id, principalUserId: principal.id };
+}
+
+/**
+ * A principal + household + master wallet. Used by vendor observation tests.
+ */
+export async function makeHouseholdWithWallet(
+  db: PostgresJsDatabase,
+): Promise<{ householdId: string; principalUserId: string; masterWalletId: string }> {
+  const { householdId, principalUserId } = await makeHousehold(db);
+  const provisioned = await masterWalletsRepo.provision(db, {
+    householdId,
+    anchorVirtualAccount: factories.bankAccount(),
+    anchorBankCode: '058',
+    anchorAccountId: `test-acct-${factories.householdId()}`,
+  });
+  return {
+    householdId,
+    principalUserId,
+    masterWalletId: provisioned.master.id,
+  };
 }

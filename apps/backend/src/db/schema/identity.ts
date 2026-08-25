@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { pgEnum, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import { boolean, pgEnum, pgTable, primaryKey, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 // 'retailer' is the marketplace supply side: the owner login for a retailer business (SP4b).
 // It is a peer of principal/agent rather than a flag on them, because a retailer owner has no
@@ -29,6 +29,10 @@ export const households = pgTable('households', {
     .notNull()
     .references(() => users.id, { onDelete: 'restrict' }),
   name: text('name').notNull(),
+  // Three-state on purpose. TRUE = registry category enforced for this household, FALSE = never,
+  // NULL = inherit env.VENDOR_CATEGORY_ENFORCE_DEFAULT. Nullable is what lets the rollout proceed
+  // household by household without a backfill touching every row.
+  vendorCategoryEnforced: boolean('vendor_category_enforced'),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
 

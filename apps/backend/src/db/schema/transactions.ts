@@ -49,6 +49,13 @@ export const transactions = pgTable('transactions', {
   vendorBankCode: text('vendor_bank_code'),
   vendorResolvedName: text('vendor_resolved_name'),
   category: text('category'),
+  // SP-V1 registry attribution. Null for every pre-existing row and for any vendor not in the
+  // registry. No FK to `vendors` here on purpose: a transaction must survive a vendor row being
+  // removed, and adding a restrict-FK to the hot spend path buys nothing.
+  vendorId: uuid('vendor_id'),
+  // What the registry said the category was, recorded whether or not it was enforced. This column
+  // IS the shadow record — it is how we learn what enforcement would have changed.
+  resolvedCategory: text('resolved_category'),
   anomalyScore: decimal('anomaly_score', { precision: 3, scale: 2 }),
   bumpRequestId: uuid('bump_request_id'), // FK to bump_requests, enforced at DB layer (migration 0013)
   agentNote: text('agent_note'),

@@ -180,4 +180,17 @@ export const transactionsRepo = {
       .set({ anomalyScore: score.toFixed(2) })
       .where(eq(transactions.id, id));
   },
+
+  /** Record which registry vendor a spend resolved to and what category the registry gave it. */
+  async setRegistryAttribution(
+    db: DbOrTx,
+    transactionId: string,
+    vendorId: string | null,
+    resolvedCategory: string | null,
+  ): Promise<void> {
+    await db
+      .update(transactions)
+      .set({ vendorId, resolvedCategory })
+      .where(eq(transactions.id, transactionId));
+  },
 };

@@ -487,7 +487,9 @@ Nothing in the codebase can enforce this. The API emits a bare code and never a 
 sticker's `pay.amana.ng/v/…` wrapper is added by whoever prepares the print run. This section
 is the control.
 
-## Deferred follow-ups
+## Follow-ups — what shipped since, and what is still deferred
+
+**Shipped:**
 
 - **The claim rail shipped (SP-V2).** Before it did, every registry category was
   `category_source = 'observed'` and no household could meaningfully turn enforcement on.
@@ -496,14 +498,24 @@ is the control.
 - **The code and the scan path shipped (SP-V3)** — see "The Amana Vendor Code", above.
   `vendors.publicCode` is written only by `claim()`, atomically with `status = 'claimed'`, so
   it stays `NULL` for every `observed` row.
+
+**Still deferred:**
+
 - **Randomised promotion threshold** (spec §10.2) — a defence against a membership-
   inference attack on promotion timing. Deliberately not built in v1 (the sybil cost is
   already high via KYC, there is no public vendor feed, and the payoff is negligible);
   revisit if a public directory, a real-time vendor feed, or cheap household creation ever
   ships.
-- **`VENDOR_SENSITIVE_CATEGORIES`'s default list** is a starting guess (spec §14.3) —
-  review it against the real category taxonomy before any claim rail lets a vendor request
-  a sensitive category.
+- **`VENDOR_SENSITIVE_CATEGORIES`'s default list** is a starting guess (spec §14.3), and
+  **its stated precondition has already been crossed unmet.** This bullet used to read
+  "review it against the real category taxonomy *before any claim rail lets a vendor request
+  a sensitive category*". SP-V2 shipped that rail: `/vendor-claim/verify` takes an optional
+  `category` and `vendorClaimService.verify` writes it through verbatim — the list is read
+  only by `consensus.ts`, on the observed path, and by nothing on the claim path. That is
+  **by design** (the list means "not settable by observed consensus; claim-or-ops only", per
+  the env table above), so this is not a bypass. But the review the bullet asked for still has
+  not happened, and a claimant can today self-assert `pharmacy` — which, being
+  `categorySource = 'claimed'`, *is* enforceable. Do the review.
 - **The 5 / 8 / 0.6 thresholds** are starting guesses (spec §14.2) — all three are env
   vars specifically so they can be tuned once shadow data exists, with no deploy beyond an
   env change.

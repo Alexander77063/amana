@@ -60,7 +60,8 @@ The suite now has **two** cases:
 1. **Provisioning + topup + KYC** — real `createCustomer` + `provisionVirtualAccount`, then simulated `virtual_account.credited` → settled topup, then `kyc.approved` → tier bump.
 2. **Outbound spend (the real `/transfers` call)** — principal-direct `intent` → `evaluate` → `send` (hits live Anchor), then a simulated `transfer.completed` drives our settlement → `settled`.
 
-This is the one substantive item between "code complete" and "integration verified." It also:
+This is the one substantive *integration* item between "code complete" and "integration
+verified" — §6 is a separate, non-competing gate on a different thing. It also:
 - confirms the `AnchorCreateCustomerRequest.fullName` contract against live Anchor (design §6 flagged this to verify);
 - surfaces Anchor's real **insufficient-balance** error signature → unblocks mapping it to a friendly "household needs to top up" message (the open M4 follow-up).
 
@@ -127,7 +128,7 @@ the only control.
 
 ## Standing guarantees (already done — do not re-litigate)
 
-- Security audit closed (PRs #3–#15): authz on money routes, BVN/NIN at-rest encryption, OTP/pairing atomic claims, in-flight spend limits under advisory lock, webhook dedupe + dead-letter, rate limiting, PII log redaction, limits-only funds model.
+- Security audit closed (PRs #3–#15): authz on money routes, BVN/NIN at-rest encryption, OTP/pairing atomic claims, in-flight spend limits under advisory lock, webhook dedupe + dead-letter, rate limiting, PII log redaction, limits-only funds model. **One exception, added 2026-08-26: the transport-security gate in §6.** App-wide HSTS and HSTS preload were never in scope of PRs #3–#15 — every client at the time was a native app pinned to an `https://` base URL, and there was no surface a human reached by typing a hostname. SP-V3's public landing page is one. §6 is open; this bullet is not a reason to skip it.
 - Double-entry ledger invariants enforced in app + DB (immutable postings/audit).
 - Coverage gate (lines/statements 92, functions 90, branches 80) enforced in CI; full backend suite green.
 - No stubs, fake-data paths, committed secrets, or TODO debt in production source.

@@ -29,6 +29,30 @@ export const vendorsRepo = {
     return row;
   },
 
+  /**
+   * Look a vendor up by its printed public code.
+   *
+   * The guard is load-bearing, not defensive noise. `public_code` is nullable AND unique, so
+   * Postgres happily holds any number of NULL rows — every observed, unclaimed vendor is one. A
+   * lookup that reached the database carrying NULL would match nothing and return `undefined`,
+   * which looks exactly like a correct miss; the bug would only surface the day the comparison
+   * semantics changed under it. Refuse before the query instead, so a blank code is a caller
+   * error and not a silent no-op.
+   *
+   * A suspended vendor is still FOUND here on purpose — refusing it is the resolution layer's
+   * job, because only a caller can decide whether "real but dead" and "never existed" deserve
+   * the same answer.
+   */
+  async findByPublicCode(db: DbOrTx, publicCode: string): Promise<VendorRow | undefined> {
+    if (!publicCode || publicCode.trim().length === 0) return undefined;
+    const [row] = await db
+      .select()
+      .from(vendors)
+      .where(eq(vendors.publicCode, publicCode))
+      .limit(1);
+    return row;
+  },
+
   async findById(db: DbOrTx, vendorId: string): Promise<VendorRow | undefined> {
     const [row] = await db.select().from(vendors).where(eq(vendors.id, vendorId)).limit(1);
     return row;

@@ -8,6 +8,7 @@ import { stickersRepo } from '../../../src/modules/sticker/stickers.repo';
 import { encodeTlvForTest } from '../../../src/modules/vendors/nqr-decoder';
 import { recentsRepo } from '../../../src/modules/vendors/recents.repo';
 import { vendorResolutionService } from '../../../src/modules/vendors/vendor-resolution.service';
+import { vendorsRepo } from '../../../src/modules/vendors/vendors.repo';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { factories } from '../../helpers/factories';
@@ -134,6 +135,44 @@ describe('vendorResolutionService.resolve', () => {
     });
     expect(isOk(result)).toBe(true);
     if (isOk(result)) expect(result.value.source).toBe('nqr');
+  });
+
+  it('vendor code input → registry lookup path, and lands in recents like any other kind', async () => {
+    const subWalletId = await seedSubWallet();
+    const promoted = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT KITCHEN',
+      promotedHouseholdCount: 6,
+      now: new Date('2026-05-01T12:00:00Z'),
+    });
+    if (!promoted) throw new Error('promotion failed');
+    const claimed = await vendorsRepo.claim(testDb, {
+      vendorId: promoted.id,
+      phone: factories.phone(),
+      category: 'food',
+      publicCode: 'AMNV-7QK2H-9PZ0R',
+      now: new Date('2026-05-01T12:00:00Z'),
+    });
+    if (!claimed) throw new Error('claim failed');
+
+    const result = await vendorResolutionService.resolve(testDb, makeAdapter(baseFetch), {
+      kind: 'vendor',
+      publicCode: 'AMNV-7QK2H-9PZ0R',
+      subWalletId,
+      now: new Date('2026-05-03T12:00:00Z'),
+    });
+    expect(isOk(result)).toBe(true);
+    if (!isOk(result)) return;
+    expect(result.value.source).toBe('vendor_code');
+    expect(result.value.vendorId).toBe(promoted.id);
+    expect(result.value.category).toBe('food');
+    // baseFetch is the NIBSS stub: the name on the confirm screen is the live one, not the
+    // stored displayName.
+    expect(result.value.accountName).toBe('MUSA ABDULLAHI');
+
+    const recent = await recentsRepo.findByVendor(testDb, subWalletId, '058', '0123456789');
+    expect(recent).toBeDefined();
   });
 
   it('successful resolution touches recents', async () => {

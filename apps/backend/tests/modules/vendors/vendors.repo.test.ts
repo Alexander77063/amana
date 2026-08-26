@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { vendorsRepo } from '../../../src/modules/vendors/vendors.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
@@ -93,5 +93,50 @@ describe('vendorsRepo', () => {
 
     const observed = await vendorsRepo.listByCategorySource(testDb, 'observed');
     expect(observed.map((v) => v.id)).toEqual([a.id]);
+  });
+
+  it('finds a claimed vendor by its public code', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'CODED SHOP',
+      promotedHouseholdCount: 5,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    const claimed = await vendorsRepo.claim(testDb, {
+      vendorId: v.id,
+      phone: factories.phone(),
+      category: 'food',
+      publicCode: 'AMNV-1AB2C-3DE4F',
+      now: NOW,
+    });
+    if (!claimed) throw new Error('claim failed');
+
+    const found = await vendorsRepo.findByPublicCode(testDb, 'AMNV-1AB2C-3DE4F');
+    expect(found?.id).toBe(v.id);
+    expect(await vendorsRepo.findByPublicCode(testDb, 'AMNV-ZZZZZ-ZZZZZ')).toBeUndefined();
+  });
+
+  it('refuses a null, undefined or blank code before it ever reaches the database', async () => {
+    // public_code is nullable AND unique, so Postgres permits any number of NULL rows. An
+    // unguarded lookup carrying NULL matches nothing and LOOKS correct — the dangerous kind of
+    // safe. This observed vendor is exactly such a row: it must never come back.
+    const observed = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'UNCLAIMED SHOP',
+      promotedHouseholdCount: 5,
+      now: NOW,
+    });
+    if (!observed) throw new Error('promotion failed');
+    expect(observed.publicCode).toBeNull();
+
+    const select = vi.spyOn(testDb, 'select');
+    for (const bad of [null, undefined, '', '   ']) {
+      expect(await vendorsRepo.findByPublicCode(testDb, bad as unknown as string)).toBeUndefined();
+    }
+    expect(select).not.toHaveBeenCalled();
+    select.mockRestore();
   });
 });

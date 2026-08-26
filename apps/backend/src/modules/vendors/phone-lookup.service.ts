@@ -21,6 +21,8 @@ export const phoneLookupService = {
         accountName: r.accountName,
         source: 'phone_lookup',
         suggestedAmountKobo: null,
+        vendorId: null,
+        category: null,
       });
     } catch (e) {
       if (e instanceof AnchorHttpError) {

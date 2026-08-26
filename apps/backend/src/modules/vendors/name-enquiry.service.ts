@@ -19,6 +19,10 @@ export const nameEnquiryService = {
         accountName: r.accountName,
         source: 'name_enquiry',
         suggestedAmountKobo: null,
+        // A bare account number says nothing about the registry; the vendor is resolved from the
+        // account later, at evaluation time.
+        vendorId: null,
+        category: null,
       });
     } catch (e) {
       if (e instanceof AnchorHttpError) {

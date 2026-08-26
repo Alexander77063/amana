@@ -292,8 +292,16 @@ describe('GET /v/:code — the public landing page', () => {
     // Malformed on purpose: the limiter runs ahead of the handler, so the bucket is exhausted
     // without seeding a vendor or touching Postgres.
     const burn = '/v/AMNV-7QK2!-9PZ0R';
+    // Pin the SIZE, not just the presence. The burn below reaches 429 under any limit at all, so
+    // swapping this route onto the auth surface's much smaller allowance would slip past it. The
+    // page is deliberately an order of magnitude looser: it is keyed on `clientIp`, and behind a
+    // Nigerian carrier's CGNAT that key is a whole city, not a payer.
+    const first = await app.request(burn);
+    expect(first.headers.get('x-ratelimit-limit')).toBe(String(env.RATE_LIMIT_VENDOR_PAGE_PER_IP));
+    expect(env.RATE_LIMIT_VENDOR_PAGE_PER_IP).toBeGreaterThan(env.RATE_LIMIT_AUTH_PER_IP);
+
     let last = 0;
-    for (let i = 0; i <= env.RATE_LIMIT_AUTH_PER_IP; i++) {
+    for (let i = 0; i <= env.RATE_LIMIT_VENDOR_PAGE_PER_IP; i++) {
       last = (await app.request(burn)).status;
     }
     expect(last).toBe(429);

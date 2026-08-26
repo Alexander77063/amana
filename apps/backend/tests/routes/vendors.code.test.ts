@@ -362,9 +362,14 @@ describe('GET /vendors/code/:code', () => {
    * Every valid code costs one Anchor name enquiry, on the circuit breaker the spend path shares.
    * The limiter exists so scans cannot trip that breaker — but its pattern must stay narrow, or
    * the cure is worse than the disease: a limiter accidentally covering `/vendors/*` would throttle
-   * the spend-path reads it was added to protect. Both halves are asserted here.
+   * the spend-path reads it was added to protect.
+   *
+   * It is keyed on the authenticated account rather than the client IP, which is why it lives on
+   * `vendorsRoute` after `jwtAuth()` instead of in `attachRateLimiters` — the app-level limiters
+   * run before `app.route('/vendors', …)`, so `c.get('actor')` is unset there. All three halves
+   * are asserted here: the burn, the untouched sibling, and a second account that must still pass.
    */
-  it('rate-limits the code surface without touching its sibling vendor routes', async () => {
+  it('rate-limits the code surface per account, without touching its sibling vendor routes', async () => {
     const { agent, subWalletId } = await seedSubWallet();
     const headers = await bearerHeaders(agent);
     // Malformed on purpose: the limiter runs ahead of the handler, so this exhausts the bucket
@@ -379,6 +384,19 @@ describe('GET /vendors/code/:code', () => {
     // The bucket is spent. A sibling vendors route must still answer.
     const sibling = await app.request(`/vendors/recents?subWalletId=${subWalletId}`, { headers });
     expect(sibling.status).toBe(200);
+
+    // The half that discriminates an ACCOUNT key from an IP key. Every request in this harness
+    // carries the same (absent) client IP, so under the old `clientIp` key this second, unrelated
+    // account would already be locked out by the first one's burn. That shared bucket was not a
+    // test artefact: Nigerian carriers CGNAT, so in production one egress address is thousands of
+    // subscribers, and this is a payment-path read where a false positive costs a payment.
+    // 400, not 429 — it reached the handler's validation, which is proof it passed the limiter.
+    const other = await seedSubWallet();
+    const otherRes = await app.request(
+      `/vendors/code/AMNV-7QK2!-9PZ0R?subWalletId=${other.subWalletId}`,
+      { headers: await bearerHeaders(other.agent) },
+    );
+    expect(otherRes.status).toBe(400);
   });
 
   /**

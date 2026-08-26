@@ -1,11 +1,13 @@
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/client';
+import { env } from '../env';
 import { anchorAdapterSingleton } from '../integrations/anchor';
 import { logger } from '../lib/logger';
 import { isOk } from '../lib/result';
 import { parseBody, parseParams, parseQuery } from '../lib/validate';
 import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
+import { rateLimit } from '../middleware/rate-limit';
 import { decodeNqr } from '../modules/vendors/nqr-decoder';
 import { recentsService } from '../modules/vendors/recents.service';
 import type { ResolveError } from '../modules/vendors/types';
@@ -80,6 +82,50 @@ function enquiryFailure(c: Context, error: ResolveError, subject: Record<string,
 
 export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(jwtAuth())
+  /**
+   * Every valid code costs one Anchor name enquiry, and that call runs through the SAME circuit
+   * breaker as real payments — so unthrottled scans can trip the breaker and take spend down with
+   * them. The pattern stays narrow (`/code/*`, not `*`) so `/recents` and the other spend-path
+   * reads are untouched.
+   *
+   * Keyed on the authenticated account, not the client IP, and mounted HERE rather than in
+   * `attachRateLimiters` because that is what makes the key possible: the app-level limiters are
+   * registered before `app.route('/vendors', …)`, so `c.get('actor')` is still unset when they
+   * run. Registering after `jwtAuth()` on this router is the only place the actor exists.
+   *
+   * Why it had to be per-actor rather than merely resized:
+   *
+   * - Nigerian carriers CGNAT heavily, so an IP key is shared by every subscriber behind one
+   *   carrier egress address. This is a PAYMENT-PATH read: a false positive costs a payment, not
+   *   a login retry, and it lands on whichever customer happens to be next through that NAT.
+   * - An IP key does not bound the thing this limiter exists to protect anyway. The breaker is one
+   *   global resource; per-IP × per-process × N Fly machines is unbounded in aggregate. A per-
+   *   account key at least bounds what any one account can spend, which is the abuse shape that
+   *   matters — a stranger cannot open an account per scan.
+   *
+   * Known and accepted: the limiter runs ahead of the handler, so a 404 or a malformed code spends
+   * the same allowance as a real enquiry. Moving the accounting behind the handler means counting
+   * only requests that actually reached Anchor, which the fixed-window store cannot express today;
+   * it is the right change when this moves to Redis.
+   *
+   * (The earlier note here claimed per-actor keying was blocked by the access token being too
+   * short-lived to key on. That was wrong twice over: the key is the `sub` claim — the user id,
+   * stable for the life of the account — and the actual obstacle was the middleware ordering
+   * described above. Recorded rather than deleted, because a false stated reason is what kept the
+   * weaker key in place.)
+   */
+  .use(
+    '/code/*',
+    rateLimit({
+      limit: env.RATE_LIMIT_AUTH_PER_IP,
+      windowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
+      keyPrefix: 'vendor-code:actor',
+      // `null` skips the limiter, which is how `RATE_LIMIT_ENABLED=false` still turns this one
+      // off: the app-level limiters get that escape hatch from `attachRateLimiters` returning
+      // early, and a route-level `.use` in a chain has no equivalent seam.
+      key: (c) => (env.RATE_LIMIT_ENABLED ? (c.get('actor') as Actor).userId : null),
+    }),
+  )
   .get('/name-enquiry', async (c) => {
     const q = parseQuery(c, NameEnquiryQuery);
     if (q instanceof Response) return q;

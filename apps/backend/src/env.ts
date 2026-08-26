@@ -71,6 +71,18 @@ const EnvSchema = z.object({
   RATE_LIMIT_OTP_PER_IP: z.coerce.number().int().positive().default(20),
   RATE_LIMIT_AUTH_PER_IP: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_PAIRING_PER_IP: z.coerce.number().int().positive().default(30),
+  // The public vendor landing page (`/v/*`, SP-V3). Deliberately an order of magnitude above the
+  // auth limits, and its own constant rather than a reuse of RATE_LIMIT_AUTH_PER_IP, because it is
+  // sized for a different job: the code space is 32^10, so this limiter is NOT an enumeration
+  // defence — nothing is being guessed. It exists only so a sticker photographed off a shop window
+  // cannot be replayed into unbounded load on Postgres.
+  //
+  // 600 per 15 minutes = 40/min. The key is `clientIp`, and Nigerian carriers CGNAT heavily, so in
+  // practice that bucket is shared by every subscriber behind one MTN/Airtel/Glo egress address —
+  // not one payer. At the auth surface's 60 a busy market day would 429 real customers standing in
+  // real shops, and the failure mode is a JSON error where someone expected a shop. Raise this
+  // before lowering it; the cost of a false positive here is a payment that does not happen.
+  RATE_LIMIT_VENDOR_PAGE_PER_IP: z.coerce.number().int().positive().default(600),
   // Vendor registry (SP-V1). Enforcement is OFF unless explicitly enabled — the registry ships
   // as a measurement instrument and only becomes a control once shadow data justifies it.
   // Note the inverted transform vs RATE_LIMIT_ENABLED: that one defaults ON (`v !== 'false'`),

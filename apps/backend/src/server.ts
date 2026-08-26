@@ -114,22 +114,10 @@ function attachRateLimiters(app: Hono): void {
     );
   }
 
-  // The vendor-code lookup is authenticated, so it is not an enumeration surface — it is throttled
-  // for a different reason: every valid code costs one Anchor name enquiry, and that call runs
-  // through the SAME circuit breaker as real payments. Unthrottled scans can trip the breaker and
-  // take spend down with them. The pattern is deliberately narrow (`/vendors/code/*`, not
-  // `/vendors/*`) so `/vendors/recents` and the other spend-path reads stay unlimited.
-  // Keyed by IP, like every other limiter here; per-actor keying is the right upgrade when the
-  // store moves off in-process memory to Redis, and the token is too short-lived to key on today.
-  app.use(
-    '/vendors/code/*',
-    rateLimit({
-      limit: env.RATE_LIMIT_AUTH_PER_IP,
-      windowSeconds,
-      keyPrefix: 'vendor-code:ip',
-      key: clientIp,
-    }),
-  );
+  // The vendor-code lookup used to be limited here, per IP. It is not any more: it now lives
+  // inside `vendorsRoute`, after `jwtAuth()`, keyed on the authenticated account. See the comment
+  // at that `.use('/code/*', …)` for why the mechanism had to move rather than just be resized.
+  // Nothing keyed on `clientIp` can bound the resource that limiter is protecting.
 
   // The public vendor landing page. Unauthenticated by necessity — it is opened by whoever points
   // a phone camera at a sticker in a shop window — and it reaches Postgres on every request.
@@ -139,7 +127,7 @@ function attachRateLimiters(app: Hono): void {
   app.use(
     '/v/*',
     rateLimit({
-      limit: env.RATE_LIMIT_AUTH_PER_IP,
+      limit: env.RATE_LIMIT_VENDOR_PAGE_PER_IP,
       windowSeconds,
       keyPrefix: 'vendor-page:ip',
       key: clientIp,
@@ -240,6 +228,15 @@ export function createServer(): Hono {
   app.route('/vendor-claim', vendorClaimRoute);
   app.route('/vendors-admin', vendorsAdminRoute);
   app.route('/media', mediaRoute);
+  // MOUNTED LAST, AND IT IS A CATCH-ALL. Every router inside `buildMeRouter()` calls
+  // `.use(jwtAuth())` with no path, which at a `/` mount means `/*` — so this does not only
+  // authenticate `/me`, it authenticates every request that matched no route above it. That is why
+  // an unrouted or not-yet-mounted path answers 401 rather than 404 (SP-V2 hit exactly this on
+  // `/vendors-admin/*` and could not explain it). Two consequences worth knowing before you debug
+  // a mysterious 401 on a URL you have not mounted yet:
+  //   - a 401 from this API is not proof the path exists;
+  //   - any PUBLIC route must be mounted ABOVE this line, or it inherits the auth. `/health`,
+  //     `/webhooks` and `/v` all sit above for that reason.
   app.route('/', buildMeRouter());
   app.onError(errorHandler);
   return app;

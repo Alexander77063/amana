@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { AnchorClient } from '../../../src/integrations/anchor/client';
-import { isOk } from '../../../src/lib/result';
+import { isErr, isOk } from '../../../src/lib/result';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { stickersRepo } from '../../../src/modules/sticker/stickers.repo';
@@ -173,6 +173,43 @@ describe('vendorResolutionService.resolve', () => {
 
     const recent = await recentsRepo.findByVendor(testDb, subWalletId, '058', '0123456789');
     expect(recent).toBeDefined();
+  });
+
+  it('propagates a vendor-branch error out of resolve, and does NOT touch recents', async () => {
+    // The resolver is what the route calls, so an error code invented in the branch is only
+    // useful if it survives the trip out. This also pins the invariant on the other side of the
+    // `if (isOk(result))`: a failed resolution must not promote a dead vendor into an agent's
+    // recents, where it would be one tap away from a payment.
+    const subWalletId = await seedSubWallet();
+    const promoted = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'SHUTTERED SHOP',
+      promotedHouseholdCount: 6,
+      now: new Date('2026-05-01T12:00:00Z'),
+    });
+    if (!promoted) throw new Error('promotion failed');
+    const claimed = await vendorsRepo.claim(testDb, {
+      vendorId: promoted.id,
+      phone: factories.phone(),
+      category: 'food',
+      publicCode: 'AMNV-7QK2H-9PZ0R',
+      now: new Date('2026-05-01T12:00:00Z'),
+    });
+    if (!claimed) throw new Error('claim failed');
+    await vendorsRepo.setStatus(testDb, promoted.id, 'suspended');
+
+    const result = await vendorResolutionService.resolve(testDb, makeAdapter(baseFetch), {
+      kind: 'vendor',
+      publicCode: 'AMNV-7QK2H-9PZ0R',
+      subWalletId,
+      now: new Date('2026-05-03T12:00:00Z'),
+    });
+    expect(isErr(result)).toBe(true);
+    if (isErr(result)) expect(result.error.code).toBe('VENDOR_SUSPENDED');
+
+    const recent = await recentsRepo.findByVendor(testDb, subWalletId, '058', '0123456789');
+    expect(recent).toBeUndefined();
   });
 
   it('successful resolution touches recents', async () => {

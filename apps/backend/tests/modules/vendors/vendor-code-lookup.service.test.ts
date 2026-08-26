@@ -131,6 +131,47 @@ describe('vendorCodeLookupService.lookup', () => {
     ]);
   });
 
+  it('distinguishes a real code whose bank account is gone from a code that never existed', async () => {
+    await aClaimedVendor();
+    // Anchor 404s the account: name-enquiry maps that to NOT_FOUND, which is right for a TYPED
+    // account number but wrong here, where findByPublicCode has already proven the code is real.
+    vi.spyOn(nameEnquiryService, 'lookup').mockResolvedValue(err({ code: 'NOT_FOUND' }));
+
+    const gone = await vendorCodeLookupService.lookup(testDb, adapter, CODE);
+    expect(isErr(gone)).toBe(true);
+    if (!isErr(gone)) return;
+    expect(gone.error.code).toBe('VENDOR_ACCOUNT_GONE');
+
+    // It must be distinguishable from BOTH neighbouring failures, or the shopkeeper debugs the
+    // code in their window while the closed bank account is the actual problem.
+    expect(gone.error.code).not.toBe('NOT_FOUND');
+    expect(gone.error.code).not.toBe('VENDOR_SUSPENDED');
+  });
+
+  it('still NOT_FOUNDs an unknown code when NIBSS would also 404 — the code never existed', async () => {
+    vi.spyOn(nameEnquiryService, 'lookup').mockResolvedValue(err({ code: 'NOT_FOUND' }));
+
+    const r = await vendorCodeLookupService.lookup(testDb, adapter, 'AMNV-ZZZZZ-ZZZZZ');
+    expect(isErr(r)).toBe(true);
+    if (isErr(r)) expect(r.error.code).toBe('NOT_FOUND');
+  });
+
+  it('resolves a code typed in lower case or with the ambiguous glyphs', async () => {
+    const v = await aClaimedVendor('AMNV-10K2H-9PZ0R');
+    mockNameEnquiry('MAMA PUT KITCHEN');
+
+    for (const typed of ['amnv-10k2h-9pz0r', 'AMNV-I0K2H-9PZOR', 'amnv-l0k2h-9pz0r']) {
+      const r = await vendorCodeLookupService.lookup(testDb, adapter, typed);
+      if (!isOk(r)) throw new Error(`expected ok for ${typed}`);
+      expect(r.value.vendorId).toBe(v.id);
+    }
+
+    // A U is not a code character and must not be coerced into a hit.
+    const withU = await vendorCodeLookupService.lookup(testDb, adapter, 'AMNV-U0K2H-9PZ0R');
+    expect(isErr(withU)).toBe(true);
+    if (isErr(withU)) expect(withU.error.code).toBe('NOT_FOUND');
+  });
+
   it('propagates a NIBSS outage rather than paying out of a stale stored name', async () => {
     await aClaimedVendor();
     vi.spyOn(nameEnquiryService, 'lookup').mockResolvedValue(err({ code: 'PARTNER_DOWN' }));

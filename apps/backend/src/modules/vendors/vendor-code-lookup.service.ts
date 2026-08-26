@@ -39,7 +39,14 @@ export const vendorCodeLookupService = {
       bankCode: vendor.bankCode,
       accountNumber: vendor.accountNumber,
     });
-    if (!isOk(ne)) return ne;
+    if (!isOk(ne)) {
+      // `nameEnquiryService` maps an Anchor 404 to NOT_FOUND, which is right for a typed account
+      // number and wrong here: `findByPublicCode` has already proven this code is real, so a 404
+      // means the SHOP'S ACCOUNT is gone, not that the code never existed. Re-map it where that
+      // context exists — the shared enquiry service has no way to know which it is looking at.
+      if (ne.error.code === 'NOT_FOUND') return err({ code: 'VENDOR_ACCOUNT_GONE' });
+      return ne;
+    }
 
     return ok({
       bankCode: vendor.bankCode,

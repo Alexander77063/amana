@@ -139,4 +139,45 @@ describe('vendorsRepo', () => {
     expect(select).not.toHaveBeenCalled();
     select.mockRestore();
   });
+
+  it('normalizes a mistyped code before the query, so lower case and I/L/O still hit', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'WINDOW SHOP',
+      promotedHouseholdCount: 5,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    // Contains both a 1 and a 0, so the I/L -> 1 and O -> 0 folds are actually exercised.
+    const stored = 'AMNV-10K2H-9PZ0R';
+    const claimed = await vendorsRepo.claim(testDb, {
+      vendorId: v.id,
+      phone: factories.phone(),
+      category: 'food',
+      publicCode: stored,
+      now: NOW,
+    });
+    if (!claimed) throw new Error('claim failed');
+    expect(claimed.publicCode).toBe(stored); // the stored form is the minted, upper-case one
+
+    // Postgres `=` on text is case- and byte-sensitive, so the ONLY way any of these come back is
+    // if the value was folded before it reached the query. That is the before-the-DB proof.
+    for (const typed of [
+      'amnv-10k2h-9pz0r', // read off a shop window, typed in lower case
+      'AMNV-I0K2H-9PZ0R', // I mistaken for 1
+      'AMNV-L0K2H-9PZ0R', // L mistaken for 1
+      'AMNV-1OK2H-9PZOR', // O mistaken for 0, twice
+      'amnv-ilo2h-9pz0r'.replace('ilo2h', 'i0k2h'), // lower case AND a glyph fold together
+    ]) {
+      const found = await vendorsRepo.findByPublicCode(testDb, typed);
+      expect(found?.id).toBe(v.id);
+    }
+
+    // U is excluded from the alphabet with no digit to fold into, so it is simply not a code
+    // character and must miss rather than being coerced into something that hits.
+    expect(await vendorsRepo.findByPublicCode(testDb, 'AMNV-U0K2H-9PZ0R')).toBeUndefined();
+    // And normalization must not turn a genuinely unknown code into a hit.
+    expect(await vendorsRepo.findByPublicCode(testDb, 'amnv-zzzzz-zzzzz')).toBeUndefined();
+  });
 });

@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { vendors } from '../../db/schema';
+import { normalizeCrockford } from '../../lib/crockford';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -42,13 +43,19 @@ export const vendorsRepo = {
    * A suspended vendor is still FOUND here on purpose — refusing it is the resolution layer's
    * job, because only a caller can decide whether "real but dead" and "never existed" deserve
    * the same answer.
+   *
+   * Normalization lives HERE, at the single lookup boundary, rather than in each route: the
+   * in-app scan, the public landing page and any ops surface all reach a vendor through this
+   * method, and a fold applied in only some of them is worse than none at all. See
+   * `normalizeCrockford` for why accepting I/L/O is the other half of excluding them.
    */
   async findByPublicCode(db: DbOrTx, publicCode: string): Promise<VendorRow | undefined> {
     if (!publicCode || publicCode.trim().length === 0) return undefined;
+    const normalized = normalizeCrockford(publicCode);
     const [row] = await db
       .select()
       .from(vendors)
-      .where(eq(vendors.publicCode, publicCode))
+      .where(eq(vendors.publicCode, normalized))
       .limit(1);
     return row;
   },

@@ -34,4 +34,15 @@ export type ResolveError =
    * now dead" apart from "this code never existed" — and the two want different HTTP statuses and
    * very different copy on the confirm screen. Same reasoning as `STICKER_REVOKED`.
    */
-  | { code: 'VENDOR_SUSPENDED' };
+  | { code: 'VENDOR_SUSPENDED' }
+  /**
+   * The code is real but NIBSS no longer knows the bank account behind it — closed, or
+   * reassigned. Deliberately NOT `NOT_FOUND`, for the same reason as `VENDOR_SUSPENDED`: told
+   * "no such code", a shopkeeper debugs the code in their window, which is fine, instead of the
+   * closed account, which is the actual problem. Ops needs the two apart as well.
+   *
+   * Only the `vendor_code` path can raise this, because only it has already proven the code
+   * exists before the enquiry runs. On the `account` path a NIBSS 404 genuinely does mean the
+   * typed account number is wrong, and `NOT_FOUND` stays correct there.
+   */
+  | { code: 'VENDOR_ACCOUNT_GONE' };

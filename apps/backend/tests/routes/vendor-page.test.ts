@@ -199,6 +199,18 @@ describe('GET /v/:code — the public landing page', () => {
   });
 
   /**
+   * Padding is a format defect, like a missing dash — repaired at the schema, not in the character
+   * fold. `findByPublicCode` normalizes but deliberately does NOT trim, so `.trim()` on this
+   * schema is the only place a padded code gets repaired; without it a pasted `" AMNV-… "` 400s.
+   */
+  it('tolerates a padded code — trim is format repair, and the fold does not do it', async () => {
+    await claimedVendor();
+    const res = await app.request(`/v/%20${CODE}%20`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('MAMA PUT KITCHEN');
+  });
+
+  /**
    * `U` is the one glyph dropped from the alphabet with no digit to fold onto, so it is a code
    * character that cannot occur — a miss, not malformed input. Same ruling as `/vendors/code/:code`.
    */

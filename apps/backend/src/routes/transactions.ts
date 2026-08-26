@@ -1,3 +1,4 @@
+import { SPEND_CATEGORIES } from '@amana/types';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/client';
@@ -15,6 +16,9 @@ import { masterWalletsRepo } from '../modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../modules/wallet/transactions.repo';
 
+/** Zod needs a non-empty tuple; SPEND_CATEGORIES is the single source of the vocabulary. */
+const SPEND_CATEGORY_VALUES = SPEND_CATEGORIES.map((c) => c.value) as [string, ...string[]];
+
 const IntentBodySchema = z.object({
   masterWalletId: z.string().uuid(),
   subWalletId: z.string().uuid().nullable(),
@@ -23,7 +27,26 @@ const IntentBodySchema = z.object({
   vendorBankCode: z.string().min(1),
   vendorAccountNumber: z.string().min(1),
   vendorResolvedName: z.string().min(1),
-  category: z.string().nullable().default(null),
+  /**
+   * A CLOSED vocabulary, and this is a spend control rather than a formatting preference.
+   *
+   * `evaluators/category.ts` compares this string to a rule's `categories` with `includes()` —
+   * exact match, no trim, no case fold. Free text therefore breaks the two rule modes in opposite
+   * directions, and only one of them fails safe:
+   *
+   * - **allowlist** — an out-of-vocabulary value matches nothing and the spend is DENIED. Safe.
+   * - **blocklist** — an out-of-vocabulary value matches nothing and the spend is ALLOWED. An
+   *   agent holding their own bearer token sends `'Groceries'` or `'groceries '` and a principal's
+   *   block simply does not fire, while the principal has every reason to believe it did.
+   *
+   * That is the product's central promise defeated by a capital letter, by exactly the actor the
+   * threat model is built around. `/vendor-claim/verify` and `retailer-portal.ts` already constrain
+   * this same vocabulary; the spend route is where it matters most and was the one that did not.
+   *
+   * Rejecting at the door is deliberate over normalising here: a caller who sends a category we
+   * cannot evaluate should be told, not silently reinterpreted.
+   */
+  category: z.enum(SPEND_CATEGORY_VALUES).nullable().default(null),
   agentNote: z.string().nullable().default(null),
 });
 

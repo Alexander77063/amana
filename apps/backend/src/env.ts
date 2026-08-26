@@ -83,10 +83,16 @@ const EnvSchema = z.object({
   // real shops, and the failure mode is a JSON error where someone expected a shop. Raise this
   // before lowering it; the cost of a false positive here is a payment that does not happen.
   RATE_LIMIT_VENDOR_PAGE_PER_IP: z.coerce.number().int().positive().default(600),
-  // The authenticated vendor reads that each cost one Anchor call: `/vendors/code/*`,
-  // `/vendors/name-enquiry`, `/vendors/phone-lookup`. Per ACCOUNT, not per IP — Nigerian carriers
-  // CGNAT, and a false positive on a payment-path read costs a payment, landing on whichever
-  // customer happens to be next through that NAT.
+  // The authenticated vendor reads that each cost one Anchor call — FOUR of them:
+  // `/vendors/code/*`, `/vendors/name-enquiry`, `/vendors/phone-lookup` and
+  // `/vendors/nqr-decode`. They share ONE middleware instance, so they share one bucket per
+  // account: an account cannot spend 4x by rotating between the paths. (`/nqr-decode` was added
+  // in `99faccb` — its `nqr` branch runs a name enquiry to confirm the decoded account against
+  // NIBSS rather than trust the QR's tag 59. Count the `.use(...)` calls in `routes/vendors.ts`
+  // before trusting this list; the enumeration here has drifted from them once already.)
+  //
+  // Per ACCOUNT, not per IP — Nigerian carriers CGNAT, and a false positive on a payment-path
+  // read costs a payment, landing on whichever customer happens to be next through that NAT.
   //
   // It has its own constant because it bounds a different thing from every other limiter here:
   // not logins and not Postgres load, but our spend of a PAID partner call and our share of the

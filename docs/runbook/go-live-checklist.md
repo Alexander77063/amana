@@ -2,7 +2,8 @@
 
 Pre-production readiness for Amana. The **code** is feature-complete and the security
 audit is closed; what remains is environment configuration, one live-integration
-verification, and a couple of cosmetic cleanups. Work top-down.
+verification, one gate that blocks printing vendor codes (§6), and a couple of cosmetic
+cleanups. Work top-down.
 
 ## 1. Secrets & environment (per Fly app: staging + prod)
 
@@ -71,7 +72,47 @@ via the Anchor dashboard / a real inbound test transfer to the NUBAN, and/or ove
 destination with env vars: `SANDBOX_VENDOR_BANK_CODE`, `SANDBOX_VENDOR_ACCOUNT`,
 `SANDBOX_VENDOR_NAME`, `SANDBOX_SPEND_KOBO`.
 
-## 6. Cosmetic cleanups
+## 6. Vendor-code pre-distribution gate ⚠️ (HSTS + preload + DNS — all three)
+
+**Scope: this gate blocks PRINTING vendor codes, not launch.** The rest of Amana can go live
+with none of it done. What it blocks is putting `pay.amana.ng/v/AMNV-XXXXX-XXXXX` on a sticker
+in a shop window — because a printed sticker cannot be recalled, and the cost of getting this
+wrong rises the moment the first one is in a window rather than at go-live.
+
+Full reasoning in
+[`vendor-registry.md` → "PRE-DISTRIBUTION GATE"](./vendor-registry.md). The short version: the
+public landing page is the **first Amana surface a human reaches by typing a hostname**. Every
+previous client was a native app pinned to an `https://` base URL. A person who types the
+sticker as printed — no scheme — gets an HTTP first hop, and on market Wi-Fi an on-path
+attacker owns that hop and serves an identical page with a **different account ending**. The
+page's one job is letting a payer confirm they are paying the right shop, and that hop
+defeats it. `force_https = true` in `fly.toml` is **a 301 that travels in cleartext**; it is
+not HSTS.
+
+| # | Must be true before any code is printed | Kind of work |
+|---|---|---|
+| 1 | `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` served **app-wide** — every response, not just `/v` | **Engineering.** There is no HSTS and no app-wide security-header middleware in the codebase today; this is a `server.ts` change, not a config flip |
+| 2 | `amana.ng` submitted to the HSTS preload list **and accepted** into shipped browser lists | Ops + a wait |
+| 3 | `pay.amana.ng` DNS record — CNAME to the Fly app, plus a Fly cert for the hostname | Ops |
+
+**Item 2 is the load-bearing one; item 3 alone is not the gate.** An HSTS header can only
+protect a hostname the browser has already visited over HTTPS. It cannot protect the
+*first-ever* hit to a hostname — which is exactly and only what a printed sticker creates,
+every time someone reads one. Preload is what covers that first hit.
+
+**Pre-flight before submitting item 2:** `includeSubDomains` commits every `amana.ng`
+subdomain to HTTPS-only in shipped browsers, and de-listing propagates on browser-release
+timescales. Confirm no subdomain needs plain HTTP first.
+
+**Until this closes:** SP-V3 still ships and is testable. `GET /vendors/code/:code` needs no
+public hostname, the agent scanner accepts the bare `AMNV-…` form, and the page is reachable
+on the API hostname. Only printing is blocked.
+
+Nothing in code can enforce this. The API returns a bare `publicCode` and never a URL, so the
+`pay.amana.ng/v/…` wrapper is added by whoever prepares the print run — this checklist item is
+the only control.
+
+## 7. Cosmetic cleanups
 
 - **Migration `meta/0020_snapshot.json` — verified harmless, no action.** `0020` is a
   hand-written migration (like `0005`/`0007`/`0013`), so the drizzle snapshot chain skips it

@@ -19,18 +19,24 @@ export type ResolvedVendorResponse = {
   accountName: string;
   source: 'name_enquiry' | 'phone_lookup' | 'sticker' | 'nqr' | 'recents' | 'vendor_code';
   /**
-   * `string`, not `number`, and in practice only ever `null` today.
+   * `string`, not `number`: raw kobo, base 10, no separator and no currency — `BigInt()`-parseable
+   * on this side, and the same encoding as every other `…Kobo` field on the wire.
    *
    * The server's field is `Kobo` — `bigint & brand` — and `bigint` has no JSON representation:
    * `JSON.stringify({ a: 1n })` throws, and Hono's `c.json` is a bare `JSON.stringify`
-   * (`hono/dist/context.js`). Every resolution path sets this to `null`, with one exception:
-   * `decodeNqr` parses tag 54 into a real `Kobo`, so an NQR payload that carries an amount would
-   * make `/vendors/nqr-decode` throw during serialization rather than return a value here.
+   * (`hono/dist/context.js`). `toResolvedVendorResponse` (backend `modules/vendors/types.ts`) is
+   * the single boundary that maps it, `.toString()`, for all five resolution endpoints.
    *
-   * So the wire cannot currently produce a non-null value at all, and `string` is the mirror's
-   * assumption about what a fixed backend would send, not an observed shape. Do not build on this
-   * field without confirming the server-side encoding first. Flagged to the backend owners in the
-   * SP-V3 Task 4 report; deliberately not fixed here, since this package must not change it.
+   * Non-null only on `/vendors/nqr-decode`, and only when the QR carries NQR tag 54 — the standard
+   * "scan to pay ₦2,000" sticker. Every other resolution path sets it `null`.
+   *
+   * **`"0"` is a real value, not "no amount".** A zero-amount QR sets it deliberately, so test it
+   * with `=== null` on this side too; `0n` is falsy on the server and a truthiness check there is
+   * the exact bug the boundary's `=== null` exists to avoid.
+   *
+   * (This comment previously said the wire "cannot currently produce a non-null value at all",
+   * which was true when it was written — the endpoint 500'd on any tag-54 payload. Backend commit
+   * `99faccb` fixed that.)
    */
   suggestedAmountKobo: string | null;
   /**

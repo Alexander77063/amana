@@ -7,9 +7,16 @@ vendor that is already `status = 'observed'` there. Companion to the design spec
 [`2026-08-25-vendor-registry-design.md`](../superpowers/specs/2026-08-25-vendor-registry-design.md)
 §7 — the spec is the binding source for *why*; this is the *how* for an operator.
 
-**Scope note:** this sub-plan mints and stores a code. It does not make one scannable —
-`kind: 'vendor'` resolution, `GET /vendors/code/:code`, and the agent scan path are SP-V3.
-Nothing below covers a payer looking a code up; it covers a vendor earning one.
+**Scope note:** this sub-plan mints and stores a code. **SP-V3 has since shipped**, so a
+minted code is now scannable: `kind: 'vendor'` resolution, `GET /vendors/code/:code`, the
+public `GET /v/:code` landing page and the agent scan path all exist — see
+[`vendor-registry.md` → "The Amana Vendor Code"](./vendor-registry.md). Nothing below covers
+a payer looking a code up; this document still covers only a vendor earning one.
+
+**Before any code is printed for a shop window**, read
+[`vendor-registry.md` → "PRE-DISTRIBUTION GATE"](./vendor-registry.md): HSTS, HSTS preload
+and the `pay.amana.ng` DNS record must all be in place first, and none of them is enforced by
+code.
 
 ## The claim flow
 
@@ -360,11 +367,14 @@ curl -X POST "$API/vendors-admin/vendors/<vendor-uuid>/suspend" \
   suspension — a suspended vendor's continued traffic against its old category is precisely
   what an operator watching the queue wants to keep seeing. Suspension strips the
   *authority* to decide, not the *signal*.
-- **Makes its code resolve `410` for every payer — this is SP-V3, not live yet.**
-  `GET /vendors/code/:code` doesn't exist in this sub-plan; suspension is future-proofed for
-  it (a suspended vendor keeping its `publicCode` is what lets SP-V3 distinguish "this code
-  was real and is now dead" from "this code never existed"), but nothing currently serves
-  that lookup.
+- **Makes its code resolve `410` for every payer, on both surfaces, immediately.** SP-V3
+  shipped this: `GET /vendors/code/:code` returns `410 {"error":"VENDOR_SUSPENDED"}`
+  (`vendorCodeLookupService`) and the public page `GET /v/:code` returns a `410` "no longer
+  active" page (`routes/vendor-page.ts`). A suspended vendor keeps its `publicCode`, which is
+  exactly what lets both surfaces distinguish "this code was real and is now dead" from "this
+  code never existed" — the latter is a `404` on both. **Immediately** is literal: the page
+  sends `Cache-Control: no-store`, precisely so a suspension is not defeated by a cached copy
+  still advertising a live business.
 
 **There is no unsuspend route** — only `vendorsRepo.setStatus`, called from this one route
 with a hardcoded `'suspended'`. To reverse a suspension, go to SQL directly, and set it back

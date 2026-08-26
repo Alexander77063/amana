@@ -423,21 +423,29 @@ swallowed into the same uniform `202`.
 It **cannot** stop an attacker who calls `/request` *first*: nothing about phone-number
 ownership is checked at `/request` time (that only happens at `/verify`, via OTP), so an
 attacker submitting a victim's phone number against a vendor they don't own opens a real
-pending attempt and consumes the one-attempt-per-phone slot, stranding the legitimate
-claimant until it expires (`VENDOR_CLAIM_TTL_SECONDS`, 15 min) or the attacker's own
-`/verify` attempt fails on OTP (they don't control the victim's phone, so it will). Also
-bounded only by rate limits, same as Gate 1.
+pending attempt and consumes the one-attempt-per-phone slot. The attacker's own `/verify`
+will fail on OTP (they don't control the victim's phone), and the row expires with
+`VENDOR_CLAIM_TTL_SECONDS`. Also bounded only by rate limits, same as Gate 1.
 
-**The same-phone re-issue makes this squat unbounded in time.** Since a repeat `/request`
-from the phone that opened the attempt re-dates `expires_at`, an attacker calling once every
-<15 min — comfortably inside `RATE_LIMIT_OTP_PER_PHONE` (5 per 15 min) — holds a vendor's
-one pending slot open indefinitely, where before the fix it self-released after the TTL plus
-sweep lag (~74 min worst case). This is a deliberate accepted cost: every cap that would
-bound it also re-breaks the legitimate retry after a `409 ownership_unproved`, which is the
-lockout the re-issue exists to fix. **It is a nuisance, not a denial**: `approve-claim` does
-not require a pending queue row at all, so ops can always claim the vendor for the real
-business regardless of who is squatting the slot. It closes with this gate — proving phone
-ownership at `/request` means an attacker cannot open the attempt in the first place.
+**What this costs the victim is narrower than it used to be.** If the attacker used the
+victim's phone against the vendor the victim actually wants to claim, the victim is **no
+longer stranded**: their `/request` now recovers that very row (same phone, same vendor) and
+sends *them* the code, so they simply complete the claim over the top of the squat — a real
+upside of the same-phone re-issue. What remains is the **cross-vendor** grief: an attempt
+opened on vendor V using phone P blocks P from starting a claim on a *different* vendor W
+(the service's own `findPendingByPhone` check ahead of `openAttempt`) until it expires.
+
+**Conversely, the same-phone re-issue makes a squat by the phone's own holder unbounded in
+time.** Since a repeat `/request` from the phone that opened the attempt re-dates
+`expires_at`, someone calling once every <15 min — comfortably inside
+`RATE_LIMIT_OTP_PER_PHONE` (5 per 15 min) — holds a vendor's one pending slot open
+indefinitely, where before the fix it self-released after the TTL plus sweep lag (~74 min
+worst case). This is a deliberate accepted cost: every cap that would bound it also
+re-breaks the legitimate retry after a `409 ownership_unproved`, which is the lockout the
+re-issue exists to fix. **It is a nuisance, not a denial**: `approve-claim` does not require
+a pending queue row at all, so ops can always claim the vendor for the real business
+regardless of who is squatting the slot. It closes with this gate — proving phone ownership
+at `/request` means an attacker cannot open the attempt in the first place.
 
 ### PRE-LAUNCH GATE 3: `/verify` is still a registry oracle for a caller who uses their own phone
 

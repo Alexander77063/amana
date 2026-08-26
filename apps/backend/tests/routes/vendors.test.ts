@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { logger } from '../../src/lib/logger';
 import { err } from '../../src/lib/result';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
@@ -125,6 +125,12 @@ describe('the enquiry endpoints do not relay the upstream failure to the caller'
     warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
   });
 
+  // The logger spy is process-wide and `singleFork: true` means one process for the whole run.
+  // Restoring on the way out keeps it from following whatever describe gets appended below.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('GET /vendors/name-enquiry never names the partner or its status', async () => {
     const { agent, subWalletId } = await seedSubWallet();
     vi.spyOn(nameEnquiryService, 'lookup').mockResolvedValue(
@@ -196,5 +202,29 @@ describe('the enquiry endpoints do not relay the upstream failure to the caller'
     const raw = await res.text();
     expect(JSON.parse(raw)).toEqual({ error: 'BAD_INPUT' });
     expect(raw).not.toContain('08010000000');
+  });
+
+  /**
+   * Extracting the two handlers into one `enquiryFailure` also made their status ladder shared
+   * code. `NOT_FOUND` and `PARTNER_DOWN` used to return `detail: null` and now return no
+   * `detail` key at all, so both the ladder and the new body shape are pinned here — the three
+   * tests above only ever reach the `BAD_INPUT` arm.
+   */
+  it.each([
+    ['NOT_FOUND', 404],
+    ['PARTNER_DOWN', 503],
+  ] as const)('relays %s as %i with the code alone', async (code, status) => {
+    const { agent, subWalletId } = await seedSubWallet();
+    vi.spyOn(nameEnquiryService, 'lookup').mockResolvedValue(err({ code }));
+    const app = createServer();
+    const res = await app.request(
+      `/vendors/name-enquiry?bankCode=058&accountNumber=0123456789&subWalletId=${subWalletId}`,
+      { headers: await bearerHeaders(agent) },
+    );
+    expect(res.status).toBe(status);
+    expect(await res.json()).toEqual({ error: code });
+    // Nothing to withhold, so nothing to log: only a message-bearing error is worth an operator's
+    // attention, and these two carry none.
+    expect(warn).not.toHaveBeenCalled();
   });
 });

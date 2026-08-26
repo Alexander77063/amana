@@ -180,4 +180,28 @@ describe('vendorsRepo', () => {
     // And normalization must not turn a genuinely unknown code into a hit.
     expect(await vendorsRepo.findByPublicCode(testDb, 'amnv-zzzzz-zzzzz')).toBeUndefined();
   });
+
+  it('folds the INPUT rather than loosening the comparison', async () => {
+    // The test above would pass equally well if the fold had been implemented as a case-insensitive
+    // SQL comparison, which is a different thing: it would loosen every lookup at the database
+    // instead of canonicalising the input before it. Separate the two by planting a row whose
+    // stored code is NOT in minted form. Looking it up by its own exact bytes must MISS, because
+    // the input is folded to upper case before an exact `=` — proof the fold is on the input side.
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'MALFORMED',
+      promotedHouseholdCount: 5,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    await testDb.execute(
+      sql`UPDATE vendors SET public_code = 'amnv-abcde-fghjk' WHERE id = ${v.id}`,
+    );
+
+    expect(await vendorsRepo.findByPublicCode(testDb, 'amnv-abcde-fghjk')).toBeUndefined();
+    // ...and the upper-case form still misses too, because no row holds it. The comparison is
+    // exact in both directions; only the input moves.
+    expect(await vendorsRepo.findByPublicCode(testDb, 'AMNV-ABCDE-FGHJK')).toBeUndefined();
+  });
 });

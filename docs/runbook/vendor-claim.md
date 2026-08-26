@@ -330,10 +330,12 @@ curl -X POST "$API/vendors-admin/vendors/<vendor-uuid>/suspend" \
   first check when `vendor.status === 'observed'`; a suspended vendor falls through to the
   same uniform `{accepted: true}` as an unknown account, with no OTP sent. `verify` re-reads
   the vendor and re-checks `status === 'observed'` before proving ownership, so an attempt
-  opened just before a suspension still gets refused at the verify step — internally the
-  `no_attempt` kind, on the wire the collapsed `401 {"error": "invalid_code"}` (above), so the
-  claimant is told "invalid code" for what is really a suspension. Check the attempt row, not
-  the response, when a claimant reports this.
+  opened just before a suspension still gets refused at the verify step — as
+  `409 {"error": "vendor_unavailable"}`, not the collapsed `401`. That check sits *behind* the
+  verified OTP, so answering it plainly leaks nothing, and the claimant is no longer told
+  "invalid code" for what is really a suspension. It still does not say *why*: a suspension
+  and a lost claim race look the same from outside. The attempt row and the audit log are what
+  distinguish them when a claimant reports this.
 - **Revokes enforcement immediately for an already-`claimed` vendor.**
   `vendorCategoryResolver.resolve` (`vendor-category-resolver.service.ts`) reads `status`
   alongside `categorySource`: `enforceable` is `vendor.categorySource !== 'observed' &&

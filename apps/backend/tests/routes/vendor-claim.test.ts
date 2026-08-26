@@ -129,6 +129,10 @@ describe('POST /vendor-claim', () => {
 
     const wrongCode: Array<{ status: number; body: string }> = [];
     for (let i = 0; i < env.OTP_MAX_ATTEMPTS; i++) {
+      // Reset per iteration, not only before the sixth call: the loop must survive
+      // `OTP_MAX_ATTEMPTS` being tuned ABOVE `RATE_LIMIT_OTP_PER_PHONE`, which is exactly the
+      // tuning this finding warns reopens the leak. See the note below the loop.
+      resetRateLimitStore();
       const res = await post('/vendor-claim/verify', { phone, code: '000000' });
       wrongCode.push({ status: res.status, body: await res.text() });
     }

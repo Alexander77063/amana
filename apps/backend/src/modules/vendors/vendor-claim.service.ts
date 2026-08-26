@@ -88,9 +88,10 @@ export const vendorClaimService = {
       if (existingForPhone && existingForPhone.vendorId !== vendor.id) return { accepted: true };
 
       const expiresAt = new Date(input.now.getTime() + env.VENDOR_CLAIM_TTL_SECONDS * 1000);
-      // Both clocks are the caller's `now`, deliberately — the repo compares `createdAt` against
-      // this value rather than against Postgres `now()`, so the ceiling is reproducible in tests
-      // and unaffected by app/DB skew.
+      // Derived from the caller's `now`, like `expiresAt` above: one clock for both bounds, and a
+      // ceiling that is reproducible in tests. `createdAt` on the other side of the comparison IS
+      // Postgres-written (`defaultNow()`), so a few seconds of app/DB skew do ride on this —
+      // accepted, against an hour.
       const renewableSince = new Date(
         input.now.getTime() - env.VENDOR_CLAIM_MAX_HOLD_SECONDS * 1000,
       );

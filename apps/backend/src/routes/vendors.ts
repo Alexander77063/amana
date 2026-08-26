@@ -1,12 +1,14 @@
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/client';
 import { anchorAdapterSingleton } from '../integrations/anchor';
+import { logger } from '../lib/logger';
 import { isOk } from '../lib/result';
 import { parseBody, parseParams, parseQuery } from '../lib/validate';
 import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { decodeNqr } from '../modules/vendors/nqr-decoder';
 import { recentsService } from '../modules/vendors/recents.service';
+import type { ResolveError } from '../modules/vendors/types';
 import { vendorResolutionService } from '../modules/vendors/vendor-resolution.service';
 import { assertSubWalletAccess } from '../modules/wallet/wallet-access.service';
 
@@ -53,6 +55,29 @@ const NqrDecodeBody = z.object({
   subWalletId: z.string().uuid(),
 });
 
+/**
+ * The shared failure response for the two NIBSS enquiry endpoints. It returns the error CODE and
+ * nothing else — in particular, never the message.
+ *
+ * `nameEnquiryService` builds `BAD_INPUT`'s message as `Anchor <status>`: our banking partner
+ * named, with its exact upstream status. Relayed to the caller that is free reconnaissance, and it
+ * turns into a probing oracle the moment someone maps which inputs produce which upstream codes.
+ * The variant itself is honest here and stays — on these paths the caller really did supply the
+ * account number or the phone — so it is only the message that is withheld.
+ *
+ * Withheld, not discarded: an operator debugging a rejected enquiry needs the real status, so it
+ * goes to the log. Identifiers go as named fields rather than interpolated into the message,
+ * because the logger's redaction works on field paths and cannot reach inside a string — which is
+ * why the phone is passed as `phone`, the exact key `redactConfig` censors.
+ */
+function enquiryFailure(c: Context, error: ResolveError, subject: Record<string, unknown>) {
+  if ('message' in error) {
+    logger.warn({ ...subject, code: error.code, err: error.message }, 'vendor enquiry rejected');
+  }
+  const status = error.code === 'NOT_FOUND' ? 404 : error.code === 'PARTNER_DOWN' ? 503 : 400;
+  return c.json({ error: error.code }, status);
+}
+
 export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(jwtAuth())
   .get('/name-enquiry', async (c) => {
@@ -67,10 +92,10 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
       now: new Date(),
     });
     if (isOk(result)) return c.json(result.value, 200);
-    return c.json(
-      { error: result.error.code, detail: 'message' in result.error ? result.error.message : null },
-      result.error.code === 'NOT_FOUND' ? 404 : result.error.code === 'PARTNER_DOWN' ? 503 : 400,
-    );
+    return enquiryFailure(c, result.error, {
+      bankCode: q.bankCode,
+      accountNumber: q.accountNumber,
+    });
   })
   .get('/phone-lookup', async (c) => {
     const q = parseQuery(c, PhoneLookupQuery);
@@ -83,10 +108,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
       now: new Date(),
     });
     if (isOk(result)) return c.json(result.value, 200);
-    return c.json(
-      { error: result.error.code, detail: 'message' in result.error ? result.error.message : null },
-      result.error.code === 'NOT_FOUND' ? 404 : result.error.code === 'PARTNER_DOWN' ? 503 : 400,
-    );
+    return enquiryFailure(c, result.error, { phone: q.phoneNumber });
   })
   .get('/sticker/:uuid', async (c) => {
     const params = parseParams(c, StickerParams);

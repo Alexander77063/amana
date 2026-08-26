@@ -11,7 +11,11 @@ export const phoneLookupService = {
     input: { phoneNumber: string },
   ): Promise<Result<ResolvedVendor, ResolveError>> {
     if (!E164_RE.test(input.phoneNumber)) {
-      return err({ code: 'BAD_INPUT', message: `phone not in E.164 format: ${input.phoneNumber}` });
+      // The number is deliberately NOT interpolated. This message is now logged by the route,
+      // and the logger's redaction matches field paths — it cannot reach inside a string, so an
+      // interpolated phone would land in the logs in the clear. The caller already knows what
+      // they typed, and the route passes the number separately as the redacted `phone` field.
+      return err({ code: 'BAD_INPUT', message: 'phone not in E.164 format' });
     }
     try {
       const r = await adapter.phoneLookup({ phoneNumber: input.phoneNumber });

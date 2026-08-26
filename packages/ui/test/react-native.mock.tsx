@@ -28,6 +28,10 @@ export const ScrollView = host('ScrollView');
 export const KeyboardAvoidingView = host('KeyboardAvoidingView');
 export const Image = host('Image');
 export const FlatList = host('FlatList');
+// Additive: ConfirmScreen's GPS opt-in is a `Switch`, and an unmodelled import lands in the tree as
+// `undefined`, which react-test-renderer reports as "element type is invalid" from the PARENT
+// screen — a long way from the missing export that caused it.
+export const Switch = host('Switch');
 
 export const StyleSheet = {
   create: <T extends Record<string, unknown>>(styles: T): T => styles,

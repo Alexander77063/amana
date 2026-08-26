@@ -29,11 +29,31 @@ export const vendorCodeLookupService = {
   ): Promise<Result<ResolvedVendor, ResolveError>> {
     const vendor = await vendorsRepo.findByPublicCode(db, publicCode);
     if (!vendor) return err({ code: 'NOT_FOUND' });
-    // A suspended vendor keeps its code so the row stays findable, but it must never resolve to
-    // something payable. Its own error code — not NOT_FOUND — because suspension is a state the
-    // caller can act on and explain, and collapsing the two would let a suspension revoke the
-    // landing page while leaving the in-app payment working.
-    if (vendor.status === 'suspended') return err({ code: 'VENDOR_SUSPENDED' });
+
+    // An ALLOW-list, not a deny-list, and the exhaustive `never` guard is the point of it. This is
+    // a money path: the default direction must be refuse. Written as `status === 'suspended'` it
+    // would make any status added to `vendorStatusEnum` later — `delisted`, `pending_review` —
+    // silently payable, with no test and no reviewer likely to notice. Here a fourth enum member
+    // fails to compile until someone decides, deliberately, which side of the line it falls on.
+    switch (vendor.status) {
+      case 'claimed':
+        break;
+      // A suspended vendor keeps its code so the row stays findable, but it must never resolve to
+      // something payable. Its own error code — not NOT_FOUND — because suspension is a state the
+      // caller can act on and explain, and collapsing the two would let a suspension revoke the
+      // landing page while leaving the in-app payment working.
+      case 'suspended':
+        return err({ code: 'VENDOR_SUSPENDED' });
+      // Unreachable today: only `claim()` writes `publicCode`, and it does so atomically with
+      // `status: 'claimed'`. If a code ever appears on an observed row it got there by hand, and
+      // "no such code" is the honest answer — nobody has proven they own that account.
+      case 'observed':
+        return err({ code: 'NOT_FOUND' });
+      default: {
+        const _exhaustive: never = vendor.status;
+        return err({ code: 'NOT_FOUND' });
+      }
+    }
 
     const ne = await nameEnquiryService.lookup(adapter, {
       bankCode: vendor.bankCode,
@@ -45,6 +65,12 @@ export const vendorCodeLookupService = {
       // means the SHOP'S ACCOUNT is gone, not that the code never existed. Re-map it where that
       // context exists — the shared enquiry service has no way to know which it is looking at.
       if (ne.error.code === 'NOT_FOUND') return err({ code: 'VENDOR_ACCOUNT_GONE' });
+      // The same correction, applied to the rest of the non-5xx statuses. `nameEnquiryService`
+      // calls a 429 / 401 / 403 / 422 `BAD_INPUT` — true when a human typed the account number,
+      // false here, where the account came off the vendor row. Left alone it would tell a
+      // shopkeeper with a correct code that their code is malformed, and `BAD_INPUT` carries a
+      // `message` of the form `Anchor <status>`, naming our banking partner to the caller.
+      if (ne.error.code === 'BAD_INPUT') return err({ code: 'VENDOR_ENQUIRY_FAILED' });
       return ne;
     }
 

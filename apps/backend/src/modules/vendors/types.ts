@@ -45,4 +45,17 @@ export type ResolveError =
    * exists before the enquiry runs. On the `account` path a NIBSS 404 genuinely does mean the
    * typed account number is wrong, and `NOT_FOUND` stays correct there.
    */
-  | { code: 'VENDOR_ACCOUNT_GONE' };
+  | { code: 'VENDOR_ACCOUNT_GONE' }
+  /**
+   * The enquiry against the vendor's account failed for a reason that is neither "account gone"
+   * nor "partner down" — a 429, a 401, a 403, a 422. `nameEnquiryService` calls all of those
+   * `BAD_INPUT`, which is honest on the `account` path (the caller typed the number) and a lie
+   * here: on the `vendor_code` path the bank code and account number are OURS, read off a vendor
+   * row whose code has already been proven real. A shopkeeper with a perfectly correct code must
+   * not be told their code is wrong.
+   *
+   * Same reasoning as `VENDOR_ACCOUNT_GONE`, which applied it to Anchor's 404 and stopped there.
+   * The partner's identity and status stay inside this error: the route emits the code and no
+   * `detail`, because which upstream returned what is not the payer's business.
+   */
+  | { code: 'VENDOR_ENQUIRY_FAILED' };

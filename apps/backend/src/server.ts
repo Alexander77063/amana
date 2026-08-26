@@ -113,6 +113,23 @@ function attachRateLimiters(app: Hono): void {
     );
   }
 
+  // The vendor-code lookup is authenticated, so it is not an enumeration surface — it is throttled
+  // for a different reason: every valid code costs one Anchor name enquiry, and that call runs
+  // through the SAME circuit breaker as real payments. Unthrottled scans can trip the breaker and
+  // take spend down with them. The pattern is deliberately narrow (`/vendors/code/*`, not
+  // `/vendors/*`) so `/vendors/recents` and the other spend-path reads stay unlimited.
+  // Keyed by IP, like every other limiter here; per-actor keying is the right upgrade when the
+  // store moves off in-process memory to Redis, and the token is too short-lived to key on today.
+  app.use(
+    '/vendors/code/*',
+    rateLimit({
+      limit: env.RATE_LIMIT_AUTH_PER_IP,
+      windowSeconds,
+      keyPrefix: 'vendor-code:ip',
+      key: clientIp,
+    }),
+  );
+
   app.use(
     '/auth/otp/verify',
     rateLimit({

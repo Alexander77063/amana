@@ -66,27 +66,50 @@ export const vendorClaimRoute = new Hono()
     switch (r.kind) {
       case 'claimed':
         return c.json({ publicCode: r.publicCode, displayName: r.displayName }, 200);
-      // `no_attempt` and `invalid_code` fall through to ONE byte-identical response, the same way
-      // `routes/auth.ts`'s `/otp/verify` collapses no_challenge / wrong_code / wrong_purpose. The
-      // service keeps the two kinds apart because they mean different things internally; on the
-      // wire they must not, because `verify` looks the attempt up BEFORE it checks the code
-      // (`vendor-claim.service.ts`), so a distinguishable 404 tells an unauthenticated caller
-      // holding a junk code whether a bank account is a promoted registry vendor — one probe, no
-      // control of the phone required. That is the same aggregate the uniform 202 on `/request`
-      // exists to hide, so it cannot be readable here.
+      // `no_attempt`, `invalid_code` and `too_many_attempts` fall through to ONE byte-identical
+      // response. The service keeps the three kinds apart because they mean different things
+      // internally; on the wire they must not, because `verify` looks the attempt up BEFORE it
+      // checks the code (`vendor-claim.service.ts`), so anything distinguishable here tells an
+      // unauthenticated caller holding a junk code whether a bank account is a promoted registry
+      // vendor — no control of the phone required. That is the same aggregate the uniform 202 on
+      // `/request` exists to hide, so it cannot be readable here.
       //
-      // NOTE — this closes the junk-code channel ONLY, and the job is half done. A caller who
-      // supplies their own phone genuinely receives the OTP (it is sent to the number they
-      // supplied), so they can still reach `409 ownership_unproved`, which stays distinguishable
-      // from this 401 — and differs from it by a paid Anchor round trip besides. Closing that
-      // needs the ownership proof moved to `/request`, which is a deliberate deferral, not an
-      // oversight: see **PRE-LAUNCH GATE 3** in `docs/runbook/vendor-claim.md` for the residual,
-      // the cost of the fix, and what must ship before launch. Do NOT collapse the 409 here.
+      // `routes/auth.ts`'s `/otp/verify` collapses `no_challenge`/`wrong_code`/`wrong_purpose` for
+      // the same reason but KEEPS `too_many_attempts` distinguishable, and that precedent stops
+      // applying here: on `/auth` the exhausted-attempts answer guards nothing but the caller's
+      // own challenge, whereas on this route it is reachable ONLY for a promoted `observed`
+      // vendor — `verify` returns `no_attempt` before `verifyCode` ever runs when there is no
+      // attempt row, and only `verifyCode` can produce `too_many_attempts`. Five junk `/verify`
+      // calls answering `invalid_code` and a sixth answering `too_many_attempts` is the registry
+      // membership bit again, read off the response body. What masks it today is a coincidence,
+      // not a design: `OTP_MAX_ATTEMPTS` (5) happens to equal `RATE_LIMIT_OTP_PER_PHONE` (5) in an
+      // IN-MEMORY, PER-INSTANCE limiter on a Fly app with `auto_start_machines = true`. A second
+      // machine, or either constant being tuned, reopens it. Do NOT re-split these.
+      //
+      // NOTE — this closes the STATUS channel on `/verify` only, and the job is half done. The
+      // cheapest residual needs no `/verify` call at all: `/request` sends the OTP to the
+      // caller-supplied phone, so an attacker who submits their OWN number against someone else's
+      // account simply observes whether an SMS arrives. A second, more expensive residual is that
+      // the same attacker can then reach `409 ownership_unproved`, which stays distinguishable
+      // from this 401 — two requests and a paid Anchor round trip. Both close together when
+      // ownership is proved at `/request` and a code is sent only on a NIBSS match: see
+      // **PRE-LAUNCH GATE 3** in `docs/runbook/vendor-claim.md`. Do NOT collapse the 409 and call
+      // the gate met — that leaves the cheaper channel wide open.
+      //
+      // The timing channel is also still open here: `no_attempt` returns after one SELECT, while
+      // `invalid_code` has paid for `argon2.verify` (argon2id, 64 MiB, t=3 — `modules/auth/
+      // codes.ts`). Byte-identical, not time-identical. GATE 3 is what closes that too.
       case 'no_attempt':
       case 'invalid_code':
-        return c.json({ error: 'invalid_code' }, 401);
       case 'too_many_attempts':
-        return c.json({ error: 'too_many_attempts' }, 401);
+        return c.json({ error: 'invalid_code' }, 401);
+      case 'vendor_unavailable':
+        // Reached only from BEHIND a verified OTP (the vendor stopped being `observed`, or the
+        // claim compare-and-set lost a race), so it reveals nothing the 409 below does not — the
+        // same gate, the same caller. Distinct because collapsing it into the 401 stranded a real
+        // claimant: their code is already spent and their retry `/request` returns the uniform
+        // 202 without sending another, so "invalid code" was permanent with no way out.
+        return c.json({ error: 'vendor_unavailable' }, 409);
       case 'ownership_unproved':
         // 409, not 403: the caller proved they hold the phone. What failed is that NIBSS does not
         // link that phone to this account — a conflict with reality, and the ops queue's job now.

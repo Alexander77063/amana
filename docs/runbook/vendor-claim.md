@@ -38,9 +38,10 @@ without asserting a category at all). Response by outcome
 |---|---|---|---|
 | `claimed` | 200 | `{publicCode, displayName}` | Vendor moved `observed` → `claimed`. |
 | `invalid_code` | 401 | `{error: 'invalid_code'}` | Wrong code, or a challenge minted for a different purpose (`wrong_purpose` folds into this — see Deferred follow-ups). |
-| `too_many_attempts` | 401 | `{error: 'too_many_attempts'}` | `OTP_MAX_ATTEMPTS` exhausted on the challenge. |
+| `too_many_attempts` | 401 | `{error: 'invalid_code'}` | `OTP_MAX_ATTEMPTS` exhausted on the challenge. **Byte-identical to `invalid_code` on the wire**, unlike `/auth/otp/verify` — see the note below for why the auth precedent stops applying here. |
 | `no_attempt` | 401 | `{error: 'invalid_code'}` | No pending, unexpired claim attempt for this phone. **Byte-identical to `invalid_code` on the wire** — the kind stays distinct inside the service, but not in the response. See the note below. |
-| `ownership_unproved` | 409 | `{error: 'ownership_unproved', detail}` | OTP was correct; NIBSS phone lookup didn't confirm the account. See below — and **[PRE-LAUNCH GATE 3](#pre-launch-gate-3-verify-is-still-a-registry-oracle-for-a-caller-who-uses-their-own-phone)**, of which this response is the remaining residual. |
+| `vendor_unavailable` | 409 | `{error: 'vendor_unavailable'}` | OTP was correct, but the vendor stopped being claimable in the meantime — suspended, already `claimed`, or the `claim` compare-and-set lost a race. Distinguishable because it is decided *behind* the verified OTP; see the note below. |
+| `ownership_unproved` | 409 | `{error: 'ownership_unproved', detail}` | OTP was correct; NIBSS phone lookup didn't confirm the account. See below — and **[PRE-LAUNCH GATE 3](#pre-launch-gate-3-the-claim-rail-is-still-a-registry-oracle-for-a-caller-who-uses-their-own-phone)**, of which this response is the *more expensive* of two remaining residuals. |
 | `partner_down` | 503 | `{error: 'anchor_unavailable'}` | Anchor/NIBSS unreachable during the lookup. Retry later. |
 
 A malformed body 400s from `parseBody` before any of the above runs: a bad phone regex, a
@@ -53,24 +54,44 @@ blocklist any non-colliding value passes, and under an allowlist `"Food"` or a t
 silently denies a legitimate spend. Same closed vocabulary, same reason, as the retailer
 portal's item categories.
 
-### `no_attempt` and `invalid_code` are the same response — deliberately
+### `no_attempt`, `invalid_code` and `too_many_attempts` are one response — deliberately
 
-`verify` resolves the claim attempt **before** it checks the OTP, so if the two outcomes
+`verify` resolves the claim attempt **before** it checks the OTP, so if those outcomes
 differed on the wire an unauthenticated caller could submit a junk code and read the
 difference as "is this bank account a promoted registry vendor?" — one request, no control of
 any phone required, and exactly the aggregate `/request`'s uniform 202 exists to hide. So the
-route collapses them into one `401 {"error": "invalid_code"}`, the same way `routes/auth.ts`'s
-`/otp/verify` collapses `no_challenge` / `wrong_code` / `wrong_purpose`.
+route collapses all three into one `401 {"error": "invalid_code"}`.
 
-Two consequences worth knowing before you debug from a log:
+Three consequences worth knowing before you debug from a log:
 
-- **`no_attempt` fires from three places in `verify`**, and two of them are *after* a
-  successful OTP check: the vendor is no longer `observed` (e.g. suspended mid-flow), and the
-  `claim` compare-and-set losing a race. A legitimate claimant in either case now reads
-  "invalid code," which is misleading to them and correct for the oracle. Application logs and
-  the attempt row, not the response, are what tell an operator which of the three happened.
-- **This closes the junk-code channel only.** See PRE-LAUNCH GATE 3 for the part that is
-  still open.
+- **`routes/auth.ts` is the precedent for collapsing `no_challenge` / `wrong_code` /
+  `wrong_purpose`, and is NOT the precedent for `too_many_attempts`.** `/auth/otp/verify`
+  keeps the exhausted-attempts answer distinguishable, and is right to: there it guards
+  nothing but the caller's own challenge. On this route it is reachable **only** for a
+  promoted `observed` vendor — `verify` returns `no_attempt` before `verifyCode` ever runs
+  when there is no attempt row, and only `verifyCode` can produce `too_many_attempts`. Five
+  junk `/verify` calls answering `invalid_code` and a sixth answering anything else is the
+  same registry-membership bit, one probe later. What masks that today is a coincidence, not
+  a design: `OTP_MAX_ATTEMPTS` (5) happens to equal `RATE_LIMIT_OTP_PER_PHONE` (5), in an
+  **in-memory, per-instance** limiter on a Fly app with `auto_start_machines = true`. A second
+  machine, or either constant being tuned, reopens it. Do not re-split them.
+- **`no_attempt` now fires from ONE place** — the pre-OTP attempt lookup, which is the oracle.
+  The two outcomes that used to share it (the vendor no longer `observed`, and the `claim`
+  compare-and-set losing a race) return `409 vendor_unavailable` instead. Both sit *behind*
+  the verified OTP — the same gate that protects the deliberately-retained
+  `409 ownership_unproved` — so distinguishing them reintroduces no oracle, and collapsing
+  them was a real dead end: the claimant's code is already consumed, so they read "invalid
+  code" while their retry `/request` early-returns on `status != 'observed'` into the uniform
+  202 and never sends another.
+- **The status channel closes here; the timing channel closes with GATE 3.** These three are
+  byte-identical, not time-identical. `no_attempt` returns after a single SELECT, while
+  `invalid_code` has already paid for `otpService.verifyCode` → `argon2.verify` (argon2id,
+  ~64 MiB, t = 3 — `modules/auth/codes.ts`) on top of the challenge lookup and the
+  attempt-claim UPDATE. Two orders of magnitude, separating exactly the two cases the collapse
+  merges. This branch already detached the `/request` SMS for the same reason; the fix here is
+  not a dummy hash on the fast path but GATE 3, which stops an attacker reaching the branch.
+- **This closes the junk-code channel only, and it is not even the cheapest one.** See
+  PRE-LAUNCH GATE 3.
 
 ### Why `/request` always returns 202 — this is a rule, not a quirk
 
@@ -129,8 +150,10 @@ a director's personal line, a recently changed number). When it happens:
   `verify` with the same code.
 - The claim attempt row stays `pending` in `vendor_claim_attempts` — `verify` never writes
   to it on this path. It will sit there, visible to nothing but the ops queue, until
-  `VENDOR_CLAIM_TTL_SECONDS` (default 900s / 15 min) elapses and the next registry sweep's
-  `expireOverdue` marks it `expired`.
+  `VENDOR_CLAIM_TTL_SECONDS` (default 900s / 15 min) elapses — after which it is marked
+  `expired` by whichever comes first: the next `/request` for that vendor, which releases
+  lapsed rows inline (`vendorClaimsRepo.openAttempt`), or the hourly registry sweep's
+  `expireOverdue`.
 - **The claimant gets no signal that anyone will look at this.** The 409 body carries a
   machine `detail` (`mismatch` / `not_found` / `bad_input`) and nothing that reads as "an
   operator will follow up." There is no notification, no callback, nothing pushed to ops
@@ -142,7 +165,11 @@ a director's personal line, a recently changed number). When it happens:
   `/verify` (and, if the bank record has since been corrected, complete the claim). No new
   attempt row is created; there is still only ever one pending attempt per vendor. This is
   what `VENDOR_CLAIM_TTL_SECONDS` (15 min) being longer than `OTP_TTL_SECONDS` (5 min) is
-  *for*: several codes may be spent inside one claim window.
+  *for*: several codes may be spent inside one claim window. The re-dating is **capped**:
+  `openAttempt` refuses to renew a row whose own `created_at` is older than
+  `VENDOR_CLAIM_MAX_HOLD_SECONDS` (default 1 h), which is what stops the same mechanism
+  becoming an unbounded squat (PRE-LAUNCH GATE 2). A genuine retry minutes after a 409 is
+  nowhere near that ceiling.
   **From a different phone it is still a silent no-op** (uniform 202, no code sent) — the
   land-grab guard, since nobody has proved control of anything until `/verify`.
 - **What an operator should tell the claimant:** they can call back and retry as above — but
@@ -374,7 +401,8 @@ All defined in `apps/backend/src/env.ts`.
 
 | Var | Default | What it controls |
 |---|---|---|
-| `VENDOR_CLAIM_TTL_SECONDS` | `900` (15 min) | How long a claim attempt stays `pending` before the registry sweep expires it. Deliberately longer than `OTP_TTL_SECONDS` (5 min) — a shopkeeper mid-service is not standing at their phone, so the *claim* window outlives the *code* window, and a repeat `/request` from the same phone re-dates the existing attempt and issues a fresh code inside it (`vendorClaimsRepo.openAttempt`'s same-phone recovery). Note the row is expired by the **hourly** registry sweep (`17 * * * *`), not at the instant the TTL elapses, so a `pending` row can outlive its `expires_at` by up to ~59 min; `findPendingByPhone` filters on `expires_at` so this is invisible to `/verify`, and the same-phone recovery deliberately does **not** filter on it so a stale-but-unswept row is still recoverable. |
+| `VENDOR_CLAIM_TTL_SECONDS` | `900` (15 min) | How long a claim attempt stays `pending` before it can be expired. Deliberately longer than `OTP_TTL_SECONDS` (5 min) — a shopkeeper mid-service is not standing at their phone, so the *claim* window outlives the *code* window, and a repeat `/request` from the same phone re-dates the existing attempt and issues a fresh code inside it (`vendorClaimsRepo.openAttempt`'s same-phone recovery). A lapsed `pending` row is released by the next `/request` for that vendor, inline, and by the hourly registry sweep (`17 * * * *`) otherwise — so a row can still outlive its `expires_at` on a vendor nobody calls `/request` on again, but a waiting claimant no longer pays the ~59 min sweep lag. `findPendingByPhone` filters on `expires_at` so a stale row is invisible to `/verify` regardless, and the same-phone recovery deliberately does **not** filter on it so a stale-but-unswept row is still recoverable. |
+| `VENDOR_CLAIM_MAX_HOLD_SECONDS` | `3600` (1 h) | Absolute ceiling on a single pending attempt, measured from the row's own `created_at` — which renewal never moves. `openAttempt` refuses to re-date a row older than this, so the same-phone recovery above cannot be turned into a permanent squat by anyone who merely knows a phone *number* (see PRE-LAUNCH GATE 2). Worst-case hold is this **plus** `VENDOR_CLAIM_TTL_SECONDS` of trailing validity bought by the last renewal accepted inside the window (~75 min at defaults). Raising it lengthens every squat; lowering it below `VENDOR_CLAIM_TTL_SECONDS` would start cutting genuine retries short. |
 | `RATE_LIMIT_ENABLED` | on (only the literal string `'false'` turns it off) | Gates all rate limiting repo-wide, including the two below. |
 | `RATE_LIMIT_OTP_PER_PHONE` | `5` per `RATE_LIMIT_WINDOW_SECONDS` | Applied to **both** `/vendor-claim/request` and `/vendor-claim/verify`, keyed by the `phone` field in the request body. |
 | `RATE_LIMIT_OTP_PER_IP` | `20` per `RATE_LIMIT_WINDOW_SECONDS` | Applied to both endpoints, keyed by client IP. |
@@ -420,50 +448,105 @@ already has one `pending` on a *different* vendor (the `findPendingByPhone` chec
 legitimate claimant's attempt is already open — the attacker's request is silently
 swallowed into the same uniform `202`.
 
-It **cannot** stop an attacker who calls `/request` *first*: nothing about phone-number
-ownership is checked at `/request` time (that only happens at `/verify`, via OTP), so an
-attacker submitting a victim's phone number against a vendor they don't own opens a real
-pending attempt and consumes the one-attempt-per-phone slot. The attacker's own `/verify`
-will fail on OTP (they don't control the victim's phone), and the row expires with
-`VENDOR_CLAIM_TTL_SECONDS`. Also bounded only by rate limits, same as Gate 1.
+It **cannot** stop an attacker who calls `/request` *first*. Nothing about phone-number
+ownership is checked at `/request` — that only happens at `/verify`, via OTP — and the
+`phone` field is a **string in a request body**. So anyone who knows a promoted vendor's
+account number (printed on shop POS stickers, not secret) and any phone number at all can
+open a real pending attempt on that vendor and consume its one-attempt-per-vendor slot,
+without controlling the number they submitted. The attacker's own `/verify` then fails on
+the OTP unless they used a phone they really hold.
 
-**What this costs the victim is narrower than it used to be.** If the attacker used the
-victim's phone against the vendor the victim actually wants to claim, the victim is **no
-longer stranded**: their `/request` now recovers that very row (same phone, same vendor) and
-sends *them* the code, so they simply complete the claim over the top of the squat — a real
-upside of the same-phone re-issue. What remains is the **cross-vendor** grief: an attempt
-opened on vendor V using phone P blocks P from starting a claim on a *different* vendor W
-(the service's own `findPendingByPhone` check ahead of `openAttempt`) until it expires.
+**Who can hold the slot, and for how long.** Whoever calls `/request` first, with any phone
+string. Two constants bound the hold and nothing else does:
 
-**Conversely, the same-phone re-issue makes a squat by the phone's own holder unbounded in
-time.** Since a repeat `/request` from the phone that opened the attempt re-dates
-`expires_at`, someone calling once every <15 min — comfortably inside
-`RATE_LIMIT_OTP_PER_PHONE` (5 per 15 min) — holds a vendor's one pending slot open
-indefinitely, where before the fix it self-released after the TTL plus sweep lag (~74 min
-worst case). This is a deliberate accepted cost: every cap that would bound it also
-re-breaks the legitimate retry after a `409 ownership_unproved`, which is the lockout the
-re-issue exists to fix. **It is a nuisance, not a denial**: `approve-claim` does not require
-a pending queue row at all, so ops can always claim the vendor for the real business
-regardless of who is squatting the slot. It closes with this gate — proving phone ownership
-at `/request` means an attacker cannot open the attempt in the first place.
+- A repeat `/request` from the *same phone string* re-dates `expires_at`
+  (`vendorClaimsRepo.openAttempt`'s same-phone recovery — the thing that unlocks the
+  legitimate retry after a `409 ownership_unproved`), but **only while the row's own
+  `created_at` is inside `VENDOR_CLAIM_MAX_HOLD_SECONDS`** (default 3600s / 1 h). The
+  predicate is on `created_at`, which renewal never touches, so renewals cannot walk the
+  ceiling forward.
+- The last renewal accepted inside that hour still buys a full `VENDOR_CLAIM_TTL_SECONDS`
+  (900s) of validity. **The worst case for one hold is therefore
+  `VENDOR_CLAIM_MAX_HOLD_SECONDS + VENDOR_CLAIM_TTL_SECONDS` — about 75 minutes from first
+  open at defaults**, not one hour.
 
-### PRE-LAUNCH GATE 3: `/verify` is still a registry oracle for a caller who uses their own phone
+**How the slot is released.** By `openAttempt` itself, inline, on the next `/request` for
+that vendor: a `pending` row whose `expires_at` has passed is marked `expired` and the fresh
+insert retried in the same call. The hourly registry sweep (`17 * * * *`) still runs and
+still matters for vendors nobody calls `/request` on again, but a waiting claimant no longer
+depends on it — that lag used to add up to ~59 minutes on top of every expiry. The inline
+release deliberately fires on `expires_at` only, **never** on "past the ceiling": expiring a
+past-ceiling row on demand would let the same phone re-insert with a fresh `created_at` and
+reset its own ceiling.
 
-Collapsing `no_attempt` into `401 {"error": "invalid_code"}` (above) closed the *junk-code*
-probe — a caller who guesses at a code can no longer read the registry off the status line.
-It did **not** close the channel.
+**What the ceiling is not.** It bounds any *single* hold, not total harassment. Once the row
+lapses the same caller may open a fresh attempt and start a new hour — they simply cannot do
+so without a gap in which anyone else, the real owner included, can take the slot. The
+frequency of that is bounded by the per-phone and per-IP rate limiters on `/request`, and by
+nothing else.
 
+**What it costs the victim, precisely.** Three things, and not a fourth:
+
+- If the squat used the victim's phone against the vendor the victim actually wants to claim,
+  the victim is **not stranded**: their `/request` recovers that very row (same phone string,
+  same vendor) and sends *them* the code, so they complete the claim over the top of the
+  squat.
+- The **cross-vendor** grief is real: an attempt open on vendor V under phone P blocks P from
+  starting a claim on a *different* vendor W (the `findPendingByPhone` check ahead of
+  `openAttempt`) for as long as the hold lasts — now at most ~75 minutes, where before the
+  ceiling it was unbounded.
+- It is a **nuisance, not a denial**: `approve-claim` requires no pending queue row at all,
+  so ops can always claim a vendor for the real business regardless of who holds the slot.
+
+**What the victim can and cannot observe.** They *do* receive unexplained Amana verification
+codes — `/request` sends the OTP to the caller-supplied number, so every open and every
+renewal against their phone string puts one more SMS on their handset. That is the only
+signal they get. They **cannot** see which vendor it refers to, that their number is now
+blocked from claiming any other vendor, or — when they do try vendor W — any reason for the
+silent `202`: every path returns the same body, and no endpoint reports whether a vendor has
+a pending attempt. The ops claim queue is the only place a squat is visible, and only to an
+operator.
+
+This gate closes it properly: proving phone ownership at `/request` means an attacker cannot
+open the attempt in the first place.
+
+### PRE-LAUNCH GATE 3: the claim rail is still a registry oracle for a caller who uses their own phone
+
+Collapsing `no_attempt`, `invalid_code` and `too_many_attempts` into one
+`401 {"error": "invalid_code"}` (above) closed the *junk-code* probe on `/verify`. It did
+**not** close the channel — and `/verify` is not where the cheapest question gets asked.
+
+**The cheapest channel is `/request` on its own: one request, no `/verify`, no Anchor call.**
 `/vendor-claim/request` sends the OTP to the **caller-supplied** phone, not to a phone on
-file for the account. So an attacker who submits their own number against someone else's bank
-account genuinely receives a valid code, passes `verifyCode`, fails the NIBSS bank-record
-match, and lands on `409 ownership_unproved`. Against an account the registry does not hold,
-no attempt is ever opened and the same two calls return `401`. **`409` vs `401`, in two
-unauthenticated requests, still answers "is this bank account a promoted registry vendor?"**
-— the payment-graph aggregate the promotion threshold exists to keep private.
+file for the account. So an attacker submits their **own** number against someone else's
+bank account and simply watches whether an SMS arrives. Nothing in the HTTP response
+distinguishes the cases — that is the entire point of the uniform `202` — but the SMS is not
+part of the HTTP response.
 
-There is a second, independent residual on the same pair: the `409` path makes a **paid
-Anchor NIBSS call** that the `401` path does not, so the two differ by a network round trip
-even where the bodies match. Collapsing the bodies alone would not close the timing side.
+Be precise about what an arriving code answers. One is sent only when **all** of these hold,
+so the bit leaked is "promoted **and unclaimed and unheld**", not merely "in the registry":
+
+- the account resolves to a `vendors` row at all;
+- that row's `status` is `observed` — a `claimed` or `suspended` vendor sends nothing;
+- the caller's phone has no pending attempt on a *different* vendor (the cross-vendor guard);
+- `openAttempt` returned non-null — no other phone holds the vendor's one pending slot, and
+  the caller is not trying to renew a row already past `VENDOR_CLAIM_MAX_HOLD_SECONDS`.
+
+Silence is therefore ambiguous. An **arriving** code is not: it is an unambiguous yes to
+"this account has been paid by at least `VENDOR_REGISTRY_MIN_HOUSEHOLDS` Amana households
+and nobody has claimed it" — the payment-graph aggregate the promotion threshold exists to
+keep private.
+
+**The second, more expensive channel is `409` vs `401` on `/verify`.** The same attacker,
+holding a code that really did arrive, passes `verifyCode`, fails the NIBSS bank-record
+match and lands on `409 ownership_unproved`; against an account the registry does not hold,
+the same two calls return `401`. That costs two requests and a **paid Anchor NIBSS round
+trip** the `401` path never makes — so the pair differs in timing as well as status, and
+collapsing the bodies alone would not close it.
+
+**Collapsing the 409 does not meet this gate.** It is the dearer of the two channels and the
+less useful one; an attacker who can already read the answer off an SMS has no reason to pay
+for it. Meeting the gate means the *SMS* stops being an answer.
 
 **Why this is deferred rather than fixed** — a decision with a cost, not an oversight:
 

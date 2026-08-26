@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { env } from '../../src/env';
 import { drainBackgroundTasks } from '../../src/lib/background';
+import { resetRateLimitStore } from '../../src/middleware/rate-limit';
 import { otpService } from '../../src/modules/auth/otp.service';
 import { vendorClaimsRepo } from '../../src/modules/vendors/vendor-claims.repo';
 import { vendorOwnershipService } from '../../src/modules/vendors/vendor-ownership.service';
@@ -97,6 +99,106 @@ describe('POST /vendor-claim', () => {
     expect(wrongCode.status).toBe(401);
     expect(noAttempt.status).toBe(wrongCode.status);
     expect(await noAttempt.text()).toBe(await wrongCode.text());
+  });
+
+  it('is a NON-ORACLE at /verify for an EXHAUSTED attempt too, not just a wrong code', async () => {
+    // `too_many_attempts` can only ever come back from `verifyCode`, and `verify` returns
+    // `no_attempt` before `verifyCode` ever runs when there is no attempt row. So the exhausted
+    // answer is reachable ONLY for a promoted `observed` vendor: five junk calls answering
+    // `invalid_code` and a sixth answering something else is the registry-membership bit again,
+    // read straight off the response body — the exact bit the collapse above exists to hide.
+    //
+    // Driven through the REAL otp service (no `verifyCode` mock) so the exhaustion is the
+    // production one, argon2 and all.
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    const phone = '+2348012345678';
+    // Spy WITHOUT a mock implementation: calls through, but records what the service actually got
+    // back, so this test cannot pass by never reaching the exhausted branch at all.
+    const verify = vi.spyOn(otpService, 'verifyCode');
+
+    await post('/vendor-claim/request', { bankCode: '058', accountNumber: '0123456789', phone });
+    // `requestCode` is detached (`runInBackground`) and it is what writes the challenge row.
+    await drainBackgroundTasks();
+
+    const wrongCode: Array<{ status: number; body: string }> = [];
+    for (let i = 0; i < env.OTP_MAX_ATTEMPTS; i++) {
+      const res = await post('/vendor-claim/verify', { phone, code: '000000' });
+      wrongCode.push({ status: res.status, body: await res.text() });
+    }
+
+    // The per-phone limiter on this path is `RATE_LIMIT_OTP_PER_PHONE` (5), which today happens to
+    // equal `OTP_MAX_ATTEMPTS` (5) — so on ONE machine the sixth call 429s before the service sees
+    // it. That coincidence is precisely what must not be relied on: the limiter is in-memory and
+    // per-instance, and `auto_start_machines = true`. Resetting the store here stands in for the
+    // second Fly machine, which starts with an empty one. Do not "simplify" this away.
+    resetRateLimitStore();
+    const exhausted = await post('/vendor-claim/verify', { phone, code: '000000' });
+    const noAttempt = await post('/vendor-claim/verify', {
+      phone: '+2348017654321',
+      code: '000000',
+    });
+
+    // The sixth call really did exhaust the challenge rather than merely miss again.
+    expect(await verify.mock.results[env.OTP_MAX_ATTEMPTS]?.value).toEqual({
+      kind: 'too_many_attempts',
+    });
+
+    const exhaustedBody = await exhausted.text();
+    const noAttemptBody = await noAttempt.text();
+    expect(wrongCode[0]?.status).toBe(401);
+    expect(exhausted.status).toBe(wrongCode[0]?.status);
+    expect(noAttempt.status).toBe(wrongCode[0]?.status);
+    expect(exhaustedBody).toBe(wrongCode[0]?.body);
+    expect(noAttemptBody).toBe(wrongCode[0]?.body);
+  });
+
+  it('409s vendor_unavailable when the vendor stops being claimable behind a verified OTP', async () => {
+    // Collapsing this into the 401 was a dead end, not a defence: the claimant's OTP is already
+    // consumed, they read "invalid code", and their retry `/request` early-returns on
+    // `status !== 'observed'` into the uniform 202 — so no second code ever arrives. It is safe to
+    // distinguish because it sits BEHIND the verified OTP, the same gate that protects the
+    // deliberately-retained `409 ownership_unproved`.
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+    await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+    await drainBackgroundTasks();
+
+    // Suspended mid-flow — an ops action, or a second claimant winning the race.
+    expect(await vendorsRepo.setStatus(testDb, v.id, 'suspended')).toBe(true);
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
+      kind: 'verified',
+      challengeId: 'c1',
+      purpose: 'vendor_claim',
+    });
+    const prove = vi.spyOn(vendorOwnershipService, 'proveByPhoneLookup');
+
+    const res = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '123456',
+      category: 'food',
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'vendor_unavailable' });
+    // Decided before the paid Anchor lookup, so it costs nothing to answer honestly.
+    expect(prove).not.toHaveBeenCalled();
   });
 
   it('400s a category outside the shared spend vocabulary', async () => {

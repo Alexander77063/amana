@@ -23,6 +23,13 @@ export type ClaimVerifyResult =
   | { kind: 'invalid_code' }
   | { kind: 'too_many_attempts' }
   | { kind: 'no_attempt' }
+  /**
+   * The vendor stopped being claimable between `/request` and here — suspended, already claimed,
+   * or the `claim` compare-and-set lost a race. Distinct from `no_attempt` on purpose: both of
+   * these are reached only from BEHIND a verified OTP, so telling the caller what happened
+   * reveals nothing to anyone who has not already proved control of the phone.
+   */
+  | { kind: 'vendor_unavailable' }
   | { kind: 'ownership_unproved'; reason: string }
   | { kind: 'partner_down' };
 
@@ -52,6 +59,10 @@ export const vendorClaimService = {
    * side-channel that recovers the exact bit the uniform response exists to hide, so the OTP send
    * is detached (`runInBackground`) rather than awaited — the response leaves at the same point
    * in the control flow regardless of whether an SMS goes out behind it.
+   *
+   * The *arrival of the SMS itself* is a remaining channel that no amount of response shaping can
+   * close, because the code goes to the caller-supplied phone: see **PRE-LAUNCH GATE 3** in
+   * `docs/runbook/vendor-claim.md`.
    */
   async request(
     db: DbOrTx,
@@ -68,7 +79,7 @@ export const vendorClaimService = {
       // and burning a paid Anchor lookup when it later gets picked non-deterministically. This
       // closes the interleaving where the attacker arrives while a legitimate attempt is already
       // open; it cannot stop an attacker who calls first — that race is bounded by the route's
-      // rate limiter (Task 6), not by this check.
+      // rate limiter (Task 6) and by the hold ceiling below, not by this check.
       const existingForPhone = await vendorClaimsRepo.findPendingByPhone(
         db,
         input.phone,
@@ -77,16 +88,26 @@ export const vendorClaimService = {
       if (existingForPhone && existingForPhone.vendorId !== vendor.id) return { accepted: true };
 
       const expiresAt = new Date(input.now.getTime() + env.VENDOR_CLAIM_TTL_SECONDS * 1000);
+      // Both clocks are the caller's `now`, deliberately — the repo compares `createdAt` against
+      // this value rather than against Postgres `now()`, so the ceiling is reproducible in tests
+      // and unaffected by app/DB skew.
+      const renewableSince = new Date(
+        input.now.getTime() - env.VENDOR_CLAIM_MAX_HOLD_SECONDS * 1000,
+      );
       const attempt = await vendorClaimsRepo.openAttempt(db, {
         vendorId: vendor.id,
         phone: input.phone,
         expiresAt,
+        now: input.now,
+        renewableSince,
       });
-      // Null means a DIFFERENT phone already has a claim in flight for this vendor — the land-grab
-      // guard, and the same uniform response as every other outcome. A repeat request from the
-      // SAME phone is not null: `openAttempt` recovers and re-dates the existing row, so the OTP
-      // below is re-sent. That is what lets a claimant retry after the `409 ownership_unproved`
-      // path, which consumes the code but deliberately leaves the attempt `pending` for ops.
+      // Null means the vendor's one pending slot is held and could not be taken: by a DIFFERENT
+      // phone (the land-grab guard), or by THIS phone on a row already past
+      // `VENDOR_CLAIM_MAX_HOLD_SECONDS` and not yet lapsed. Either way, the same uniform response
+      // as every other outcome. A repeat request from the same phone inside the ceiling is not
+      // null: `openAttempt` recovers and re-dates the existing row, so the OTP below is re-sent.
+      // That is what lets a claimant retry after the `409 ownership_unproved` path, which consumes
+      // the code but deliberately leaves the attempt `pending` for ops.
       if (!attempt) return { accepted: true };
 
       // Detached and on the connection pool, not the caller's `db` handle: this call must not
@@ -127,6 +148,9 @@ export const vendorClaimService = {
     adapter: AnchorAdapter,
     input: { phone: string; code: string; category: string | null; now: Date },
   ): Promise<ClaimVerifyResult> {
+    // The ONE oracle-sensitive outcome in this method: it is decided before any proof of phone
+    // control, so the route must render it identically to a wrong code. Everything below this
+    // line sits behind a verified OTP and may speak plainly.
     const attempt = await vendorClaimsRepo.findPendingByPhone(db, input.phone, input.now);
     if (!attempt) return { kind: 'no_attempt' };
 
@@ -143,7 +167,12 @@ export const vendorClaimService = {
     if (otp.kind !== 'verified') return { kind: 'invalid_code' };
 
     const vendor = await vendorsRepo.findById(db, attempt.vendorId);
-    if (!vendor || vendor.status !== 'observed') return { kind: 'no_attempt' };
+    // `vendor_unavailable`, not `no_attempt`: the claimant's OTP has just been consumed, so
+    // rendering this as "invalid code" left them with a permanent dead end — their retry
+    // `/request` early-returns on `status !== 'observed'` into the uniform 202 and no second code
+    // ever arrives. Safe to distinguish because this is behind the verified OTP, the same gate
+    // that protects the deliberately-retained 409.
+    if (!vendor || vendor.status !== 'observed') return { kind: 'vendor_unavailable' };
 
     const verdict = await vendorOwnershipService.proveByPhoneLookup(adapter, {
       phone: input.phone,
@@ -192,7 +221,9 @@ export const vendorClaimService = {
       });
       return claimedRow;
     });
-    if (!claimed) return { kind: 'no_attempt' };
+    // Same reasoning as the check above: the CAS lost a race (someone else claimed the vendor in
+    // between), the OTP is already spent, and the caller is behind the verified-OTP gate.
+    if (!claimed) return { kind: 'vendor_unavailable' };
 
     return { kind: 'claimed', publicCode, displayName: claimed.displayName };
   },

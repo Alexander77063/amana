@@ -91,6 +91,8 @@ describe('/vendors-admin', () => {
       vendorId: v.id,
       phone,
       expiresAt: new Date(NOW.getTime() + 60_000),
+      now: NOW,
+      renewableSince: new Date(NOW.getTime() - 3_600_000),
     });
     if (!attempt) throw new Error('open attempt failed');
 
@@ -143,6 +145,8 @@ describe('/vendors-admin', () => {
       vendorId: pendingVendor.id,
       phone: factories.phone(),
       expiresAt: new Date(Date.now() + 60_000),
+      now: NOW,
+      renewableSince: new Date(NOW.getTime() - 3_600_000),
     });
     if (!pendingAttempt) throw new Error('open attempt failed');
 
@@ -158,6 +162,8 @@ describe('/vendors-admin', () => {
       vendorId: expiredVendor.id,
       phone: factories.phone(),
       expiresAt: new Date(Date.now() - 60_000),
+      now: NOW,
+      renewableSince: new Date(NOW.getTime() - 3_600_000),
     });
     if (!expiredAttempt) throw new Error('open attempt failed');
     // Actually expire it, the way the sweep job would — a stale-but-still-`pending` row would be

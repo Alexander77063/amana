@@ -104,6 +104,8 @@ describe('vendorClaimService', () => {
         vendorId: v2.id,
         phone: factories.phone(),
         expiresAt: NOW,
+        now: NOW,
+        renewableSince: new Date(NOW.getTime() - 3_600_000),
       });
       expect(directOpenForV2).not.toBeNull();
     });
@@ -274,6 +276,55 @@ describe('vendorClaimService', () => {
         now: NOW,
       });
       expect(r.kind).toBe('no_attempt');
+    });
+
+    it('returns vendor_unavailable, not no_attempt, when the vendor is suspended mid-flow', async () => {
+      // Site 2 of the old `no_attempt`. It sits BEHIND the verified OTP — the same gate that
+      // protects the deliberately-retained 409 — so a distinct outcome reintroduces no oracle,
+      // while collapsing it stranded the claimant: their code is already spent and their retry
+      // `/request` early-returns on `status !== 'observed'` into the uniform 202, so "invalid
+      // code" was permanent with no way out.
+      const phone = factories.phone();
+      const v = await openAttempt(phone);
+      expect(await vendorsRepo.setStatus(testDb, v.id, 'suspended')).toBe(true);
+      vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
+        kind: 'verified',
+        challengeId: 'c1',
+        purpose: 'vendor_claim',
+      });
+      const prove = proveOwnership(true);
+
+      const r = await vendorClaimService.verify(testDb, adapter, {
+        phone,
+        code: '123456',
+        category: 'food',
+        now: NOW,
+      });
+      expect(r.kind).toBe('vendor_unavailable');
+      // Decided before the paid Anchor lookup.
+      expect(prove).not.toHaveBeenCalled();
+    });
+
+    it('returns vendor_unavailable when the claim compare-and-set loses the race', async () => {
+      // Site 3: someone else claimed the vendor between the status read and the transaction. Same
+      // reasoning as site 2 — post-OTP, so it may speak plainly.
+      const phone = factories.phone();
+      await openAttempt(phone);
+      vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
+        kind: 'verified',
+        challengeId: 'c1',
+        purpose: 'vendor_claim',
+      });
+      proveOwnership(true);
+      vi.spyOn(vendorsRepo, 'claim').mockResolvedValue(null);
+
+      const r = await vendorClaimService.verify(testDb, adapter, {
+        phone,
+        code: '123456',
+        category: 'food',
+        now: NOW,
+      });
+      expect(r.kind).toBe('vendor_unavailable');
     });
 
     it('audits every claim', async () => {

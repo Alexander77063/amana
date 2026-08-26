@@ -9,7 +9,9 @@ export type ClaimAttemptRow = typeof vendorClaimAttempts.$inferSelect;
 export const vendorClaimsRepo = {
   /**
    * Open a claim attempt for this vendor — or, when one is already pending, RE-OPEN it if it
-   * belongs to the same phone. Returns null only when the pending attempt belongs to someone else.
+   * belongs to the same phone AND that row is still inside the absolute hold ceiling. Returns null
+   * when the pending attempt belongs to someone else, or when it is past the ceiling and has not
+   * yet lapsed.
    *
    * The conflict comes from the partial unique index, not from a prior SELECT: two claim requests
    * arriving together must not both open an attempt, and only the index can promise that.
@@ -18,18 +20,35 @@ export const vendorClaimsRepo = {
    * runbook's own expected outcome: a `409 ownership_unproved` consumes the OTP but deliberately
    * leaves the attempt `pending` for the ops queue, so the claimant's next `/request` conflicts,
    * gets null, and — because the caller cannot be told anything (uniform 202) — silently receives
-   * no second code. Worse, the index predicate is `status = 'pending'` alone and ignores
-   * `expiresAt`, while the sweep that expires rows runs hourly, so that lockout outlived
-   * `VENDOR_CLAIM_TTL_SECONDS` by up to a further ~59 minutes. Matching on `phone` (and NOT on
-   * `expiresAt`, so a stale-but-unswept row is recovered too) fixes both.
+   * no second code. Matching on `phone` (and NOT on `expiresAt`, so a stale-but-unswept row is
+   * recovered too) fixes that.
    *
-   * A DIFFERENT phone still gets null. That is the land-grab guard: proof of phone control only
-   * happens at verify, so whoever opened the pending attempt has proved nothing yet, and letting a
-   * second caller take the slot from them would be the attack this index exists to stop.
+   * `renewableSince` is the price of that recovery. Nothing at `/request` proves the caller
+   * controls the phone they submitted — it is a string in a request body — so re-dating on a
+   * `(vendorId, phone, pending)` match alone let ANYONE who knows a victim's number renew the slot
+   * for ever with one call every `VENDOR_CLAIM_TTL_SECONDS`, permanently squatting the vendor AND
+   * permanently blocking that number from claiming any other vendor via the cross-vendor guard in
+   * `vendorClaimService.request`. Comparing the row's OWN `createdAt` (not its `expiresAt`, which
+   * renewal moves) bounds any single hold to `VENDOR_CLAIM_MAX_HOLD_SECONDS` from first open, plus
+   * whatever trailing validity the last renewal inside that window bought. It costs the legitimate
+   * flow nothing: a retry inside the TTL already matched this predicate before the ceiling
+   * existed, without needing the re-dating at all.
+   *
+   * A DIFFERENT phone still gets null while the slot is live. That is the land-grab guard: proof
+   * of phone control only happens at verify, so whoever opened the pending attempt has proved
+   * nothing yet, and letting a second caller take the slot from them would be the attack this
+   * index exists to stop.
    */
   async openAttempt(
     db: DbOrTx,
-    input: { vendorId: string; phone: string; expiresAt: Date },
+    input: {
+      vendorId: string;
+      phone: string;
+      expiresAt: Date;
+      now: Date;
+      /** Floor on the row's own `createdAt` — `now - VENDOR_CLAIM_MAX_HOLD_SECONDS`. */
+      renewableSince: Date;
+    },
   ): Promise<ClaimAttemptRow | null> {
     const [row] = await db
       .insert(vendorClaimAttempts)
@@ -48,10 +67,43 @@ export const vendorClaimsRepo = {
           eq(vendorClaimAttempts.vendorId, input.vendorId),
           eq(vendorClaimAttempts.phone, input.phone),
           eq(vendorClaimAttempts.status, 'pending'),
+          gt(vendorClaimAttempts.createdAt, input.renewableSince),
         ),
       )
       .returning();
-    return reopened ?? null;
+    if (reopened) return reopened;
+
+    // Neither path took: the slot is held by another phone, or by this phone past the ceiling.
+    // Release it HERE if its own TTL has already lapsed, rather than leaving it to the hourly
+    // sweep (`cron/jobs/vendor-registry-sweep.job.ts`, `17 * * * *`) — that lag added up to a
+    // further ~59 minutes on every expiry, and it is what makes the ceiling above actually free
+    // the slot instead of deadlocking it. Scoped to this vendor because the partial unique index
+    // is on `vendorId` alone: this vendor's own pending row is the only one that can block the
+    // insert. It does not replace `expireOverdue` — the sweep still reaches vendors nobody calls
+    // `/request` on again.
+    //
+    // Deliberately `expiresAt <= now` ONLY, never "past the ceiling": expiring a past-ceiling row
+    // here would let the same phone immediately re-insert with a fresh `createdAt` and so reset
+    // its own ceiling, which is the exact thing the ceiling exists to prevent.
+    const released = await db
+      .update(vendorClaimAttempts)
+      .set({ status: 'expired' })
+      .where(
+        and(
+          eq(vendorClaimAttempts.vendorId, input.vendorId),
+          eq(vendorClaimAttempts.status, 'pending'),
+          lte(vendorClaimAttempts.expiresAt, input.now),
+        ),
+      )
+      .returning({ id: vendorClaimAttempts.id });
+    if (released.length === 0) return null;
+
+    const [retried] = await db
+      .insert(vendorClaimAttempts)
+      .values({ vendorId: input.vendorId, phone: input.phone, expiresAt: input.expiresAt })
+      .onConflictDoNothing()
+      .returning();
+    return retried ?? null;
   },
 
   /**

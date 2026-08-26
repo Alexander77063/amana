@@ -99,6 +99,13 @@ const EnvSchema = z.object({
   // How long a vendor has to enter the OTP that proves they control the claiming phone.
   // Longer than the 5-minute OTP TTL on purpose: a shopkeeper mid-service is not at their phone.
   VENDOR_CLAIM_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+  // Absolute ceiling on how long ONE pending claim attempt may be held, measured from when the
+  // row was first created — not from the last renewal. A repeat `/request` from the same phone
+  // re-dates `expires_at` (that is what unlocks the legitimate retry after `409
+  // ownership_unproved`), and nothing at `/request` proves the caller controls the phone they
+  // submitted, so without this ceiling one call every <15 min holds a vendor's only pending slot
+  // for ever. `vendorClaimsRepo.openAttempt` refuses to renew a row older than this.
+  VENDOR_CLAIM_MAX_HOLD_SECONDS: z.coerce.number().int().positive().default(3600),
   // Marketplace (SP1 voucher/redemption ledger core). Additive with safe defaults; the fee is
   // an explicit TBD (pricing pass) kept at 0 so it never double-dips a discounted purchase.
   MARKETPLACE_COMMISSION_BPS: z.coerce.number().int().nonnegative().max(10_000).default(500),

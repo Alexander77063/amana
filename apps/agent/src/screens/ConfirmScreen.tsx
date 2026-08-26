@@ -21,6 +21,23 @@ import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'Confirm'>;
 
+/**
+ * A kobo string from the QR, as the naira text this screen's amount field holds.
+ *
+ * Done with BigInt and string parts, never `Number`: kobo is the money, and routing it through a
+ * float to render it is the one habit the ledger's whole bigint discipline exists to forbid. The
+ * digits-only guard is not paranoia about our own backend — it is that this value is typed into a
+ * money field the payer is about to approve, and there is no sensible thing to show for garbage.
+ * Anything unparseable yields an empty field, which is exactly what the payer gets today.
+ */
+function koboToNairaInput(kobo: string | null | undefined): string {
+  if (!kobo || !/^\d+$/.test(kobo)) return '';
+  const k = BigInt(kobo);
+  const remainder = k % 100n;
+  const naira = k / 100n;
+  return remainder === 0n ? String(naira) : `${naira}.${String(remainder).padStart(2, '0')}`;
+}
+
 export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
   const theme = useTheme();
   // Destructured EXPLICITLY, and kept that way. `vendorId` and `category` are inputs to this
@@ -34,8 +51,11 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
     accountMasked,
     vendorId,
     category: registryCategory,
+    suggestedAmountKobo,
   } = route.params;
-  const [amountNaira, setAmountNaira] = useState('');
+  // Seeded from the QR when it carried an amount (NQR tag 54). A pre-fill, like the category: the
+  // field stays editable, because the payer — not the sticker — decides what leaves their wallet.
+  const [amountNaira, setAmountNaira] = useState(koboToNairaInput(suggestedAmountKobo));
   const [note, setNote] = useState('');
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -129,9 +149,12 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
             actually came from a registry code. `vendorId` is absent (not null) on every other
             capture path, and a badge that is always on is worse than no badge at all. */}
         {vendorId ? (
-          <View accessibilityRole="text" accessibilityLabel="Verified Amana vendor">
-            <Badge label="Verified" variant="success" />
-          </View>
+          // The label goes ON the Badge, not on a wrapper. iOS ignores an accessibilityLabel on a
+          // container that is not itself `accessible`, so VoiceOver descends to the children and a
+          // blind payer hears the visible "Verified" instead of the full claim — the one thing this
+          // badge exists to say. `Badge` sets `accessible` whenever it is given a label; a wrapper
+          // bypasses that and silently downgrades the announcement.
+          <Badge label="Verified" variant="success" accessibilityLabel="Verified Amana vendor" />
         ) : null}
         <Body muted>{accountMasked}</Body>
         {amountNaira ? (

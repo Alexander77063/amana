@@ -35,6 +35,11 @@ export type PayStackParamList = {
     vendorId?: string | null;
     /** The registry's category, pre-filled into the confirm screen. Advisory, never enforced here. */
     category?: string | null;
+    /**
+     * An amount the QR itself carried (NQR tag 54), as a kobo string. Pre-fills the amount field
+     * and stays editable — the payer, not the sticker, decides what leaves their wallet.
+     */
+    suggestedAmountKobo?: string | null;
   };
   BumpWait: {
     transactionId: string;

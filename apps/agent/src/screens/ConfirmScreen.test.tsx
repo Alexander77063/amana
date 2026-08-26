@@ -56,7 +56,13 @@ const BASE = {
 
 /** Build the screen's navigation/route props over the four params every capture path supplies. */
 function propsWith(
-  params: Partial<{ vendorId: string | null; category: string | null }> | undefined,
+  params:
+    | Partial<{
+        vendorId: string | null;
+        category: string | null;
+        suggestedAmountKobo: string | null;
+      }>
+    | undefined,
   nav: { replace?: ReturnType<typeof vi.fn> } = {},
 ): ComponentProps<typeof ConfirmScreen> {
   return {
@@ -111,7 +117,11 @@ describe('ConfirmScreen — the verified badge', () => {
     );
     const badge = allByLabel(root, BADGE);
     expect(badge).toHaveLength(1);
-    expect(badge[0]?.props.accessibilityRole).toBe('text');
+    // `accessible` is the load-bearing prop, not a role: on iOS an accessibilityLabel on a
+    // container that is not itself accessible is IGNORED — VoiceOver descends to the children and
+    // a blind payer hears "Verified", losing the whole identity claim. Badge sets it whenever it
+    // is given a label; a hand-rolled wrapper is what got this wrong.
+    expect(badge[0]?.props.accessible).toBe(true);
   });
 
   it('shows NO badge when the resolution carried no registry vendor', () => {
@@ -197,6 +207,57 @@ describe('ConfirmScreen — the registry category is a pre-fill, not a lock', ()
     expect(selectedCategory(root)).toBe('other');
     await pay(root, '500');
     expect(createIntent.mock.calls[0]?.[0]).toMatchObject({ category: 'other' });
+  });
+});
+
+/**
+ * NQR tag 54 lets a vendor's terminal bake the amount into the QR. Pre-filling it is the whole
+ * point of carrying it; locking it is not. The payer, not the sticker, decides what leaves their
+ * wallet — a QR that could fix the amount would be a QR that could overcharge.
+ */
+describe('ConfirmScreen — the suggested amount is a pre-fill, not a lock', () => {
+  const amountInput = (root: ReactTestInstance) => allByLabel(root, AMOUNT)[0];
+
+  it('pre-fills the amount field from the QR, in naira', () => {
+    const { root } = render(<ConfirmScreen {...propsWith({ suggestedAmountKobo: '200000' })} />);
+    expect(amountInput(root)?.props.value).toBe('2000');
+  });
+
+  it('keeps the kobo remainder rather than rounding the payer’s money', () => {
+    const { root } = render(<ConfirmScreen {...propsWith({ suggestedAmountKobo: '199950' })} />);
+    expect(amountInput(root)?.props.value).toBe('1999.50');
+  });
+
+  it('leaves the field empty when the QR carried no amount', () => {
+    const { root } = render(<ConfirmScreen {...propsWith({ suggestedAmountKobo: null })} />);
+    expect(amountInput(root)?.props.value).toBe('');
+  });
+
+  it('leaves the field empty when the capture path omits the param', () => {
+    const { root } = render(<ConfirmScreen {...propsWith(undefined)} />);
+    expect(amountInput(root)?.props.value).toBe('');
+  });
+
+  it('ignores a malformed amount rather than typing garbage into a money field', () => {
+    const { root } = render(<ConfirmScreen {...propsWith({ suggestedAmountKobo: '12.5abc' })} />);
+    expect(amountInput(root)?.props.value).toBe('');
+  });
+
+  it('sends the suggested amount unchanged when the payer accepts it', async () => {
+    const { root } = render(<ConfirmScreen {...propsWith({ suggestedAmountKobo: '200000' })} />);
+    const button = allByLabel(root, SUBMIT)[0];
+    if (!button) throw new Error('confirm button not found');
+    await press(button);
+
+    expect(createIntent.mock.calls[0]?.[0]).toMatchObject({ amountKobo: '200000' });
+  });
+
+  it('leaves the amount field editable, and sends the OVERRIDE', async () => {
+    const { root } = render(<ConfirmScreen {...propsWith({ suggestedAmountKobo: '200000' })} />);
+    expect(amountInput(root)?.props.editable).not.toBe(false);
+
+    await pay(root, '750');
+    expect(createIntent.mock.calls[0]?.[0]).toMatchObject({ amountKobo: '75000' });
   });
 });
 

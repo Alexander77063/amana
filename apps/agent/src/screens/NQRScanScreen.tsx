@@ -1,7 +1,8 @@
 import { Body, Button, useTheme } from '@amana/ui';
+import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { api } from '../lib/api';
 import { type ScanFailure, describeScanFailure, parseScannedPayload } from '../lib/vendor-code';
@@ -18,11 +19,35 @@ export function NQRScanScreen({ navigation }: Props): JSX.Element {
   // Held so TRY AGAIN can re-issue the SAME lookup without asking the payer to line the camera up
   // again — and so a retry is a deliberate press rather than the lens re-firing on its own.
   const [lastPayload, setLastPayload] = useState<string | null>(null);
+  /**
+   * The real single-flight lock. `busy` drives the overlay, but it cannot guard the entry:
+   * `onBarcodeScanned` is a closure captured at render, and expo-camera fires it several times a
+   * second from the native emitter, so two events arriving before React re-renders both read the
+   * SAME captured `busy === false` and both proceed. A ref is read at call time, so the second
+   * event sees the first one's write. The cost of getting this wrong is a duplicate rate-limited
+   * lookup against a paid partner call, and `Confirm` pushed twice.
+   */
+  const inFlight = useRef(false);
+
+  /**
+   * A native stack keeps this screen mounted under `Confirm`, so backing out is a focus event and
+   * not a remount — without this reset the payer returns to `busy === true` with no `failure`,
+   * which renders the camera under a dark overlay and "Resolving vendor…" forever, with no button
+   * on it and no way out but leaving the Pay stack.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      inFlight.current = false;
+      setBusy(false);
+      setFailure(null);
+    }, []),
+  );
 
   const resolve = async (payload: string) => {
-    if (busy) return;
+    if (inFlight.current) return;
     const sw = useAgentStore.getState().selectedSubWallet;
     if (!sw) return;
+    inFlight.current = true;
     setBusy(true);
     setFailure(null);
     setLastPayload(payload);
@@ -45,10 +70,18 @@ export function NQRScanScreen({ navigation }: Props): JSX.Element {
         accountMasked: `****${vendor.accountNumber.slice(-4)}`,
         vendorId: vendor.vendorId,
         category: vendor.category,
+        // NQR tag 54, when the vendor's terminal baked an amount into the QR. Advisory exactly
+        // like the category: it pre-fills the field and the payer can still change it.
+        suggestedAmountKobo: vendor.suggestedAmountKobo,
       });
     } catch (e: unknown) {
       setFailure(describeScanFailure(e, scanned.kind));
       setBusy(false);
+    } finally {
+      // Released on BOTH paths. On success the screen stays mounted behind `Confirm` with
+      // `busy === true`, so the camera is disarmed anyway; on failure the payer needs TRY AGAIN to
+      // actually re-issue the lookup rather than hit a lock nobody ever opens.
+      inFlight.current = false;
     }
   };
 

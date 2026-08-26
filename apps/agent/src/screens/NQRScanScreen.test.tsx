@@ -127,6 +127,7 @@ describe('NQRScanScreen — one camera, two payload kinds', () => {
       accountMasked: '****6789',
       vendorId: 'v-1',
       category: 'food',
+      suggestedAmountKobo: null,
     });
   });
 
@@ -244,14 +245,22 @@ describe('NQRScanScreen — the error ladder', () => {
  * payer select which merchant's category rules get applied to their own spend. The server
  * re-resolves the vendor from the bank code and account number for exactly that reason.
  *
- * This is a compile-time assertion, checked by `pnpm --filter @amana/agent typecheck`: the day
- * `CreateIntentInput` grows a `vendorId`, this line goes red.
+ * This is a compile-time assertion, checked by `pnpm --filter @amana/agent typecheck`.
+ *
+ * It no longer asserts that the KEY is absent, because it deliberately is not: `CreateIntentInput`
+ * now declares `vendorId?: never`. Absence was the weaker property — an absent key is exempt from
+ * excess-property checking under a spread, so `{ ...route.params }` compiled green and put the
+ * field on the wire. A key typed `never` makes that same spread a type error.
+ *
+ * So the property to pin is that the field can never hold a VALUE. `string extends
+ * CreateIntentInput['vendorId']` is false while the type is `undefined`, and becomes true the day
+ * someone "fixes" the declaration to `vendorId?: string` — which is the regression that matters.
  */
-type IntentAcceptsVendorId = 'vendorId' extends keyof CreateIntentInput ? true : false;
-const INTENT_ACCEPTS_VENDOR_ID: IntentAcceptsVendorId = false;
+type VendorIdIsUnsettable = string extends CreateIntentInput['vendorId'] ? false : true;
+const VENDOR_ID_IS_UNSETTABLE: VendorIdIsUnsettable = true;
 
 describe('vendorId is output-only', () => {
-  it('is absent from the spend-intent wire type', () => {
-    expect(INTENT_ACCEPTS_VENDOR_ID).toBe(false);
+  it('cannot carry a value on the spend-intent wire type', () => {
+    expect(VENDOR_ID_IS_UNSETTABLE).toBe(true);
   });
 });

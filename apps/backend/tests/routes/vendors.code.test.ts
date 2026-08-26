@@ -1,4 +1,6 @@
+import { eq } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { vendors } from '../../src/db/schema';
 import { env } from '../../src/env';
 import { err, ok } from '../../src/lib/result';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
@@ -168,6 +170,38 @@ describe('GET /vendors/code/:code', () => {
     });
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: 'NOT_FOUND' });
+  });
+
+  /**
+   * The status check is an allow-list, and this is what that buys. Only `claim()` writes a
+   * `publicCode`, atomically with `status: 'claimed'`, so a code on an observed row can only have
+   * got there by hand — and nobody has proven they own that account, so it must not be payable.
+   * The row is written straight through drizzle precisely because no repo method can produce it.
+   *
+   * The `default:` arm of the same switch is structurally unreachable — it exists so that adding
+   * a fourth `vendorStatusEnum` member fails to compile, which is verified by the type-checker,
+   * not by a test.
+   */
+  it('404s a code sitting on a vendor that was never claimed', async () => {
+    const { agent, subWalletId } = await seedSubWallet();
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'MAMA PUT KITCHEN',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    expect(v.status).toBe('observed');
+    await testDb.update(vendors).set({ publicCode: CODE }).where(eq(vendors.id, v.id));
+    const enquiry = mockNameEnquiry();
+
+    const res = await app.request(`/vendors/code/${CODE}?subWalletId=${subWalletId}`, {
+      headers: await bearerHeaders(agent),
+    });
+    expect(res.status).toBe(404);
+    // Refused before the account was ever enquired against, not after.
+    expect(enquiry).not.toHaveBeenCalled();
   });
 
   /**

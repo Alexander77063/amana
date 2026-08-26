@@ -151,6 +151,9 @@ describe('vendorResolutionService.resolve', () => {
       vendorId: promoted.id,
       phone: factories.phone(),
       category: 'food',
+      // Setup only: this test does not exercise the claim-time name write, so `null` keeps
+      // the promoted `displayName` exactly as it was before that field became required.
+      displayName: null,
       publicCode: 'AMNV-7QK2H-9PZ0R',
       now: new Date('2026-05-01T12:00:00Z'),
     });
@@ -193,6 +196,9 @@ describe('vendorResolutionService.resolve', () => {
       vendorId: promoted.id,
       phone: factories.phone(),
       category: 'food',
+      // Setup only: this test does not exercise the claim-time name write, so `null` keeps
+      // the promoted `displayName` exactly as it was before that field became required.
+      displayName: null,
       publicCode: 'AMNV-7QK2H-9PZ0R',
       now: new Date('2026-05-01T12:00:00Z'),
     });

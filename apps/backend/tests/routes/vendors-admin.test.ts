@@ -64,6 +64,9 @@ describe('/vendors-admin', () => {
       vendorId: v.id,
       phone: factories.phone(),
       category: 'food',
+      // Setup only: this test does not exercise the claim-time name write, so `null` keeps
+      // the promoted `displayName` exactly as it was before that field became required.
+      displayName: null,
       publicCode: 'AMNV-AAAAA-BBBBB',
       now: NOW,
     });
@@ -191,6 +194,9 @@ describe('/vendors-admin', () => {
       vendorId: v.id,
       phone: factories.phone(),
       category: 'food',
+      // Setup only: this test does not exercise the claim-time name write, so `null` keeps
+      // the promoted `displayName` exactly as it was before that field became required.
+      displayName: null,
       publicCode: 'AMNV-CCCCC-DDDDD',
       now: NOW,
     });
@@ -215,6 +221,9 @@ describe('/vendors-admin', () => {
       vendorId: v.id,
       phone: factories.phone(),
       category: 'food',
+      // Setup only: this test does not exercise the claim-time name write, so `null` keeps
+      // the promoted `displayName` exactly as it was before that field became required.
+      displayName: null,
       publicCode: 'AMNV-EEEEE-FFFFF',
       now: NOW,
     });
@@ -251,6 +260,9 @@ describe('/vendors-admin', () => {
       vendorId: v.id,
       phone,
       category: 'food',
+      // Setup only: this test does not exercise the claim-time name write, so `null` keeps
+      // the promoted `displayName` exactly as it was before that field became required.
+      displayName: null,
       publicCode: 'AMNV-GGGGG-HHHHH',
       now: NOW,
     });

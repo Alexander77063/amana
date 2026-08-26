@@ -30,7 +30,9 @@ function proveOwnership(proved: boolean) {
   return vi
     .spyOn(vendorOwnershipService, 'proveByPhoneLookup')
     .mockResolvedValue(
-      proved ? { proved: true, proof: 'phone_lookup' } : { proved: false, reason: 'mismatch' },
+      proved
+        ? { proved: true, proof: 'phone_lookup', accountName: 'MUSA ABDULLAHI' }
+        : { proved: false, reason: 'mismatch' },
     );
 }
 
@@ -129,6 +131,9 @@ describe('vendorClaimService', () => {
         vendorId: v.id,
         phone: factories.phone(),
         category: 'food',
+        // Setup only: this test does not exercise the claim-time name write, so `null` keeps
+        // the promoted `displayName` exactly as it was before that field became required.
+        displayName: null,
         publicCode: 'AMNV-AAAAA-BBBBB',
         now: NOW,
       });

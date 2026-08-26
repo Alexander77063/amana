@@ -97,6 +97,19 @@ export const vendorsAdminRoute = new Hono()
         vendorId: params.id,
         phone: body.phone,
         category: body.category,
+        // `null` = keep the observation-derived name, and it is a known, accepted gap rather than
+        // an oversight. The self-service rail overwrites `display_name` with the name from the
+        // NIBSS enquiry that proved ownership; this rail exists precisely BECAUSE that enquiry
+        // refused, so it has no bank-confirmed name to write. The vendor still goes on to serve a
+        // 200 on the public `/v/:code` page, which means an ops-approved vendor's public name is
+        // operator-reviewed observation data — never bank-confirmed. Say so wherever that page's
+        // provenance is described (`lib/html.ts`, `routes/vendor-page.ts`).
+        //
+        // Closing it properly means an unconditional `nameEnquiry(bankCode, accountNumber)` here,
+        // which needs no phone match and so would work on this rail. It is deliberately NOT in
+        // this change: it puts a new paid-partner-call failure path into the most powerful route
+        // in the rail, and that deserves its own commit and its own failure-mode decision.
+        displayName: null,
         publicCode,
         now,
       });

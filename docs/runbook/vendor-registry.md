@@ -348,7 +348,7 @@ Both in `apps/backend/src/env.ts`, both windowed by `RATE_LIMIT_WINDOW_SECONDS` 
 | Var | Default | Key | What it bounds |
 |---|---|---|---|
 | `RATE_LIMIT_VENDOR_PAGE_PER_IP` | `600` per 900s (40/min) | client IP | Postgres load from `/v/*` |
-| `RATE_LIMIT_VENDOR_ANCHOR_PER_ACTOR` | `60` per 900s | authenticated user id | Our spend of **paid** Anchor name-enquiry calls, and our share of the one process-global circuit breaker |
+| `RATE_LIMIT_VENDOR_ANCHOR_PER_ACTOR` | `60` per 900s | authenticated user id | The **vendor module's** paid Anchor name-enquiry calls, on its four `/vendors/*` paths only — not an account's total partner spend (see below) |
 
 **The page limiter is load protection, not enumeration defence.** At 32^10 nothing is being
 guessed; it is there so a sticker photographed off a shop window cannot be replayed into
@@ -361,8 +361,28 @@ that does not happen.
 
 **The Anchor limiter is per account, and it is ONE middleware instance across four paths**
 (`/code/*`, `/name-enquiry`, `/phone-lookup`, `/nqr-decode`), so all four share a single
-bucket. That is the point: what is bounded is an account's total spend of partner calls, and
-four separate buckets would let one account spend 4x by rotating between the paths.
+bucket. Four separate buckets would let one account spend 4x by rotating between the paths.
+
+**It bounds those four paths, NOT an account's total partner spend.** An earlier version of
+this section said the latter, and of the code comment too; both were false.
+`apps/backend/src/routes/vas.ts` mounts `jwtAuth()` and **no limiter**, and three of its
+handlers are pure reads straight into `anchorAdapterSingleton`:
+
+| Path | Anchor call | Limiter |
+|---|---|---|
+| `GET /vas/billers` | `listBillers` | none |
+| `GET /vas/billers/:billerId/products` | `listProducts` | none |
+| `GET /vas/validate` | `validateCustomer` | none |
+
+So an actor who exhausts the 60-call vendor bucket can switch to `GET /vas/validate` and keep
+buying partner calls against the same process-global circuit breaker. **This is known and is
+not closed by widening the vendor limiter** — a catalogue read and a NIBSS name enquiry want
+different bucket sizes, and choosing VAS's is its own change with its own numbers.
+
+The remaining unlimited authenticated paths to that breaker — `POST /vas/purchase`,
+`POST /households`, and the nip-out send on `routes/transactions.ts` — are left alone for a
+different reason: each is self-bounding (a wallet debit, one virtual account per household),
+so none is free to spin the way a GET is.
 `/nqr-decode` belongs on the list because the `nqr` branch runs a name enquiry to confirm the
 decoded account against NIBSS rather than trust the QR's own tag 59; it was excluded once on
 the stated grounds that it does not reach Anchor, which was simply false. `/recents` and

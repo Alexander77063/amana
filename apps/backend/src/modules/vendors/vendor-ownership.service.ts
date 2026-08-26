@@ -2,8 +2,21 @@ import type { AnchorAdapter } from '../../integrations/anchor/adapter';
 import { isOk } from '../../lib/result';
 import { phoneLookupService } from './phone-lookup.service';
 
+/**
+ * `accountName` is REQUIRED on the proved branch, not optional.
+ *
+ * It is the bank's own name for the account, and `vendorClaimService.verify` writes it straight
+ * onto `vendors.display_name` — the string the unauthenticated `/v/:code` page renders under a
+ * "Verified on Amana" badge. Making it required means a caller (or a test double) that forgets it
+ * is a compile error rather than a `null` landing in a `notNull` column, and it means the only way
+ * to reach a proved verdict is to have actually asked NIBSS.
+ *
+ * It is safe to treat as the claimed account's name specifically, not merely "some name the phone
+ * is attached to": the verdict is only `proved` when the looked-up bank code AND account number
+ * both equal the vendor's, so the row this name came from IS the vendor's account.
+ */
 export type OwnershipVerdict =
-  | { proved: true; proof: 'phone_lookup' }
+  | { proved: true; proof: 'phone_lookup'; accountName: string }
   | { proved: false; reason: 'mismatch' | 'not_found' | 'partner_down' | 'bad_input' };
 
 export const vendorOwnershipService = {
@@ -37,7 +50,7 @@ export const vendorOwnershipService = {
     const matches =
       r.value.bankCode === input.bankCode && r.value.accountNumber === input.accountNumber;
     return matches
-      ? { proved: true, proof: 'phone_lookup' }
+      ? { proved: true, proof: 'phone_lookup', accountName: r.value.accountName }
       : { proved: false, reason: 'mismatch' };
   },
 };

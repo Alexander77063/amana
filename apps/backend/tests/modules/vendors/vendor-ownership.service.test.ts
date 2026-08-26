@@ -26,9 +26,14 @@ describe('vendorOwnershipService.proveByPhoneLookup', () => {
 
   it('proves ownership when NIBSS resolves the phone to the same account', async () => {
     mockLookup('058', '0123456789');
+    // The name comes back with the verdict, and that is the point: `vendorClaimService.verify`
+    // writes it onto `vendors.display_name`, which is what the public `/v/:code` page renders.
+    // Without it the claim would have no bank-confirmed name to publish and would keep the
+    // client-supplied observed one.
     expect(await vendorOwnershipService.proveByPhoneLookup(adapter, TARGET)).toEqual({
       proved: true,
       proof: 'phone_lookup',
+      accountName: 'MUSA ABDULLAHI',
     });
   });
 

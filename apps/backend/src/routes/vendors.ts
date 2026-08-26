@@ -99,8 +99,21 @@ function enquiryFailure(c: Context, error: ResolveError, subject: Record<string,
  * exists to protect.
  *
  * ONE middleware instance across all four paths, so they share one bucket per account. That is
- * the point: what is being bounded is an account's total spend of Anchor calls, and four
- * separate buckets would let one account spend 4x by rotating between the paths.
+ * the point: four separate buckets would let one account spend 4x by rotating between the paths.
+ *
+ * **What this bounds is the VENDOR MODULE's Anchor calls — not an account's total.** An earlier
+ * version of this comment claimed the latter, and that was false. `routes/vas.ts` mounts
+ * `jwtAuth()` and no limiter at all, and three of its handlers are pure reads that hit
+ * `anchorAdapterSingleton` directly: `GET /vas/billers`, `GET /vas/billers/:billerId/products`
+ * and `GET /vas/validate`. An actor who exhausts this bucket can switch to `GET /vas/validate`
+ * and keep buying partner calls against the same process-global circuit breaker.
+ *
+ * That gap is known and deliberately NOT closed by widening this middleware: a catalogue read and
+ * a name enquiry want different bucket sizes, and picking VAS's is its own change with its own
+ * numbers. The other unlimited authenticated paths to the same breaker — `POST /vas/purchase`,
+ * `POST /households`, and the nip-out send on `routes/transactions.ts` — are left alone for a
+ * different reason: each is self-bounding (a wallet debit, one virtual account per household), so
+ * none of them is free to spin the way a GET is.
  */
 const anchorCallLimiter = rateLimit({
   limit: env.RATE_LIMIT_VENDOR_ANCHOR_PER_ACTOR,

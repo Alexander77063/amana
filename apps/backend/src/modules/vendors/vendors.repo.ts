@@ -120,6 +120,19 @@ export const vendorsRepo = {
    * second claim — a replay, or a race between two people who both control the phone — matches
    * nothing and returns null. Category and source move together with the status because a claimed
    * category that is still marked `observed` would silently fail to enforce.
+   *
+   * `displayName` moves with them, and is REQUIRED rather than optional, because this is the write
+   * that turns a private shadow-data row into public identity content. Until the claim, the name
+   * is `vendor_observations.account_name` — which traces back to `vendorResolvedName` on
+   * `POST /transactions/intent` and is therefore client-supplied. From the claim onward it is
+   * rendered on the unauthenticated `/v/:code` page under a "Verified on Amana" badge. A required
+   * field makes every caller state, at the call site, what provenance it is claiming for that
+   * string; an optional one let the question go unasked, which is exactly how the payer-supplied
+   * name reached the public internet in the first place.
+   *
+   * `null` means "leave the existing name alone" and is a deliberate, spelled-out choice for the
+   * ops rail, which has no bank enquiry of its own to draw on. It is implemented as a conditional
+   * spread rather than a `null` write because `display_name` is `notNull`.
    */
   async claim(
     db: DbOrTx,
@@ -127,6 +140,8 @@ export const vendorsRepo = {
       vendorId: string;
       phone: string;
       category: string | null;
+      /** The bank-confirmed name to publish, or `null` to keep the observation-derived one. */
+      displayName: string | null;
       publicCode: string;
       now: Date;
     },
@@ -138,6 +153,7 @@ export const vendorsRepo = {
         category: input.category,
         categorySource: 'claimed',
         categoryHouseholdCount: null,
+        ...(input.displayName === null ? {} : { displayName: input.displayName }),
         publicCode: input.publicCode,
         claimedByPhone: input.phone,
         claimedAt: input.now,

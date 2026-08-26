@@ -269,7 +269,11 @@ describe('POST /vendor-claim', () => {
     expect(otp).toHaveBeenCalledTimes(2);
 
     // And the recovered attempt still completes the claim.
-    proof.mockResolvedValue({ proved: true, proof: 'phone_lookup' });
+    proof.mockResolvedValue({
+      proved: true,
+      proof: 'phone_lookup',
+      accountName: 'MAMA PUT KITCHEN',
+    });
     const claimed = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
       code: '123456',
@@ -353,6 +357,7 @@ describe('POST /vendor-claim', () => {
     vi.spyOn(vendorOwnershipService, 'proveByPhoneLookup').mockResolvedValue({
       proved: true,
       proof: 'phone_lookup',
+      accountName: 'MAMA PUT KITCHEN',
     });
 
     const res = await post('/vendor-claim/verify', {
@@ -438,5 +443,69 @@ describe('POST /vendor-claim', () => {
       category: 'food',
     });
     expect(res.status).toBe(503);
+  });
+  /**
+   * The public page's identity string must come from the BANK, not from a payer's phone.
+   *
+   * `vendors.display_name` is seeded by the registry sweep from `vendor_observations.account_name`,
+   * which traces straight back to `vendorResolvedName` on `POST /transactions/intent` — a
+   * client-supplied field. SP-V1 could treat that as internal shadow data; SP-V3 renders it under
+   * a "Verified on Amana" badge on the open internet, and nothing between the payer's app and that
+   * page used to re-confirm the string against NIBSS.
+   *
+   * So the fixture is deliberately hostile: the vendor is promoted under a junk observed name and
+   * the claim's NIBSS enquiry returns a different, real one. Asserting the junk name is ABSENT
+   * matters as much as asserting the real one is present — a page that showed both would still be
+   * publishing client-controlled text.
+   */
+  it('overwrites the observed display name with the NIBSS name from the claim enquiry', async () => {
+    const OBSERVED_JUNK = 'ZZ-PAYER-SUPPLIED-JUNK-ZZ';
+    const NIBSS_NAME = 'ADEYEMI GLOBAL VENTURES LTD';
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: OBSERVED_JUNK,
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+    await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
+      kind: 'verified',
+      challengeId: 'c1',
+      purpose: 'vendor_claim',
+    });
+    vi.spyOn(vendorOwnershipService, 'proveByPhoneLookup').mockResolvedValue({
+      proved: true,
+      proof: 'phone_lookup',
+      accountName: NIBSS_NAME,
+    });
+
+    const res = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '123456',
+      category: 'food',
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { publicCode: string; displayName: string };
+    expect(body.displayName).toBe(NIBSS_NAME);
+
+    // The row itself, not just the response: the response could be right while the persisted
+    // value the page reads is still the junk.
+    const row = await vendorsRepo.findById(testDb, v.id);
+    expect(row?.displayName).toBe(NIBSS_NAME);
+
+    // And the surface that actually faces the internet. Unauthenticated, exactly as a passer-by
+    // reaches it.
+    const pageRes = await app.request(`/v/${body.publicCode}`);
+    expect(pageRes.status).toBe(200);
+    const html = await pageRes.text();
+    expect(html).toContain(NIBSS_NAME);
+    expect(html).not.toContain(OBSERVED_JUNK);
   });
 });

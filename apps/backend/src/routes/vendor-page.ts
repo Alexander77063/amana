@@ -165,9 +165,23 @@ const INVALID_PAGE = page(
  * re-confirms the name with the bank on every scan; this one deliberately does not, because an
  * unauthenticated endpoint that triggers a paid partner call is a financial denial-of-service, and
  * that call runs on the same circuit breaker as real spend — so anyone with a photographed sticker
- * could take payments down. The consequence is that `displayName` here can be stale, and that is
- * the correct trade: this page IDENTIFIES a business, it does not authorise a payment. The pay
- * path (`GET /vendors/code/:code`) re-verifies against NIBSS on every single scan.
+ * could take payments down. This page IDENTIFIES a business, it does not authorise a payment; the
+ * pay path (`GET /vendors/code/:code`) re-verifies against NIBSS on every single scan.
+ *
+ * Where `displayName` therefore comes from — it is read here, never derived here:
+ *
+ * - A self-service claim writes the name from the NIBSS enquiry that proved ownership
+ *   (`vendorClaimService.verify`). Confirmed at the bank ONCE, at claim time.
+ * - An ops approval (`routes/vendors-admin.ts` `approve-claim`) writes no name at all, so the row
+ *   keeps its observation-derived one — which traces back to `vendorResolvedName` on a payer's
+ *   `POST /transactions/intent`. Operator-reviewed, never bank-confirmed. Capped at 200 chars at
+ *   that entry point, and escaped here like everything else.
+ *
+ * So the name can be STALE on either rail — a business that renames after claiming keeps the old
+ * one until it is re-claimed — and on the ops rail it was never bank-confirmed to begin with.
+ * Staleness is the accepted cost of not calling the partner from an unauthenticated page. It was
+ * previously written here as though a fresh enquiry were the only thing missing; it was not. Until
+ * SP-V3 nothing between a payer's app and this page re-confirmed the string at all.
  */
 export const vendorPageRoute = new Hono()
   .use('*', async (c, next) => {

@@ -65,6 +65,9 @@ async function claimedVendor(code = CODE): Promise<VendorRow> {
     vendorId: v.id,
     phone: factories.phone(),
     category: 'food',
+    // Setup only: this test does not exercise the claim-time name write, so `null` keeps
+    // the promoted `displayName` exactly as it was before that field became required.
+    displayName: null,
     publicCode: code,
     now: NOW,
   });

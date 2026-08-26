@@ -7,7 +7,7 @@ import { logger } from '../lib/logger';
 import { isOk } from '../lib/result';
 import { parseBody, parseParams, parseQuery } from '../lib/validate';
 import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
-import { rateLimit } from '../middleware/rate-limit';
+import { actorOrIpKey, rateLimit } from '../middleware/rate-limit';
 import { decodeNqr } from '../modules/vendors/nqr-decoder';
 import { recentsService } from '../modules/vendors/recents.service';
 import type { ResolveError } from '../modules/vendors/types';
@@ -80,13 +80,38 @@ function enquiryFailure(c: Context, error: ResolveError, subject: Record<string,
   return c.json({ error: error.code }, status);
 }
 
+/**
+ * The vendor reads that each cost one Anchor call, and therefore the ones that need bounding:
+ * `/code/*` (a name enquiry per valid code), `/name-enquiry` and `/phone-lookup` (a NIBSS call
+ * each, directly). The other three are deliberately out — `/recents` and `/sticker/:uuid` are
+ * pure Postgres reads.
+ *
+ * `/nqr-decode` is the uncomfortable one and is left out only because it was scoped out: it DOES
+ * reach Anchor (`vendor-resolution.service.ts` `case 'nqr'` runs a name enquiry to confirm the
+ * decoded account against NIBSS rather than trusting the QR's own name). After the breaker
+ * classification fix that is a paid-call cost leak, not an availability defect — its 4xx answers
+ * can no longer trip anything — but it should join this list.
+ *
+ * ONE middleware instance across all three paths, so they share one bucket per account. That is
+ * the point: what is being bounded is an account's total spend of Anchor calls, and three
+ * separate buckets would let one account spend 3x by rotating between the paths.
+ */
+const anchorCallLimiter = rateLimit({
+  limit: env.RATE_LIMIT_VENDOR_ANCHOR_PER_ACTOR,
+  windowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
+  keyPrefix: 'vendor-anchor:actor',
+  // `null` skips the limiter, which is how `RATE_LIMIT_ENABLED=false` still turns this one
+  // off: the app-level limiters get that escape hatch from `attachRateLimiters` returning
+  // early, and a route-level `.use` in a chain has no equivalent seam.
+  key: (c) => (env.RATE_LIMIT_ENABLED ? actorOrIpKey(c) : null),
+});
+
 export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
   .use(jwtAuth())
   /**
-   * Every valid code costs one Anchor name enquiry, and that call runs through the SAME circuit
+   * Every one of these paths costs an Anchor call, and those calls run through the SAME circuit
    * breaker as real payments — so unthrottled scans can trip the breaker and take spend down with
-   * them. The pattern stays narrow (`/code/*`, not `*`) so `/recents` and the other spend-path
-   * reads are untouched.
+   * them. The patterns stay narrow (never `*`) so the pure-Postgres vendor reads are untouched.
    *
    * Keyed on the authenticated account, not the client IP, and mounted HERE rather than in
    * `attachRateLimiters` because that is what makes the key possible: the app-level limiters are
@@ -114,18 +139,9 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
    * described above. Recorded rather than deleted, because a false stated reason is what kept the
    * weaker key in place.)
    */
-  .use(
-    '/code/*',
-    rateLimit({
-      limit: env.RATE_LIMIT_AUTH_PER_IP,
-      windowSeconds: env.RATE_LIMIT_WINDOW_SECONDS,
-      keyPrefix: 'vendor-code:actor',
-      // `null` skips the limiter, which is how `RATE_LIMIT_ENABLED=false` still turns this one
-      // off: the app-level limiters get that escape hatch from `attachRateLimiters` returning
-      // early, and a route-level `.use` in a chain has no equivalent seam.
-      key: (c) => (env.RATE_LIMIT_ENABLED ? (c.get('actor') as Actor).userId : null),
-    }),
-  )
+  .use('/code/*', anchorCallLimiter)
+  .use('/name-enquiry', anchorCallLimiter)
+  .use('/phone-lookup', anchorCallLimiter)
   .get('/name-enquiry', async (c) => {
     const q = parseQuery(c, NameEnquiryQuery);
     if (q instanceof Response) return q;

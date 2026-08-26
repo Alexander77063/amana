@@ -83,6 +83,21 @@ const EnvSchema = z.object({
   // real shops, and the failure mode is a JSON error where someone expected a shop. Raise this
   // before lowering it; the cost of a false positive here is a payment that does not happen.
   RATE_LIMIT_VENDOR_PAGE_PER_IP: z.coerce.number().int().positive().default(600),
+  // The authenticated vendor reads that each cost one Anchor call: `/vendors/code/*`,
+  // `/vendors/name-enquiry`, `/vendors/phone-lookup`. Per ACCOUNT, not per IP — Nigerian carriers
+  // CGNAT, and a false positive on a payment-path read costs a payment, landing on whichever
+  // customer happens to be next through that NAT.
+  //
+  // It has its own constant because it bounds a different thing from every other limiter here:
+  // not logins and not Postgres load, but our spend of a PAID partner call and our share of the
+  // one process-global Anchor circuit breaker. It was RATE_LIMIT_AUTH_PER_IP, whose name is a lie
+  // on a per-actor key — the number was fine, the name said "IP" and said "auth", and it is the
+  // name a future operator will read when deciding whether raising it is safe.
+  //
+  // A `_PER_ACTOR` suffix rather than `_PER_IP`, deliberately: see `actorOrIpKey`, which falls
+  // back to the client IP if the actor is ever absent. That fallback is a degrade path for a
+  // broken invariant, not the intended key, and the name should describe the intent.
+  RATE_LIMIT_VENDOR_ANCHOR_PER_ACTOR: z.coerce.number().int().positive().default(60),
   // Vendor registry (SP-V1). Enforcement is OFF unless explicitly enabled — the registry ships
   // as a measurement instrument and only becomes a control once shadow data justifies it.
   // Note the inverted transform vs RATE_LIMIT_ENABLED: that one defaults ON (`v !== 'false'`),
@@ -146,6 +161,15 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
   if (parsed.data.NODE_ENV === 'production') {
     if (parsed.data.DEV_OTP_BYPASS_CODE) {
       throw new Error('DEV_OTP_BYPASS_CODE must not be set in production (universal OTP backdoor)');
+    }
+    // One env var switches off EVERY limiter at once — the OTP surfaces (an SMS bill and a
+    // phone-enumeration oracle), the vendor claim rail, the public vendor page's only protection
+    // for Postgres, and the per-account bound on our paid Anchor calls. It exists as a dev/test
+    // escape hatch; in production it is a single-character outage.
+    if (!parsed.data.RATE_LIMIT_ENABLED) {
+      throw new Error(
+        'RATE_LIMIT_ENABLED must not be false in production (disables every rate limiter)',
+      );
     }
     // Production essentials with no safe default. They're modelled as optional so dev/test
     // boot without them, but in production a missing value boots a broken app that fails

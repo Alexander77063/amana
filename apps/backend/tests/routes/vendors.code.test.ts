@@ -368,6 +368,11 @@ describe('GET /vendors/code/:code', () => {
    * `vendorsRoute` after `jwtAuth()` instead of in `attachRateLimiters` — the app-level limiters
    * run before `app.route('/vendors', …)`, so `c.get('actor')` is unset there. All three halves
    * are asserted here: the burn, the untouched sibling, and a second account that must still pass.
+   *
+   * The bound is `RATE_LIMIT_VENDOR_ANCHOR_PER_ACTOR`, not `RATE_LIMIT_AUTH_PER_IP` — this
+   * limiter borrowed the auth constant, whose name lies twice over on a per-actor key that bounds
+   * paid partner calls rather than logins. The loop reads the var the route actually uses, so the
+   * two cannot silently drift apart while both happen to be 60.
    */
   it('rate-limits the code surface per account, without touching its sibling vendor routes', async () => {
     const { agent, subWalletId } = await seedSubWallet();
@@ -376,7 +381,7 @@ describe('GET /vendors/code/:code', () => {
     // without seeding a vendor or reaching Postgres.
     const burn = `/vendors/code/AMNV-7QK2!-9PZ0R?subWalletId=${subWalletId}`;
     let last = 0;
-    for (let i = 0; i <= env.RATE_LIMIT_AUTH_PER_IP; i++) {
+    for (let i = 0; i <= env.RATE_LIMIT_VENDOR_ANCHOR_PER_ACTOR; i++) {
       last = (await app.request(burn, { headers })).status;
     }
     expect(last).toBe(429);
@@ -384,6 +389,26 @@ describe('GET /vendors/code/:code', () => {
     // The bucket is spent. A sibling vendors route must still answer.
     const sibling = await app.request(`/vendors/recents?subWalletId=${subWalletId}`, { headers });
     expect(sibling.status).toBe(200);
+
+    // ONE bucket across all three Anchor-costing paths, per account. Three separate buckets would
+    // let an account spend 3x the partner calls by rotating between the paths, which is the thing
+    // the limiter exists to bound. Burning `/code/*` therefore has to lock these two as well.
+    expect(
+      (
+        await app.request(
+          `/vendors/name-enquiry?bankCode=058&accountNumber=0123456789&subWalletId=${subWalletId}`,
+          { headers },
+        )
+      ).status,
+    ).toBe(429);
+    expect(
+      (
+        await app.request(
+          `/vendors/phone-lookup?phoneNumber=%2B2348010000000&subWalletId=${subWalletId}`,
+          { headers },
+        )
+      ).status,
+    ).toBe(429);
 
     // The half that discriminates an ACCOUNT key from an IP key. Every request in this harness
     // carries the same (absent) client IP, so under the old `clientIp` key this second, unrelated

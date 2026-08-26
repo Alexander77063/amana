@@ -52,6 +52,25 @@ export function clientIp(c: Context): string {
   return 'unknown';
 }
 
+/**
+ * Per-authenticated-account key, degrading to the client IP.
+ *
+ * The actor is set by `jwtAuth()`, so on a router that registers `jwtAuth()` before this limiter
+ * it is always present — but that is a middleware-ordering invariant the compiler does not check.
+ * Reorder the `.use()` calls, or mount an unauthenticated route under the same prefix, and a
+ * `(c.get('actor') as Actor).userId` cast is a `TypeError` on a payment-path read: a 500, not a
+ * graceful degrade.
+ *
+ * The fallback is deliberately the IP and NOT `null`. `null` is the limiter's disabled sentinel,
+ * so returning it here would turn a broken invariant into silently no rate limiting at all —
+ * failing open on exactly the surface the limiter exists to protect. A worse key still bounds
+ * something; no key bounds nothing.
+ */
+export function actorOrIpKey(c: Context): string {
+  const actor = c.get('actor') as { userId?: string } | undefined;
+  return actor?.userId ?? clientIp(c);
+}
+
 export type RateLimitOptions = {
   /** Max requests allowed per window for a given key. */
   limit: number;

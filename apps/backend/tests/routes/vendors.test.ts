@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { env } from '../../src/env';
 import { logger } from '../../src/lib/logger';
 import { err } from '../../src/lib/result';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
@@ -102,6 +103,89 @@ describe('GET /vendors/recents', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.recents).toEqual([]);
+  });
+});
+
+/**
+ * Both NIBSS enquiry endpoints make a PAID partner call, on the process-global circuit breaker
+ * the spend path shares, and were unthrottled — available to any authenticated user with a
+ * sub-wallet. The limiter registered on `/code/*` is extended over both.
+ *
+ * The two out-of-scope siblings are asserted alongside, because the failure mode of getting the
+ * patterns wrong is worse than the gap: a limiter that drifted to `/vendors/*` would throttle the
+ * spend-path reads it was added to protect.
+ */
+describe('the Anchor-costing enquiry endpoints are rate-limited per account', () => {
+  beforeEach(async () => {
+    // `truncateAll` also calls `resetRateLimitStore`, so each test starts with a fresh bucket.
+    await truncateAll();
+  });
+  // The service spies below must not follow this describe into the next one.
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    [
+      'name-enquiry',
+      (sw: string) =>
+        `/vendors/name-enquiry?bankCode=058&accountNumber=0123456789&subWalletId=${sw}`,
+    ],
+    [
+      'phone-lookup',
+      (sw: string) => `/vendors/phone-lookup?phoneNumber=%2B2348010000000&subWalletId=${sw}`,
+    ],
+  ] as const)('burns down to 429 on /vendors/%s', async (_name, url) => {
+    const { agent, subWalletId } = await seedSubWallet();
+    const app = createServer();
+    const headers = await bearerHeaders(agent);
+    // Every call is short-circuited before Anchor: the point under test is the limiter, and a
+    // real partner call per iteration is exactly what the limiter exists to prevent.
+    vi.spyOn(nameEnquiryService, 'lookup').mockResolvedValue(err({ code: 'NOT_FOUND' }));
+    vi.spyOn(phoneLookupService, 'lookup').mockResolvedValue(err({ code: 'NOT_FOUND' }));
+
+    let last = 0;
+    for (let i = 0; i <= env.RATE_LIMIT_VENDOR_ANCHOR_PER_ACTOR; i++) {
+      last = (await app.request(url(subWalletId), { headers })).status;
+    }
+    expect(last).toBe(429);
+
+    // Out of scope on purpose — both are pure Postgres reads and must not be throttled by an
+    // Anchor-cost limiter. `/sticker/:uuid` 404s here (nothing seeded); the assertion is only
+    // that it is not 429.
+    const recents = await app.request(`/vendors/recents?subWalletId=${subWalletId}`, { headers });
+    expect(recents.status).toBe(200);
+    const sticker = await app.request(
+      `/vendors/sticker/${factories.walletId()}?subWalletId=${subWalletId}`,
+      { headers },
+    );
+    expect(sticker.status).not.toBe(429);
+  });
+
+  /**
+   * The half that discriminates an ACCOUNT key from an IP key. Every request in this harness
+   * carries the same (absent) client IP, so under an IP key this unrelated second account would
+   * already be locked out. Nigerian carriers CGNAT, so in production one egress address is
+   * thousands of subscribers, and this is a payment-path read where a false positive costs a
+   * payment rather than a login retry.
+   */
+  it('a second account is untouched by the first account burning its bucket', async () => {
+    const first = await seedSubWallet();
+    const app = createServer();
+    vi.spyOn(nameEnquiryService, 'lookup').mockResolvedValue(err({ code: 'NOT_FOUND' }));
+    const url = (sw: string) =>
+      `/vendors/name-enquiry?bankCode=058&accountNumber=0123456789&subWalletId=${sw}`;
+    const firstHeaders = await bearerHeaders(first.agent);
+    for (let i = 0; i <= env.RATE_LIMIT_VENDOR_ANCHOR_PER_ACTOR; i++) {
+      await app.request(url(first.subWalletId), { headers: firstHeaders });
+    }
+
+    const other = await seedSubWallet();
+    const res = await app.request(url(other.subWalletId), {
+      headers: await bearerHeaders(other.agent),
+    });
+    // 404, not 429 — it reached the handler, which is proof it passed the limiter.
+    expect(res.status).toBe(404);
   });
 });
 

@@ -110,6 +110,30 @@ describe('AnchorAdapter: the breaker only trips on partner ill-health', () => {
     ).rejects.toBeInstanceOf(CircuitOpenError);
   });
 
+  /**
+   * The load-shedding half of the rule, and the arm of the classification where the error is not
+   * an `AnchorHttpError` at all. The rule implemented is not "a 404 is exculpatory" but "only an
+   * ANSWER from Anchor is exculpatory" — a connection that never produced one is exactly the
+   * partner ill-health the breaker exists to shed load for.
+   */
+  it('a network failure still opens the breaker — only ANSWERS are exculpatory', async () => {
+    const fetchSpy = vi
+      .fn()
+      .mockRejectedValue(
+        Object.assign(new Error('fetch failed'), { name: 'TypeError' }),
+      ) as unknown as typeof fetch;
+    const adapter = buildAdapter(fetchSpy, SINGLE_SAMPLE_CIRCUIT);
+
+    // One `execBreaker` is one sample however many times `executeWithRetry` retried inside it,
+    // so this is the retry-exhausted network error, not a breaker rejection.
+    await expect(
+      adapter.nameEnquiry({ bankCode: '058', accountNumber: '0123456789' }),
+    ).rejects.toThrow('fetch failed');
+    await expect(
+      adapter.nameEnquiry({ bankCode: '058', accountNumber: '0123456789' }),
+    ).rejects.toBeInstanceOf(CircuitOpenError);
+  });
+
   it('a 4xx still reaches the caller as AnchorHttpError, status and body intact', async () => {
     const fetchSpy = vi
       .fn()

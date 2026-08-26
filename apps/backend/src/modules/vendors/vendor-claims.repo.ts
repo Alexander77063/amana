@@ -84,7 +84,14 @@ export const vendorClaimsRepo = {
     //
     // Deliberately `expiresAt <= now` ONLY, never "past the ceiling": expiring a past-ceiling row
     // here would let the same phone immediately re-insert with a fresh `createdAt` and so reset
-    // its own ceiling, which is the exact thing the ceiling exists to prevent.
+    // its own ceiling on demand.
+    //
+    // This DELAYS that reset by one `VENDOR_CLAIM_TTL_SECONDS`; it does not close it. Once the
+    // row genuinely lapses, the same phone's next `/request` releases it below and re-inserts
+    // with a fresh `createdAt` and a fresh hour. So the ceiling bounds any SINGLE hold, not the
+    // total — it converts a permanent exclusive lock into a repeating one with a contention gap
+    // that a determined script still wins. Closing that is PRE-LAUNCH GATE 2; see the runbook's
+    // "What the ceiling is not".
     const released = await db
       .update(vendorClaimAttempts)
       .set({ status: 'expired' })

@@ -88,8 +88,12 @@ Three consequences worth knowing before you debug from a log:
   `invalid_code` has already paid for `otpService.verifyCode` → `argon2.verify` (argon2id,
   ~64 MiB, t = 3 — `modules/auth/codes.ts`) on top of the challenge lookup and the
   attempt-claim UPDATE. Two orders of magnitude, separating exactly the two cases the collapse
-  merges. This branch already detached the `/request` SMS for the same reason; the fix here is
-  not a dummy hash on the fast path but GATE 3, which stops an attacker reaching the branch.
+  merges. This branch already detached the `/request` SMS for the same reason. The fix is not a
+  dummy hash on the fast path — a dummy verify really would shrink the gap, but it buys nothing
+  while a *cheaper* channel is open: GATE 3's SMS-arrival probe needs no measurement at all. Nor
+  does GATE 3 stop an attacker reaching this branch — they can always POST `/verify` with any
+  phone and a junk code. What GATE 3 changes is what the delta is worth: afterwards it reveals
+  only "does this phone have a claim in flight", not registry membership.
 - **This closes the junk-code channel only, and it is not even the cheapest one.** See
   PRE-LAUNCH GATE 3.
 
@@ -170,6 +174,11 @@ a director's personal line, a recently changed number). When it happens:
   `VENDOR_CLAIM_MAX_HOLD_SECONDS` (default 1 h), which is what stops the same mechanism
   becoming an unbounded squat (PRE-LAUNCH GATE 2). A genuine retry minutes after a 409 is
   nowhere near that ceiling.
+  **If they have been at this for an hour, though, they can hit it:** once `created_at` is
+  older than the ceiling, `/request` stops re-issuing and answers the uniform 202 with no code
+  until the row lapses (up to `VENDOR_CLAIM_TTL_SECONDS` later), after which the next
+  `/request` releases it inline and opens a fresh attempt. Symptom: a claimant reporting that
+  codes simply stopped arriving. Don't debug it — hand-approve.
   **From a different phone it is still a silent no-op** (uniform 202, no code sent) — the
   land-grab guard, since nobody has proved control of anything until `/verify`.
 - **What an operator should tell the claimant:** they can call back and retry as above — but
@@ -490,13 +499,22 @@ nothing else.
 **What it costs the victim, precisely.** Three things, and not a fourth:
 
 - If the squat used the victim's phone against the vendor the victim actually wants to claim,
-  the victim is **not stranded**: their `/request` recovers that very row (same phone string,
-  same vendor) and sends *them* the code, so they complete the claim over the top of the
-  squat.
+  the victim is **usually not stranded**: their `/request` recovers that very row (same phone
+  string, same vendor) and sends *them* the code, so they complete the claim over the top of
+  the squat.
+  **The exception is a row past the ceiling that has not yet lapsed** — renewal is refused
+  (`created_at` older than `VENDOR_CLAIM_MAX_HOLD_SECONDS`) and the inline release does not
+  fire (`expires_at` is still in the future), so `openAttempt` returns null and the victim
+  gets the uniform 202 with **no code sent**. That window is up to
+  `VENDOR_CLAIM_TTL_SECONDS` wide and opens ~60–75 min after the row was first created — i.e.
+  precisely when someone who has been struggling with this for an hour calls in. A retry once
+  it lapses succeeds, via the inline release. If they cannot wait, hand-approve.
 - The **cross-vendor** grief is real: an attempt open on vendor V under phone P blocks P from
   starting a claim on a *different* vendor W (the `findPendingByPhone` check ahead of
   `openAttempt`) for as long as the hold lasts — now at most ~75 minutes, where before the
-  ceiling it was unbounded.
+  ceiling it was unbounded. Read that as a bound on one hold, not on the victim's experience:
+  a script that re-takes the slot each time it lapses blocks P continuously, with gaps only as
+  wide as the contention window. See "What the ceiling is not".
 - It is a **nuisance, not a denial**: `approve-claim` requires no pending queue row at all,
   so ops can always claim a vendor for the real business regardless of who holds the slot.
 

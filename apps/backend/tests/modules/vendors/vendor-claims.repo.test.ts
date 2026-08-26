@@ -196,6 +196,48 @@ describe('vendorClaimsRepo', () => {
     expect(await vendorClaimsRepo.findPendingByPhone(testDb, first, new Date(0))).toBeUndefined();
   });
 
+  it('lets the SAME phone re-take a lapsed slot on a NEW row — the ceiling bounds one hold, not the total', async () => {
+    // This pins the ceiling's actual security posture, which the two tests above leave open: they
+    // both hand the post-lapse takeover to a DIFFERENT phone, so neither says what happens when
+    // the squatter simply comes back. The answer is that it re-inserts — a fresh row, a fresh
+    // `created_at`, a fresh hour — which is why the runbook says the ceiling bounds any single
+    // hold rather than total harassment, and why PRE-LAUNCH GATE 2 is still open.
+    //
+    // Asserting a NEW id is the load-bearing part. Scoping the inline release to `phone`, or
+    // adding `createdAt` to it, would silently turn this into a renewal and reset the ceiling
+    // without extending it — a strictly worse posture that nothing else in this file would catch.
+    const v = await aVendor();
+    const squatter = factories.phone();
+    const t0 = new Date();
+    const first = await vendorClaimsRepo.openAttempt(testDb, {
+      vendorId: v.id,
+      phone: squatter,
+      expiresAt: new Date(t0.getTime() + 15 * 60_000),
+      now: t0,
+      renewableSince: new Date(t0.getTime() - HOUR),
+    });
+    if (!first) throw new Error('open failed');
+
+    // Past both the row's expiry and its ceiling, so renewal is refused and the inline release
+    // fires instead. The same phone comes straight back.
+    const afterLapse = new Date(t0.getTime() + 2 * HOUR);
+    const retaken = await vendorClaimsRepo.openAttempt(testDb, {
+      vendorId: v.id,
+      phone: squatter,
+      expiresAt: new Date(afterLapse.getTime() + 15 * 60_000),
+      now: afterLapse,
+      renewableSince: new Date(afterLapse.getTime() - HOUR),
+    });
+    expect(retaken).not.toBeNull();
+    expect(retaken?.id).not.toBe(first.id);
+    expect(retaken?.phone).toBe(squatter);
+    // The old row was released, not left pending alongside the new one — the partial unique index
+    // permits exactly one pending row per vendor, so a stale one would have blocked this insert.
+    expect(await vendorClaimsRepo.findPendingByPhone(testDb, squatter, afterLapse)).toMatchObject({
+      id: retaken?.id,
+    });
+  });
+
   it('claims a vendor from observed and refuses a second claim', async () => {
     const v = await aVendor();
     const phone = factories.phone();

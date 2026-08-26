@@ -238,11 +238,16 @@ describe('GET /vendors/code/:code', () => {
   });
 
   /**
-   * The code is real; the bank account behind it is not, any more. 5xx rather than 4xx because
-   * the payer did nothing wrong, and its own body code because the payer, the shopkeeper and ops
-   * each act differently on it than on a miss or a suspension.
+   * The code is real; the bank account behind it is not, any more. 409 — "a conflict with
+   * reality", the same phrase SP-V2's `ownership_unproved` uses for the same shape.
+   *
+   * It is TERMINAL: nothing on our side can bring that account back, so the one thing the status
+   * must not do is invite a retry. That rules out BOTH 5xx candidates — 502 and 503 are alike in
+   * sitting in the default retry set for idempotent GETs in axios-retry and most fetch wrappers.
+   * Which is exactly why `VENDOR_ENQUIRY_FAILED` keeps 502 and this does not: that one genuinely
+   * is retryable, and this one would never succeed.
    */
-  it('502s a real code whose bank account NIBSS no longer knows', async () => {
+  it('409s a real code whose bank account NIBSS no longer knows', async () => {
     const { agent, subWalletId } = await seedSubWallet();
     await claimedVendor();
     vi.spyOn(nameEnquiryService, 'lookup').mockResolvedValue(err({ code: 'NOT_FOUND' }));
@@ -250,7 +255,7 @@ describe('GET /vendors/code/:code', () => {
     const res = await app.request(`/vendors/code/${CODE}?subWalletId=${subWalletId}`, {
       headers: await bearerHeaders(agent),
     });
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: 'VENDOR_ACCOUNT_GONE' });
   });
 

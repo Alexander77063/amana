@@ -145,16 +145,26 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
     // for. This is a read: there is no conflict, the subject is simply gone.) Task 3's public
     // page returns 410 for the same condition; one condition, one status, across both surfaces.
     //
-    // 5xx for the two partner-side facts, because neither is the caller's fault and a 4xx would
-    // say it was. No `detail` on any of them: which upstream returned what is not the payer's
-    // business, and `BAD_INPUT`'s message names our banking partner verbatim.
+    // The two partner-side facts split on ONE question: would retrying ever work?
+    //
+    // 409 for a dead bank account — "a conflict with reality", as SP-V2's `ownership_unproved`
+    // puts it. It is terminal, so the status must not invite a retry, and both 5xx candidates do:
+    // 502 and 503 alike sit in the default retry set for idempotent GETs in axios-retry and most
+    // fetch wrappers. A 4xx is not blaming the payer here; it is telling them the shop's account
+    // is the problem and no amount of trying again will fix it.
+    //
+    // 502 for a failed enquiry, which IS retryable — we could not get an answer, not "the answer
+    // is no". Collapsing the two would erase exactly that difference.
+    //
+    // No `detail` on any of them: which upstream returned what is not the payer's business, and
+    // `BAD_INPUT`'s message names our banking partner verbatim.
     const status =
       result.error.code === 'NOT_FOUND'
         ? 404
         : result.error.code === 'VENDOR_SUSPENDED'
           ? 410
           : result.error.code === 'VENDOR_ACCOUNT_GONE'
-            ? 502
+            ? 409
             : result.error.code === 'VENDOR_ENQUIRY_FAILED'
               ? 502
               : result.error.code === 'PARTNER_DOWN'

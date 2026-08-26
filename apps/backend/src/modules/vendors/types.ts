@@ -22,6 +22,67 @@ export type ResolvedVendor = {
   category: string | null;
 };
 
+/**
+ * The WIRE shape of a `ResolvedVendor` — what the five resolution endpoints actually send.
+ *
+ * It differs from `ResolvedVendor` in exactly one field, and that one field is why this type
+ * exists: `suggestedAmountKobo` is `Kobo`, which is a `bigint`, and `bigint` has NO JSON
+ * representation. `JSON.stringify({ a: 1n })` throws `TypeError: Do not know how to serialize a
+ * BigInt`, and Hono's `c.json` is a bare `JSON.stringify`. Handing a `ResolvedVendor` straight to
+ * `c.json` therefore 500s on any NQR carrying tag 54 — which is the standard "scan to pay ₦2,000"
+ * sticker, and the whole reason NQR defines tag 54 at all.
+ *
+ * Mirrored by `ResolvedVendorResponse` in `@amana/api-client`, by hand: the backend is not a
+ * dependency of that package, so nothing makes the compiler compare the two. When this changes,
+ * change that one.
+ */
+export type ResolvedVendorResponse = {
+  bankCode: string;
+  accountNumber: string;
+  accountName: string;
+  source: ResolvedVendor['source'];
+  /** Decimal kobo, base 10 — see `toResolvedVendorResponse`. */
+  suggestedAmountKobo: string | null;
+  vendorId: string | null;
+  category: string | null;
+};
+
+/**
+ * The single serialization boundary for `ResolvedVendor`. Every route that returns one goes
+ * through here — deliberately once for the TYPE rather than once per endpoint, because a
+ * per-route fix is how the sixth endpoint reintroduces the 500.
+ *
+ * `.toString()` on the bigint: raw kobo, base 10, no thousands separator and no currency. That is
+ * what every other `…Kobo` field on the wire already is (`routes/sub-wallets.ts`,
+ * `routes/me-bumps.ts`, `routes/vas.ts`, `routes/retailer-portal.ts` all emit
+ * `<bigint>.toString()`), and it is what `@amana/api-client` declares the field to be.
+ *
+ * NOT `toNairaString` from `lib/kobo.ts`, despite it being the nearest-looking helper: it returns
+ * `"5,200.50"` — a different UNIT, comma-formatted for display, and not parseable by `BigInt()`
+ * on the far side. A field named `…Kobo` carrying naira is worse than no helper at all. And not a
+ * `Number`, ever: coercing kobo through a float is exactly what `CLAUDE.md` forbids, and it is
+ * silently lossy above 2^53 kobo.
+ *
+ * The null test is `=== null`, not truthiness, and it has to stay that way: `0n` is FALSY, so
+ * `v.suggestedAmountKobo ? … : null` turns a legitimate zero-amount QR into "no amount" and the
+ * payer gets prompted for a figure the sticker deliberately set to zero. `sub-wallets.ts` uses
+ * the same `=== null` form for the same reason.
+ *
+ * Every field is named rather than spread, which is the same rule `ResolvedVendor` itself states:
+ * a spread is how a field nobody vetted crosses the boundary.
+ */
+export function toResolvedVendorResponse(v: ResolvedVendor): ResolvedVendorResponse {
+  return {
+    bankCode: v.bankCode,
+    accountNumber: v.accountNumber,
+    accountName: v.accountName,
+    source: v.source,
+    suggestedAmountKobo: v.suggestedAmountKobo === null ? null : v.suggestedAmountKobo.toString(),
+    vendorId: v.vendorId,
+    category: v.category,
+  };
+}
+
 export type ResolveError =
   | { code: 'NOT_FOUND' }
   | { code: 'BAD_INPUT'; message: string }

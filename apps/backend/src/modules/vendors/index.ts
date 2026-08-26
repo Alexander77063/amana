@@ -1,4 +1,6 @@
 export type * from './types';
+// `export type *` above cannot carry a value, and this one is a function.
+export { toResolvedVendorResponse } from './types';
 export { decodeNqr, type DecodedNqr, type NqrError, encodeTlvForTest } from './nqr-decoder';
 export { nameEnquiryService } from './name-enquiry.service';
 export { phoneLookupService } from './phone-lookup.service';

@@ -10,7 +10,7 @@ import { type Actor, type ActorVariables, jwtAuth } from '../middleware/jwt-auth
 import { actorOrIpKey, rateLimit } from '../middleware/rate-limit';
 import { decodeNqr } from '../modules/vendors/nqr-decoder';
 import { recentsService } from '../modules/vendors/recents.service';
-import type { ResolveError } from '../modules/vendors/types';
+import { type ResolveError, toResolvedVendorResponse } from '../modules/vendors/types';
 import { vendorResolutionService } from '../modules/vendors/vendor-resolution.service';
 import { assertSubWalletAccess } from '../modules/wallet/wallet-access.service';
 
@@ -83,18 +83,24 @@ function enquiryFailure(c: Context, error: ResolveError, subject: Record<string,
 /**
  * The vendor reads that each cost one Anchor call, and therefore the ones that need bounding:
  * `/code/*` (a name enquiry per valid code), `/name-enquiry` and `/phone-lookup` (a NIBSS call
- * each, directly). The other three are deliberately out — `/recents` and `/sticker/:uuid` are
- * pure Postgres reads.
+ * each, directly), and `/nqr-decode`.
  *
- * `/nqr-decode` is the uncomfortable one and is left out only because it was scoped out: it DOES
- * reach Anchor (`vendor-resolution.service.ts` `case 'nqr'` runs a name enquiry to confirm the
- * decoded account against NIBSS rather than trusting the QR's own name). After the breaker
- * classification fix that is a paid-call cost leak, not an availability defect — its 4xx answers
- * can no longer trip anything — but it should join this list.
+ * `/nqr-decode` is on this list because it reaches Anchor exactly like the other three:
+ * `vendor-resolution.service.ts` `case 'nqr'` runs a name enquiry to confirm the decoded account
+ * against NIBSS rather than trusting the QR's own tag 59. It was excluded on the stated grounds
+ * that it does not call Anchor, which was simply false — and an unlimited path into a limited
+ * resource is a hole through the whole bucket, not a smaller version of it: an account that had
+ * spent its allowance on `/code/*` could keep buying partner calls by wrapping a different
+ * account number in a QR.
  *
- * ONE middleware instance across all three paths, so they share one bucket per account. That is
- * the point: what is being bounded is an account's total spend of Anchor calls, and three
- * separate buckets would let one account spend 3x by rotating between the paths.
+ * The other two are deliberately out, and verified so, not assumed: `/recents` goes only to
+ * `recentsRepo`, and `/sticker/:uuid` only to `stickerResolverService`. Neither file mentions
+ * Anchor at any depth. A limiter that drifted onto them would throttle the spend-path reads it
+ * exists to protect.
+ *
+ * ONE middleware instance across all four paths, so they share one bucket per account. That is
+ * the point: what is being bounded is an account's total spend of Anchor calls, and four
+ * separate buckets would let one account spend 4x by rotating between the paths.
  */
 const anchorCallLimiter = rateLimit({
   limit: env.RATE_LIMIT_VENDOR_ANCHOR_PER_ACTOR,
@@ -142,6 +148,9 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
   .use('/code/*', anchorCallLimiter)
   .use('/name-enquiry', anchorCallLimiter)
   .use('/phone-lookup', anchorCallLimiter)
+  // The one POST in the set. `.use(path, mw)` matches on path for every method, so this covers
+  // it — asserted rather than assumed, in the shared-bucket test in `vendors.code.test.ts`.
+  .use('/nqr-decode', anchorCallLimiter)
   .get('/name-enquiry', async (c) => {
     const q = parseQuery(c, NameEnquiryQuery);
     if (q instanceof Response) return q;
@@ -153,7 +162,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
       subWalletId: q.subWalletId,
       now: new Date(),
     });
-    if (isOk(result)) return c.json(result.value, 200);
+    if (isOk(result)) return c.json(toResolvedVendorResponse(result.value), 200);
     return enquiryFailure(c, result.error, {
       bankCode: q.bankCode,
       accountNumber: q.accountNumber,
@@ -169,7 +178,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
       subWalletId: q.subWalletId,
       now: new Date(),
     });
-    if (isOk(result)) return c.json(result.value, 200);
+    if (isOk(result)) return c.json(toResolvedVendorResponse(result.value), 200);
     return enquiryFailure(c, result.error, { phone: q.phoneNumber });
   })
   .get('/sticker/:uuid', async (c) => {
@@ -184,7 +193,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
       subWalletId: q.subWalletId,
       now: new Date(),
     });
-    if (isOk(result)) return c.json(result.value, 200);
+    if (isOk(result)) return c.json(toResolvedVendorResponse(result.value), 200);
     const status =
       result.error.code === 'NOT_FOUND'
         ? 404
@@ -214,7 +223,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
     // back on a spend intent: a client-supplied vendor id would let a payer pick which merchant's
     // category rules get applied to their spend. The vendor is re-resolved server-side from the
     // bank code and account number at evaluation time — see `vendorCategoryResolver.resolve`.
-    if (isOk(result)) return c.json(result.value, 200);
+    if (isOk(result)) return c.json(toResolvedVendorResponse(result.value), 200);
 
     // Distinct failures get distinct statuses — deliberately the opposite of the claim rail,
     // which collapses everything into one answer. There, an unauthenticated stranger was probing
@@ -269,7 +278,7 @@ export const vendorsRoute = new Hono<{ Variables: ActorVariables }>()
       subWalletId: body.subWalletId,
       now: new Date(),
     });
-    if (isOk(result)) return c.json(result.value, 200);
+    if (isOk(result)) return c.json(toResolvedVendorResponse(result.value), 200);
     return c.json({ error: result.error.code }, 400);
   })
   .get('/recents', async (c) => {

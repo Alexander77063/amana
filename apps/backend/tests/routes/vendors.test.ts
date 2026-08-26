@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { env } from '../../src/env';
 import { logger } from '../../src/lib/logger';
-import { err } from '../../src/lib/result';
+import { err, ok } from '../../src/lib/result';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
 import { usersRepo } from '../../src/modules/identity/users.repo';
 import { stickersRepo } from '../../src/modules/sticker/stickers.repo';
 import { nameEnquiryService } from '../../src/modules/vendors/name-enquiry.service';
+import { encodeTlvForTest } from '../../src/modules/vendors/nqr-decoder';
 import { phoneLookupService } from '../../src/modules/vendors/phone-lookup.service';
 import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
@@ -63,9 +64,20 @@ describe('GET /vendors/sticker/:uuid', () => {
       headers,
     });
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.accountName).toBe('MUSA');
-    expect(body.source).toBe('sticker');
+    // The WHOLE body, not two fields. All five resolution endpoints now serialize through one
+    // `toResolvedVendorResponse`, so a mapper that dropped `vendorId` or `category` — or that
+    // started emitting `"0"` where `null` belongs — would pass a two-field assertion on every
+    // path at once. Each endpoint pins its full shape so the shared mapper cannot regress
+    // silently.
+    expect(await res.json()).toEqual({
+      bankCode: '058',
+      accountNumber: '0123456789',
+      accountName: 'MUSA',
+      source: 'sticker',
+      suggestedAmountKobo: null,
+      vendorId: null,
+      category: null,
+    });
   });
 
   it('404 for unknown sticker', async () => {
@@ -310,5 +322,206 @@ describe('the enquiry endpoints do not relay the upstream failure to the caller'
     // Nothing to withhold, so nothing to log: only a message-bearing error is worth an operator's
     // attention, and these two carry none.
     expect(warn).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A merchant QR, built the way NIBSS builds one: bank code and account number nested under the
+ * merchant info template (tag 26), with the optional amount (tag 54) and merchant name (tag 59)
+ * at the top level. `amountNaira` is the tag 54 value verbatim, because that is what the decoder
+ * is handed off a real sticker.
+ */
+function nqrPayload(amountNaira?: string): string {
+  const merchantInfo =
+    encodeTlvForTest('00', 'NG.NIBSS') +
+    encodeTlvForTest('01', '058') +
+    encodeTlvForTest('02', '0123456789');
+  return (
+    encodeTlvForTest('26', merchantInfo) +
+    (amountNaira === undefined ? '' : encodeTlvForTest('54', amountNaira)) +
+    encodeTlvForTest('59', 'MAMA PUT KITCHEN')
+  );
+}
+
+/**
+ * `POST /vendors/nqr-decode` returned 500 for every QR that carried an amount — the standard
+ * "scan to pay ₦2,000" sticker, and the entire reason NQR defines tag 54.
+ *
+ * `decodeNqr` parses tag 54 into a real `Kobo`, which is a `bigint`, and `bigint` has no JSON
+ * representation: `JSON.stringify({ a: 1n })` throws `TypeError: Do not know how to serialize a
+ * BigInt`, and Hono's `c.json` is a bare `JSON.stringify`. The throw happened inside the handler,
+ * so the caller got a 500 with no hint of the cause.
+ *
+ * It survived because the bug lives in the gap between two green suites: the decoder's own tests
+ * cover tag 54, but at the service layer, where nothing serializes; the only route-level test for
+ * this endpoint asserted a 400 on missing fields. Nothing ever put a valid amount-bearing payload
+ * through the HTTP boundary. These tests are that boundary.
+ */
+describe('POST /vendors/nqr-decode', () => {
+  beforeEach(async () => {
+    await truncateAll();
+    // The `nqr` branch confirms the decoded account against NIBSS before answering, so the real
+    // service would reach Anchor. What is under test is the serialization at the route boundary,
+    // so the partner call is stubbed with the shape it really returns.
+    vi.spyOn(nameEnquiryService, 'lookup').mockResolvedValue(
+      ok({
+        bankCode: '058',
+        accountNumber: '0123456789',
+        accountName: 'MAMA PUT KITCHEN LTD',
+        source: 'name_enquiry',
+        suggestedAmountKobo: null,
+        vendorId: null,
+        category: null,
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function decode(payload: string, subWalletId: string, headers: Record<string, string>) {
+    return createServer().request('/vendors/nqr-decode', {
+      method: 'POST',
+      headers: { ...headers, 'content-type': 'application/json' },
+      body: JSON.stringify({ payload, subWalletId }),
+    });
+  }
+
+  it('200 with the embedded amount as a decimal kobo string', async () => {
+    const { agent, subWalletId } = await seedSubWallet();
+    const res = await decode(nqrPayload('2000.00'), subWalletId, await bearerHeaders(agent));
+    expect(res.status).toBe(200);
+    // `"200000"` — raw kobo, base 10, no separators and no currency, matching every other
+    // `…Kobo` field on the wire (`sub-wallets.ts`, `me-bumps.ts`, `vas.ts`) and the `string` the
+    // api-client declares. NOT `toNairaString`, which would emit `"2,000.00"`: a different unit,
+    // comma-formatted, and not parseable by `BigInt()` on the far side.
+    expect(await res.json()).toEqual({
+      bankCode: '058',
+      accountNumber: '0123456789',
+      // NIBSS wins over the QR's own tag 59 — we confirm the account rather than trust the QR.
+      accountName: 'MAMA PUT KITCHEN LTD',
+      source: 'nqr',
+      suggestedAmountKobo: '200000',
+      vendorId: null,
+      category: null,
+    });
+  });
+
+  it('keeps the kobo remainder — 5200.50 is 520050, not 5200 or 5200.50', async () => {
+    const { agent, subWalletId } = await seedSubWallet();
+    const res = await decode(nqrPayload('5200.50'), subWalletId, await bearerHeaders(agent));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.suggestedAmountKobo).toBe('520050');
+    // The conversion has to be lossless in both directions: whatever the client does with this
+    // string, `BigInt()` of it must be the exact kobo the decoder produced. A naira-formatted
+    // string would satisfy a loose assertion and throw here.
+    expect(BigInt(body.suggestedAmountKobo)).toBe(520050n);
+  });
+
+  /**
+   * `0n` is falsy, so the obvious `v.suggestedAmountKobo ? … : null` mapper turns a zero-amount
+   * QR into `null` — the client then prompts for an amount on a sticker that deliberately said
+   * zero. The `=== null` form is what the sibling routes use (`sub-wallets.ts`) and it is the
+   * only one that survives this test.
+   */
+  it('a zero-amount tag 54 is "0", not null', async () => {
+    const { agent, subWalletId } = await seedSubWallet();
+    const res = await decode(nqrPayload('0.00'), subWalletId, await bearerHeaders(agent));
+    expect(res.status).toBe(200);
+    expect((await res.json()).suggestedAmountKobo).toBe('0');
+  });
+
+  it('null — not "0" and not "null" — when the QR carries no amount', async () => {
+    const { agent, subWalletId } = await seedSubWallet();
+    const res = await decode(nqrPayload(), subWalletId, await bearerHeaders(agent));
+    expect(res.status).toBe(200);
+    const raw = await res.text();
+    expect(JSON.parse(raw).suggestedAmountKobo).toBeNull();
+    // Pinned on the raw text as well: a mapper that emitted the STRING `"null"` would satisfy a
+    // truthiness check and quietly become an amount on the confirm screen.
+    expect(raw).toContain('"suggestedAmountKobo":null');
+  });
+
+  it('400 for a payload that is not a QR at all', async () => {
+    const { agent, subWalletId } = await seedSubWallet();
+    const res = await decode('not-a-qr', subWalletId, await bearerHeaders(agent));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe('BAD_INPUT');
+  });
+});
+
+/**
+ * `/vendors/name-enquiry` and `/phone-lookup` had no 200-shape test at all — every existing test
+ * on them mocks a FAILURE. With all five resolution endpoints now sharing one mapper, that left
+ * two of the five with no regression guard whatsoever.
+ */
+describe('the enquiry endpoints return the full ResolvedVendor shape on 200', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('GET /vendors/name-enquiry', async () => {
+    const { agent, subWalletId } = await seedSubWallet();
+    vi.spyOn(nameEnquiryService, 'lookup').mockResolvedValue(
+      ok({
+        bankCode: '058',
+        accountNumber: '0123456789',
+        accountName: 'MUSA ABDULLAHI',
+        source: 'name_enquiry',
+        suggestedAmountKobo: null,
+        vendorId: null,
+        category: null,
+      }),
+    );
+    const app = createServer();
+    const res = await app.request(
+      `/vendors/name-enquiry?bankCode=058&accountNumber=0123456789&subWalletId=${subWalletId}`,
+      { headers: await bearerHeaders(agent) },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      bankCode: '058',
+      accountNumber: '0123456789',
+      accountName: 'MUSA ABDULLAHI',
+      source: 'name_enquiry',
+      suggestedAmountKobo: null,
+      vendorId: null,
+      category: null,
+    });
+  });
+
+  it('GET /vendors/phone-lookup', async () => {
+    const { agent, subWalletId } = await seedSubWallet();
+    vi.spyOn(phoneLookupService, 'lookup').mockResolvedValue(
+      ok({
+        bankCode: '058',
+        accountNumber: '0123456789',
+        accountName: 'MUSA ABDULLAHI',
+        source: 'phone_lookup',
+        suggestedAmountKobo: null,
+        vendorId: null,
+        category: null,
+      }),
+    );
+    const app = createServer();
+    const res = await app.request(
+      `/vendors/phone-lookup?phoneNumber=%2B2348010000000&subWalletId=${subWalletId}`,
+      { headers: await bearerHeaders(agent) },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      bankCode: '058',
+      accountNumber: '0123456789',
+      accountName: 'MUSA ABDULLAHI',
+      source: 'phone_lookup',
+      suggestedAmountKobo: null,
+      vendorId: null,
+      category: null,
+    });
   });
 });

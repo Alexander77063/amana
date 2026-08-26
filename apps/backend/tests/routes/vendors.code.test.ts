@@ -390,9 +390,9 @@ describe('GET /vendors/code/:code', () => {
     const sibling = await app.request(`/vendors/recents?subWalletId=${subWalletId}`, { headers });
     expect(sibling.status).toBe(200);
 
-    // ONE bucket across all three Anchor-costing paths, per account. Three separate buckets would
-    // let an account spend 3x the partner calls by rotating between the paths, which is the thing
-    // the limiter exists to bound. Burning `/code/*` therefore has to lock these two as well.
+    // ONE bucket across all four Anchor-costing paths, per account. Four separate buckets would
+    // let an account spend 4x the partner calls by rotating between the paths, which is the thing
+    // the limiter exists to bound. Burning `/code/*` therefore has to lock these three as well.
     expect(
       (
         await app.request(
@@ -407,6 +407,27 @@ describe('GET /vendors/code/:code', () => {
           `/vendors/phone-lookup?phoneNumber=%2B2348010000000&subWalletId=${subWalletId}`,
           { headers },
         )
+      ).status,
+    ).toBe(429);
+    /**
+     * `/nqr-decode` was left out of the limiter on the stated grounds that it does not call
+     * Anchor. It does: `vendorResolutionService`'s `nqr` branch runs a name enquiry to confirm
+     * the decoded account against NIBSS rather than trusting the QR's own tag 59. Unlimited, it
+     * was a hole straight through the bucket — an account that had burned `/code/*` could keep
+     * spending paid partner calls by wrapping a different account number in a QR.
+     *
+     * This is also the only assertion that proves a `.use(path, mw)` registration covers a POST:
+     * every other path on this limiter is a GET, so the coverage was an inference until here.
+     * The payload is garbage on purpose — the limiter runs ahead of the handler, so a 429 here
+     * cannot be confused with a decode result, and un-limited this request answers 400.
+     */
+    expect(
+      (
+        await app.request('/vendors/nqr-decode', {
+          method: 'POST',
+          headers: { ...headers, 'content-type': 'application/json' },
+          body: JSON.stringify({ payload: 'not-a-qr', subWalletId }),
+        })
       ).status,
     ).toBe(429);
 

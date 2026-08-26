@@ -82,7 +82,11 @@ export const vendorClaimService = {
         phone: input.phone,
         expiresAt,
       });
-      // Null means someone else already has a claim in flight for this vendor. Same response.
+      // Null means a DIFFERENT phone already has a claim in flight for this vendor — the land-grab
+      // guard, and the same uniform response as every other outcome. A repeat request from the
+      // SAME phone is not null: `openAttempt` recovers and re-dates the existing row, so the OTP
+      // below is re-sent. That is what lets a claimant retry after the `409 ownership_unproved`
+      // path, which consumes the code but deliberately leaves the attempt `pending` for ops.
       if (!attempt) return { accepted: true };
 
       // Detached and on the connection pool, not the caller's `db` handle: this call must not

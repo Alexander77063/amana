@@ -1,3 +1,4 @@
+import { SPEND_CATEGORIES } from '@amana/types';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { Hono } from 'hono';
 import { z } from 'zod';
@@ -19,12 +20,25 @@ type DbOrTx = PostgresJsDatabase;
 // number; this one has no such check, so the format gate has to be the schema.
 const PHONE_RE = /^\+\d{10,15}$/;
 
+/**
+ * Zod needs a non-empty tuple; `SPEND_CATEGORIES` is the single source of the vocabulary. Derived
+ * locally rather than importing the ready-made `SPEND_CATEGORY_VALUES`, which is `readonly
+ * string[]` and so not assignable to `z.enum` — same reason `routes/retailer-portal.ts` re-derives.
+ *
+ * The ops rail is held to the SAME closed vocabulary as the public one: a category written here
+ * lands as `categorySource: 'ops'`, the most enforceable source there is, and
+ * `lifecycle.service.ts` substitutes it for the app-supplied category before `evaluateCategory`
+ * runs. An off-vocabulary string typed by an operator would therefore silently deny every
+ * allowlisted spend at that vendor, and pass every blocklist.
+ */
+const SPEND_CATEGORY_VALUES = SPEND_CATEGORIES.map((c) => c.value) as [string, ...string[]];
+
 const IdParams = z.object({ id: z.string().uuid() });
-const CategoryBody = z.object({ category: z.string().min(1).max(64).nullable() });
+const CategoryBody = z.object({ category: z.enum(SPEND_CATEGORY_VALUES).nullable() });
 const EnforcementBody = z.object({ enforced: z.boolean().nullable() });
 const ApproveBody = z.object({
   phone: z.string().regex(PHONE_RE, 'invalid_phone'),
-  category: z.string().min(1).max(64).nullable(),
+  category: z.enum(SPEND_CATEGORY_VALUES).nullable(),
 });
 
 /**
@@ -50,6 +64,14 @@ const ApproveBody = z.object({
  *   unlike `setObservedCategory`, which only wins against `observed`. That is correct here: an
  *   operator is correcting a business's own answer about itself, and that must always win. Both
  *   of these would be dangerously overpowered behind anything weaker than `adminAuth`.
+ *
+ * **Every mutating route here audits, in the same transaction as its write.** `approve-claim` is
+ * not special: `category` silently overwrites a business's own answer about itself, `suspend` is
+ * the documented remedy for a fraudulent one, and `enforcement` turns a whole household's registry
+ * category locks on or off wholesale. A shared ops secret names no human, so the audit row is the
+ * only record that any of this happened at all — and an audit written outside the write's own
+ * transaction is a record that can survive a rollback, or be lost by one. Nothing is audited that
+ * did not change a row: a 404 leaves no trace, because nothing happened.
  */
 export const vendorsAdminRoute = new Hono()
   .use('*', async (c, next) => adminAuth(process.env.ADMIN_API_KEY)(c, next))
@@ -117,14 +139,56 @@ export const vendorsAdminRoute = new Hono()
     if (params instanceof Response) return params;
     const body = await parseBody(c, CategoryBody);
     if (body instanceof Response) return body;
-    const ok = await vendorsRepo.setOpsCategory(db, params.id, body.category);
+
+    const ok = await db.transaction(async (tx) => {
+      const txDb = tx as DbOrTx;
+      // Read before the write, inside the same transaction: `setOpsCategory` has no CAS, so this
+      // audit row is the ONLY surviving record that a `claimed` category — the business's own
+      // answer about itself — ever existed, and what it said.
+      const before = await vendorsRepo.findById(txDb, params.id);
+      const changed = await vendorsRepo.setOpsCategory(txDb, params.id, body.category);
+      if (!changed) return false;
+      await auditRepo.append(txDb, {
+        actorKind: 'ops',
+        action: 'vendor.category_set_by_ops',
+        subjectKind: 'vendor',
+        subjectId: params.id,
+        payloadJson: {
+          category: body.category,
+          previousCategory: before?.category ?? null,
+          previousCategorySource: before?.categorySource ?? null,
+        },
+      });
+      return true;
+    });
     return ok ? c.json({ ok: true }, 200) : c.json({ error: 'not_found' }, 404);
   })
 
   .post('/vendors/:id/suspend', async (c) => {
     const params = parseParams(c, IdParams);
     if (params instanceof Response) return params;
-    const ok = await vendorsRepo.setStatus(db, params.id, 'suspended');
+
+    const ok = await db.transaction(async (tx) => {
+      const txDb = tx as DbOrTx;
+      const before = await vendorsRepo.findById(txDb, params.id);
+      const changed = await vendorsRepo.setStatus(txDb, params.id, 'suspended');
+      if (!changed) return false;
+      await auditRepo.append(txDb, {
+        actorKind: 'ops',
+        action: 'vendor.suspended_by_ops',
+        subjectKind: 'vendor',
+        subjectId: params.id,
+        payloadJson: {
+          // Named fields only, never the vendor row spread in: `vendors.claimedByPhone` must not
+          // reach the audit log unfingerprinted, and a spread would put it there the day someone
+          // adds a column. `previousStatus` distinguishes suspending a live claimed business from
+          // suspending an account that was only ever `observed`.
+          previousStatus: before?.status ?? null,
+          previousCategorySource: before?.categorySource ?? null,
+        },
+      });
+      return true;
+    });
     return ok ? c.json({ ok: true }, 200) : c.json({ error: 'not_found' }, 404);
   })
 
@@ -133,6 +197,33 @@ export const vendorsAdminRoute = new Hono()
     if (params instanceof Response) return params;
     const body = await parseBody(c, EnforcementBody);
     if (body instanceof Response) return body;
-    const ok = await householdsRepo.setVendorCategoryEnforced(db, params.id, body.enforced);
+
+    const ok = await db.transaction(async (tx) => {
+      const txDb = tx as DbOrTx;
+      const before = await householdsRepo.findById(txDb, params.id);
+      const changed = await householdsRepo.setVendorCategoryEnforced(
+        txDb,
+        params.id,
+        body.enforced,
+      );
+      if (!changed) return false;
+      await auditRepo.append(txDb, {
+        actorKind: 'ops',
+        // Subject is the HOUSEHOLD, not a vendor — this switch is scoped to one household and
+        // touches every vendor it ever pays. The action keeps the `vendor.*` namespace anyway, so
+        // the whole registry rail stays queryable as one thing.
+        action: 'vendor.enforcement_set_by_ops',
+        subjectKind: 'household',
+        subjectId: params.id,
+        payloadJson: {
+          // Written unconditionally, never conditionally spread: `null` ("inherit the global
+          // default") is a distinct commitment from `false` ("never, until someone changes it
+          // back"), and an omitted key would make the two indistinguishable after the fact.
+          enforced: body.enforced,
+          previousEnforced: before?.vendorCategoryEnforced ?? null,
+        },
+      });
+      return true;
+    });
     return ok ? c.json({ ok: true }, 200) : c.json({ error: 'not_found' }, 404);
   });

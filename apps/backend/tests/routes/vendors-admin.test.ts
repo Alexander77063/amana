@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { auditRepo } from '../../src/modules/audit/audit.repo';
 import { vendorClaimsRepo } from '../../src/modules/vendors/vendor-claims.repo';
 import { vendorsRepo } from '../../src/modules/vendors/vendors.repo';
@@ -32,6 +32,7 @@ function adminGet(path: string, key: string | null = KEY) {
 describe('/vendors-admin', () => {
   beforeEach(async () => {
     await truncateAll();
+    vi.restoreAllMocks();
     process.env.ADMIN_API_KEY = KEY;
   });
 
@@ -193,6 +194,150 @@ describe('/vendors-admin', () => {
 
     const after = await vendorsRepo.findById(testDb, v.id);
     expect(after?.status).toBe('suspended');
+  });
+
+  it('audits an ops category override with the previous claimed answer', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'SHOP',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    await vendorsRepo.claim(testDb, {
+      vendorId: v.id,
+      phone: factories.phone(),
+      category: 'food',
+      publicCode: 'AMNV-EEEEE-FFFFF',
+      now: NOW,
+    });
+
+    const res = await adminPost(`/vendors-admin/vendors/${v.id}/category`, {
+      category: 'transport',
+    });
+    expect(res.status).toBe(200);
+
+    // Read from the DB, not the response — the response says nothing about the audit.
+    const rows = await auditRepo.listByAction(testDb, 'vendor.category_set_by_ops');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.actorKind).toBe('ops');
+    expect(rows[0]?.subjectKind).toBe('vendor');
+    expect(rows[0]?.subjectId).toBe(v.id);
+    expect(rows[0]?.payloadJson).toMatchObject({
+      category: 'transport',
+      previousCategory: 'food',
+      previousCategorySource: 'claimed',
+    });
+  });
+
+  it('audits a suspension', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'BAD ACTOR SHOP',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    const phone = factories.phone();
+    await vendorsRepo.claim(testDb, {
+      vendorId: v.id,
+      phone,
+      category: 'food',
+      publicCode: 'AMNV-GGGGG-HHHHH',
+      now: NOW,
+    });
+
+    const res = await adminPost(`/vendors-admin/vendors/${v.id}/suspend`, {});
+    expect(res.status).toBe(200);
+
+    const rows = await auditRepo.listByAction(testDb, 'vendor.suspended_by_ops');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.actorKind).toBe('ops');
+    expect(rows[0]?.subjectId).toBe(v.id);
+    expect(rows[0]?.payloadJson).toMatchObject({ previousStatus: 'claimed' });
+    // The claimant's phone must never appear raw in an audit payload.
+    expect(JSON.stringify(rows[0]?.payloadJson)).not.toContain(phone);
+  });
+
+  it('audits an enforcement flip, keeping false and null distinguishable', async () => {
+    const { householdId } = await makeHousehold(testDb);
+
+    for (const value of [true, false, null] as const) {
+      const res = await adminPost(`/vendors-admin/households/${householdId}/enforcement`, {
+        enforced: value,
+      });
+      expect(res.status).toBe(200);
+    }
+
+    const rows = await auditRepo.listByAction(testDb, 'vendor.enforcement_set_by_ops');
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row.actorKind).toBe('ops');
+      // The subject is the HOUSEHOLD — the switch is scoped to one household, not to a vendor.
+      expect(row.subjectKind).toBe('household');
+      expect(row.subjectId).toBe(householdId);
+    }
+    const enforced = rows.map((r) => (r.payloadJson as { enforced: boolean | null }).enforced);
+    // `null` ("inherit the global default") must be recorded as a value, not as a missing key —
+    // it is a different commitment from `false`.
+    expect(enforced.sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
+      false,
+      null,
+      true,
+    ]);
+  });
+
+  it('leaves no audit row when the write changed nothing', async () => {
+    const res = await adminPost(`/vendors-admin/vendors/${factories.householdId()}/suspend`, {});
+    expect(res.status).toBe(404);
+    expect(await auditRepo.listByAction(testDb, 'vendor.suspended_by_ops')).toHaveLength(0);
+  });
+
+  it('rolls the state change back when the audit write fails — the two are inseparable', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'SHOP',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    vi.spyOn(auditRepo, 'append').mockRejectedValue(new Error('boom'));
+
+    await adminPost(`/vendors-admin/vendors/${v.id}/suspend`, {});
+
+    // Assert the STATE, not the status code: an ops action that lands without its record is
+    // exactly the hole this fix closes, so the vendor must still be un-suspended.
+    const after = await vendorsRepo.findById(testDb, v.id);
+    expect(after?.status).toBe('observed');
+  });
+
+  it('400s a category outside the shared spend vocabulary on the ops rail too', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'SHOP',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+
+    const bad = await adminPost(`/vendors-admin/vendors/${v.id}/category`, {
+      category: 'Groceries',
+    });
+    expect(bad.status).toBe(400);
+    const badApprove = await adminPost(`/vendors-admin/vendors/${v.id}/approve-claim`, {
+      phone: factories.phone(),
+      category: 'food ',
+    });
+    expect(badApprove.status).toBe(400);
+
+    // Nothing was written by either rejection.
+    const after = await vendorsRepo.findById(testDb, v.id);
+    expect(after?.category).toBeNull();
+    expect(after?.status).toBe('observed');
   });
 
   it('400s a non-uuid vendor id rather than 500ing on the driver', async () => {

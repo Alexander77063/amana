@@ -8,10 +8,24 @@ export type ClaimAttemptRow = typeof vendorClaimAttempts.$inferSelect;
 
 export const vendorClaimsRepo = {
   /**
-   * Open a claim attempt, or return null if one is already pending for this vendor.
+   * Open a claim attempt for this vendor — or, when one is already pending, RE-OPEN it if it
+   * belongs to the same phone. Returns null only when the pending attempt belongs to someone else.
    *
-   * The null comes from the partial unique index, not from a prior SELECT: two claim requests
+   * The conflict comes from the partial unique index, not from a prior SELECT: two claim requests
    * arriving together must not both open an attempt, and only the index can promise that.
+   *
+   * The same-phone recovery is not a convenience. Without it a claimant is LOCKED OUT by the
+   * runbook's own expected outcome: a `409 ownership_unproved` consumes the OTP but deliberately
+   * leaves the attempt `pending` for the ops queue, so the claimant's next `/request` conflicts,
+   * gets null, and — because the caller cannot be told anything (uniform 202) — silently receives
+   * no second code. Worse, the index predicate is `status = 'pending'` alone and ignores
+   * `expiresAt`, while the sweep that expires rows runs hourly, so that lockout outlived
+   * `VENDOR_CLAIM_TTL_SECONDS` by up to a further ~59 minutes. Matching on `phone` (and NOT on
+   * `expiresAt`, so a stale-but-unswept row is recovered too) fixes both.
+   *
+   * A DIFFERENT phone still gets null. That is the land-grab guard: proof of phone control only
+   * happens at verify, so whoever opened the pending attempt has proved nothing yet, and letting a
+   * second caller take the slot from them would be the attack this index exists to stop.
    */
   async openAttempt(
     db: DbOrTx,
@@ -22,7 +36,22 @@ export const vendorClaimsRepo = {
       .values({ vendorId: input.vendorId, phone: input.phone, expiresAt: input.expiresAt })
       .onConflictDoNothing()
       .returning();
-    return row ?? null;
+    if (row) return row;
+
+    // One UPDATE, not a SELECT-then-UPDATE: the phone match IS the predicate, so a concurrent
+    // request from another phone matches nothing rather than racing a read.
+    const [reopened] = await db
+      .update(vendorClaimAttempts)
+      .set({ expiresAt: input.expiresAt })
+      .where(
+        and(
+          eq(vendorClaimAttempts.vendorId, input.vendorId),
+          eq(vendorClaimAttempts.phone, input.phone),
+          eq(vendorClaimAttempts.status, 'pending'),
+        ),
+      )
+      .returning();
+    return reopened ?? null;
   },
 
   /**

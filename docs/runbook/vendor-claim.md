@@ -39,12 +39,38 @@ without asserting a category at all). Response by outcome
 | `claimed` | 200 | `{publicCode, displayName}` | Vendor moved `observed` → `claimed`. |
 | `invalid_code` | 401 | `{error: 'invalid_code'}` | Wrong code, or a challenge minted for a different purpose (`wrong_purpose` folds into this — see Deferred follow-ups). |
 | `too_many_attempts` | 401 | `{error: 'too_many_attempts'}` | `OTP_MAX_ATTEMPTS` exhausted on the challenge. |
-| `no_attempt` | 404 | `{error: 'no_attempt'}` | No pending, unexpired claim attempt for this phone. |
-| `ownership_unproved` | 409 | `{error: 'ownership_unproved', detail}` | OTP was correct; NIBSS phone lookup didn't confirm the account. See below. |
+| `no_attempt` | 401 | `{error: 'invalid_code'}` | No pending, unexpired claim attempt for this phone. **Byte-identical to `invalid_code` on the wire** — the kind stays distinct inside the service, but not in the response. See the note below. |
+| `ownership_unproved` | 409 | `{error: 'ownership_unproved', detail}` | OTP was correct; NIBSS phone lookup didn't confirm the account. See below — and **[PRE-LAUNCH GATE 3](#pre-launch-gate-3-verify-is-still-a-registry-oracle-for-a-caller-who-uses-their-own-phone)**, of which this response is the remaining residual. |
 | `partner_down` | 503 | `{error: 'anchor_unavailable'}` | Anchor/NIBSS unreachable during the lookup. Retry later. |
 
-A malformed body (bad phone regex, non-10-digit account number, oversized category) 400s
-from `parseBody` before any of the above runs.
+A malformed body 400s from `parseBody` before any of the above runs: a bad phone regex, a
+non-10-digit account number, or a `category` outside the closed spend vocabulary
+(`SPEND_CATEGORIES` in `@amana/types` — `food`, `transport`, `school`, …, `other`). The
+category is **not** free text on either rail. A claimed category *replaces* the app-supplied
+one before the rule engine compares it (`lifecycle.service.ts`), so an unconstrained string
+would let a vendor decide whether someone else's spending lock applies to them: under a
+blocklist any non-colliding value passes, and under an allowlist `"Food"` or a trailing space
+silently denies a legitimate spend. Same closed vocabulary, same reason, as the retailer
+portal's item categories.
+
+### `no_attempt` and `invalid_code` are the same response — deliberately
+
+`verify` resolves the claim attempt **before** it checks the OTP, so if the two outcomes
+differed on the wire an unauthenticated caller could submit a junk code and read the
+difference as "is this bank account a promoted registry vendor?" — one request, no control of
+any phone required, and exactly the aggregate `/request`'s uniform 202 exists to hide. So the
+route collapses them into one `401 {"error": "invalid_code"}`, the same way `routes/auth.ts`'s
+`/otp/verify` collapses `no_challenge` / `wrong_code` / `wrong_purpose`.
+
+Two consequences worth knowing before you debug from a log:
+
+- **`no_attempt` fires from three places in `verify`**, and two of them are *after* a
+  successful OTP check: the vendor is no longer `observed` (e.g. suspended mid-flow), and the
+  `claim` compare-and-set losing a race. A legitimate claimant in either case now reads
+  "invalid code," which is misleading to them and correct for the oracle. Application logs and
+  the attempt row, not the response, are what tell an operator which of the three happened.
+- **This closes the junk-code channel only.** See PRE-LAUNCH GATE 3 for the part that is
+  still open.
 
 ### Why `/request` always returns 202 — this is a rule, not a quirk
 
@@ -110,12 +136,19 @@ a director's personal line, a recently changed number). When it happens:
   operator will follow up." There is no notification, no callback, nothing pushed to ops
   automatically — the row simply exists for someone to find via the queue (below), and only
   until it expires.
-- **What an operator should tell the claimant:** they can call back within the TTL window
-  (a fresh `/request` opens a new attempt and a new OTP once the old one is gone — a phone
-  can only ever hold one pending attempt at a time), or, better, the operator should
-  proactively work the queue and hand-approve rather than wait for the shopkeeper to notice
-  nothing happened. Nothing about a silent 409 tells a claimant to call the operator; the
-  operator has to be the one watching the queue.
+- **The claimant can retry immediately, from the same phone.** A repeat `/request` for the
+  same vendor from the **same** phone re-opens the attempt already on file — it re-dates
+  `expires_at` and sends a **fresh OTP** — so the claimant can go straight back through
+  `/verify` (and, if the bank record has since been corrected, complete the claim). No new
+  attempt row is created; there is still only ever one pending attempt per vendor. This is
+  what `VENDOR_CLAIM_TTL_SECONDS` (15 min) being longer than `OTP_TTL_SECONDS` (5 min) is
+  *for*: several codes may be spent inside one claim window.
+  **From a different phone it is still a silent no-op** (uniform 202, no code sent) — the
+  land-grab guard, since nobody has proved control of anything until `/verify`.
+- **What an operator should tell the claimant:** they can call back and retry as above — but
+  better, the operator should proactively work the queue and hand-approve rather than wait
+  for the shopkeeper to notice nothing happened. Nothing about a silent 409 tells a claimant
+  to call the operator; the operator has to be the one watching the queue.
 
 **Ops cannot distinguish "failed automated proof" from "OTP never entered"** from the queue
 alone: both leave the row at `status = 'pending'` with `ownership_proof = NULL`, since the
@@ -270,7 +303,10 @@ curl -X POST "$API/vendors-admin/vendors/<vendor-uuid>/suspend" \
   first check when `vendor.status === 'observed'`; a suspended vendor falls through to the
   same uniform `{accepted: true}` as an unknown account, with no OTP sent. `verify` re-reads
   the vendor and re-checks `status === 'observed'` before proving ownership, so an attempt
-  opened just before a suspension still gets refused (`no_attempt`) at the verify step.
+  opened just before a suspension still gets refused at the verify step — internally the
+  `no_attempt` kind, on the wire the collapsed `401 {"error": "invalid_code"}` (above), so the
+  claimant is told "invalid code" for what is really a suspension. Check the attempt row, not
+  the response, when a claimant reports this.
 - **Revokes enforcement immediately for an already-`claimed` vendor.**
   `vendorCategoryResolver.resolve` (`vendor-category-resolver.service.ts`) reads `status`
   alongside `categorySource`: `enforceable` is `vendor.categorySource !== 'observed' &&
@@ -301,13 +337,44 @@ anyone, discarding the existing `publicCode` and `claimedByPhone`):
 UPDATE vendors SET status = 'claimed' WHERE id = '<vendor-uuid>';
 ```
 
+## What ops actions leave in the audit log
+
+Every mutating route on `/vendors-admin` writes an `audit_log` row **in the same transaction
+as its state change**, and only when a row actually changed — a `404` leaves no trace,
+because nothing happened. A shared `ADMIN_API_KEY` names no human, so this row is the only
+record that any of it happened at all; that is why the write and the record cannot be
+separated. No raw phone number ever reaches a payload (`approve-claim` stores
+`phoneFingerprint(phone)`, the others store no phone at all).
+
+| Action | `actorKind` | Subject | Payload |
+|---|---|---|---|
+| `vendor.claim_approved_by_ops` | `ops` | `vendor` / vendor id | `claimantPhone` (fingerprinted), `publicCode`, `category`, `ownershipProof: 'ops'` |
+| `vendor.category_set_by_ops` | `ops` | `vendor` / vendor id | `category`, `previousCategory`, `previousCategorySource` |
+| `vendor.suspended_by_ops` | `ops` | `vendor` / vendor id | `previousStatus`, `previousCategorySource` |
+| `vendor.enforcement_set_by_ops` | `ops` | **`household`** / household id | `enforced`, `previousEnforced` |
+
+Two things to read carefully:
+
+- **`vendor.enforcement_set_by_ops`'s subject is the household, not a vendor** — the switch
+  is scoped to one household and affects every vendor it ever pays. It keeps the `vendor.*`
+  action namespace so the whole registry rail stays queryable as one thing
+  (`SELECT * FROM audit_log WHERE action LIKE 'vendor.%'`), but you will not find it by
+  vendor id.
+- **`enforced` is recorded even when it is `null`.** `null` ("inherit
+  `VENDOR_CATEGORY_ENFORCE_DEFAULT`") and `false` ("never for this household") are different
+  commitments, so the key is always present rather than conditionally omitted.
+
+`vendor.category_set_by_ops`'s `previousCategory` / `previousCategorySource` are the **only**
+surviving record that a `claimed` category ever existed: `setOpsCategory` has no CAS guard
+and overwrites a business's own answer about itself in place (see Deferred follow-ups).
+
 ## Env vars and rate limits
 
 All defined in `apps/backend/src/env.ts`.
 
 | Var | Default | What it controls |
 |---|---|---|
-| `VENDOR_CLAIM_TTL_SECONDS` | `900` (15 min) | How long a claim attempt stays `pending` before the registry sweep expires it. Deliberately longer than `OTP_TTL_SECONDS` (5 min) — a shopkeeper mid-service is not standing at their phone, so the *claim* window outlives the *code* window; a claimant may need a fresh `/request` for a new code within the same claim attempt window. |
+| `VENDOR_CLAIM_TTL_SECONDS` | `900` (15 min) | How long a claim attempt stays `pending` before the registry sweep expires it. Deliberately longer than `OTP_TTL_SECONDS` (5 min) — a shopkeeper mid-service is not standing at their phone, so the *claim* window outlives the *code* window, and a repeat `/request` from the same phone re-dates the existing attempt and issues a fresh code inside it (`vendorClaimsRepo.openAttempt`'s same-phone recovery). Note the row is expired by the **hourly** registry sweep (`17 * * * *`), not at the instant the TTL elapses, so a `pending` row can outlive its `expires_at` by up to ~59 min; `findPendingByPhone` filters on `expires_at` so this is invisible to `/verify`, and the same-phone recovery deliberately does **not** filter on it so a stale-but-unswept row is still recoverable. |
 | `RATE_LIMIT_ENABLED` | on (only the literal string `'false'` turns it off) | Gates all rate limiting repo-wide, including the two below. |
 | `RATE_LIMIT_OTP_PER_PHONE` | `5` per `RATE_LIMIT_WINDOW_SECONDS` | Applied to **both** `/vendor-claim/request` and `/vendor-claim/verify`, keyed by the `phone` field in the request body. |
 | `RATE_LIMIT_OTP_PER_IP` | `20` per `RATE_LIMIT_WINDOW_SECONDS` | Applied to both endpoints, keyed by client IP. |
@@ -360,6 +427,60 @@ pending attempt and consumes the one-attempt-per-phone slot, stranding the legit
 claimant until it expires (`VENDOR_CLAIM_TTL_SECONDS`, 15 min) or the attacker's own
 `/verify` attempt fails on OTP (they don't control the victim's phone, so it will). Also
 bounded only by rate limits, same as Gate 1.
+
+**The same-phone re-issue makes this squat unbounded in time.** Since a repeat `/request`
+from the phone that opened the attempt re-dates `expires_at`, an attacker calling once every
+<15 min — comfortably inside `RATE_LIMIT_OTP_PER_PHONE` (5 per 15 min) — holds a vendor's
+one pending slot open indefinitely, where before the fix it self-released after the TTL plus
+sweep lag (~74 min worst case). This is a deliberate accepted cost: every cap that would
+bound it also re-breaks the legitimate retry after a `409 ownership_unproved`, which is the
+lockout the re-issue exists to fix. **It is a nuisance, not a denial**: `approve-claim` does
+not require a pending queue row at all, so ops can always claim the vendor for the real
+business regardless of who is squatting the slot. It closes with this gate — proving phone
+ownership at `/request` means an attacker cannot open the attempt in the first place.
+
+### PRE-LAUNCH GATE 3: `/verify` is still a registry oracle for a caller who uses their own phone
+
+Collapsing `no_attempt` into `401 {"error": "invalid_code"}` (above) closed the *junk-code*
+probe — a caller who guesses at a code can no longer read the registry off the status line.
+It did **not** close the channel.
+
+`/vendor-claim/request` sends the OTP to the **caller-supplied** phone, not to a phone on
+file for the account. So an attacker who submits their own number against someone else's bank
+account genuinely receives a valid code, passes `verifyCode`, fails the NIBSS bank-record
+match, and lands on `409 ownership_unproved`. Against an account the registry does not hold,
+no attempt is ever opened and the same two calls return `401`. **`409` vs `401`, in two
+unauthenticated requests, still answers "is this bank account a promoted registry vendor?"**
+— the payment-graph aggregate the promotion threshold exists to keep private.
+
+There is a second, independent residual on the same pair: the `409` path makes a **paid
+Anchor NIBSS call** that the `401` path does not, so the two differ by a network round trip
+even where the bodies match. Collapsing the bodies alone would not close the timing side.
+
+**Why this is deferred rather than fixed** — a decision with a cost, not an oversight:
+
+- Nothing is deployed and the claim rail carries no live traffic, so there is no real
+  payment-graph data behind the leak today.
+- The proper fix is to **prove ownership at `/request`** and send a code only when the
+  caller's phone already resolves to the claimed account. That closes both the status channel
+  and the timing channel at once. Its cost is that an honest shop owner whose NIBSS-linked
+  phone does not match the account gets **silence** instead of a `409` that tells them to
+  contact support — and this runbook states above that such a mismatch is *expected, not
+  exceptional* (staff phones, a director's personal line, a recently changed number).
+  Degrading the most common honest-failure path, before sandbox data shows how often it
+  actually fires, was judged the worse trade.
+- **The obvious alternative — sending the OTP to the phone on file for the account — is not
+  implementable against the current partner surface.** Anchor's NIBSS lookup runs phone →
+  account only (`AnchorPhoneLookupRequest` takes `phoneNumber`;
+  `GET /nibss/phone-lookup?phoneNumber=…`, `integrations/anchor/adapter.ts`). There is no
+  account → phone direction to call. Recorded here so nobody re-proposes it.
+
+**What must happen before launch.** Move the ownership proof to `/request`, with the whole
+path **detached behind an immediate uniform `202`** so no timing signal survives the change,
+and record a `rejected` attempt row for the ops queue so a genuinely blocked owner is still
+reachable through support rather than left in silence. Until then the only mitigation is the
+per-phone and per-IP rate limiting on both endpoints — a real brake on walking the registry
+in volume, none at all on a single targeted question.
 
 ### Other
 

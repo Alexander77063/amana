@@ -24,6 +24,7 @@ import { subWalletsRoute } from './routes/sub-wallets';
 import { transactionsRoute } from './routes/transactions';
 import { vasRoute } from './routes/vas';
 import { vendorClaimRoute } from './routes/vendor-claim';
+import { vendorPageRoute } from './routes/vendor-page';
 import { vendorsRoute } from './routes/vendors';
 import { vendorsAdminRoute } from './routes/vendors-admin';
 import { webhooksRoute } from './routes/webhooks';
@@ -130,6 +131,21 @@ function attachRateLimiters(app: Hono): void {
     }),
   );
 
+  // The public vendor landing page. Unauthenticated by necessity — it is opened by whoever points
+  // a phone camera at a sticker in a shop window — and it reaches Postgres on every request.
+  // The code is unguessable at 32^10, so this is not an enumeration defence: it is here so a
+  // sticker photographed off a shop window cannot be turned into free load on the API's database.
+  // Keyed by IP, like every other limiter in this file; there is no actor to key on.
+  app.use(
+    '/v/*',
+    rateLimit({
+      limit: env.RATE_LIMIT_AUTH_PER_IP,
+      windowSeconds,
+      keyPrefix: 'vendor-page:ip',
+      key: clientIp,
+    }),
+  );
+
   app.use(
     '/auth/otp/verify',
     rateLimit({
@@ -205,6 +221,10 @@ export function createServer(): Hono {
   app.route('/health', healthRoute);
   app.route('/webhooks', webhooksRoute);
   app.route('/vendors', vendorsRoute);
+  // Mounted ahead of `buildMeRouter()`, which is routed at `/` and applies `jwtAuth()` with no
+  // path — i.e. to `/*`. Registered after it, this public page would 401 every camera that opened
+  // it. Same reason `/health` and `/webhooks` sit above.
+  app.route('/v', vendorPageRoute);
   app.route('/transactions', transactionsRoute);
   app.route('/bumps', bumpsRoute);
   app.route('/devices', devicesRoute);

@@ -37,7 +37,11 @@ describe('vendor_claim_attempts schema', () => {
     expect(row?.ownershipProof).toBeNull();
   });
 
-  it('allows only ONE pending attempt per vendor', async () => {
+  // Inverted closing PRE-LAUNCH GATE 2. This asserted the index rejected a second pending attempt
+  // per VENDOR, which is the exclusivity that let whoever called `/request` first — with any phone
+  // string, having proved nothing — lock the real owner out. The uniqueness is now per
+  // (vendor, phone), and exclusivity waits for `/verify`.
+  it('allows several pending attempts on one vendor, from DIFFERENT phones', async () => {
     const v = await aVendor();
     const attempt = {
       vendorId: v.id,
@@ -47,7 +51,20 @@ describe('vendor_claim_attempts schema', () => {
     await testDb.insert(vendorClaimAttempts).values(attempt);
     await expect(
       testDb.insert(vendorClaimAttempts).values({ ...attempt, phone: factories.phone() }),
-    ).rejects.toThrow();
+    ).resolves.toBeDefined();
+  });
+
+  // The half of the constraint that survives: one phone cannot pile up duplicate rows against the
+  // same vendor, which is what makes `openAttempt`'s renewal path the only way to re-request.
+  it('still allows only ONE pending attempt per (vendor, phone)', async () => {
+    const v = await aVendor();
+    const attempt = {
+      vendorId: v.id,
+      phone: factories.phone(),
+      expiresAt: new Date(NOW.getTime() + 900_000),
+    };
+    await testDb.insert(vendorClaimAttempts).values(attempt);
+    await expect(testDb.insert(vendorClaimAttempts).values(attempt)).rejects.toThrow();
   });
 
   it('permits a second attempt once the first is no longer pending', async () => {

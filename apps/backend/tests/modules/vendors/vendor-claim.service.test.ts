@@ -43,118 +43,54 @@ describe('vendorClaimService', () => {
   });
 
   describe('request', () => {
-    it('opens an attempt and sends an OTP for a promoted vendor', async () => {
-      const v = await aPromotedVendor();
+    // GATE 3. `/request` takes a phone and nothing else, and ALWAYS sends a code. The tests this
+    // replaces asserted the opposite — "sends NO OTP for an account that is not in the registry"
+    // and "sends no OTP for a vendor that is already claimed" — which is the oracle written down
+    // as a requirement: the HTTP response was uniform, but whether an SMS arrived answered "is
+    // this account a promoted, unclaimed vendor" to anyone who supplied their own number.
+    it('sends an OTP for a phone, with no account named', async () => {
       const phone = factories.phone();
       const otp = vi
         .spyOn(otpService, 'requestCode')
         .mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
 
-      const r = await vendorClaimService.request(testDb, adapter, {
-        bankCode: v.bankCode,
-        accountNumber: v.accountNumber,
-        phone,
-        now: NOW,
-      });
+      const r = await vendorClaimService.request(testDb, { phone, now: NOW });
+      await drainBackgroundTasks();
 
       expect(r.accepted).toBe(true);
-      // The send is detached (runInBackground) so the response time can't leak whether an SMS
-      // went out — drain before asserting it actually happened, on the pool, not the caller's db.
-      await drainBackgroundTasks();
-      expect(otp).toHaveBeenCalledWith(pool, { phone, purpose: 'vendor_claim' });
-      expect(await vendorClaimsRepo.findPendingByPhone(testDb, phone, NOW)).toBeDefined();
-    });
-
-    // Inverted closing PRE-LAUNCH GATE 2. This asserted that a phone already pending on v1 got
-    // NO second code for v2 — the cross-vendor guard. Because `/request` proves nothing about
-    // phone ownership, that guard was equally available to an attacker: opening an attempt under
-    // a victim's number blocked that number from claiming anywhere else, for as long as the hold
-    // lasted. Exclusivity now waits for `/verify`, so the guard is gone and both requests stand.
-    it('lets a phone already pending on one vendor start a claim on another', async () => {
-      const phone = factories.phone();
-      const v1 = await aPromotedVendor();
-      const otp = vi
-        .spyOn(otpService, 'requestCode')
-        .mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
-
-      const r1 = await vendorClaimService.request(testDb, adapter, {
-        bankCode: v1.bankCode,
-        accountNumber: v1.accountNumber,
-        phone,
-        now: NOW,
-      });
-      await drainBackgroundTasks();
-      expect(r1.accepted).toBe(true);
       expect(otp).toHaveBeenCalledTimes(1);
+      expect(otp.mock.calls[0]?.[1]).toMatchObject({ phone, purpose: 'vendor_claim' });
+    });
 
-      const v2 = await aPromotedVendor();
-      const r2 = await vendorClaimService.request(testDb, adapter, {
-        bankCode: v2.bankCode,
-        accountNumber: v2.accountNumber,
-        phone,
-        now: NOW,
-      });
+    it('sends an OTP even when no registry vendor exists at all', async () => {
+      const otp = vi
+        .spyOn(otpService, 'requestCode')
+        .mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+
+      await vendorClaimService.request(testDb, { phone: factories.phone(), now: NOW });
       await drainBackgroundTasks();
 
-      expect(r2.accepted).toBe(true);
-      // A second code really is sent now — the caller asked about a different vendor.
-      expect(otp).toHaveBeenCalledTimes(2);
-
-      // Newest-first: the live `vendor_claim` code belongs to the most recent request, because
-      // `requestCode` supersedes the previous challenge of the same purpose. So `verify` must
-      // resolve v2, not v1.
-      const pending = await vendorClaimsRepo.findPendingByPhone(testDb, phone, NOW);
-      expect(pending?.vendorId).toBe(v2.id);
+      expect(otp).toHaveBeenCalledTimes(1);
     });
 
-    it('sends NO OTP for an account that is not in the registry', async () => {
-      const otp = vi.spyOn(otpService, 'requestCode');
-      const r = await vendorClaimService.request(testDb, adapter, {
-        bankCode: factories.bankCode(),
-        accountNumber: factories.bankAccount(),
-        phone: factories.phone(),
-        now: NOW,
-      });
-      // The RESULT is indistinguishable from the success case — that is the non-oracle contract.
-      expect(r.accepted).toBe(true);
-      expect(otp).not.toHaveBeenCalled();
-    });
+    it('creates no attempt row — nothing is bound until the phone is proved', async () => {
+      const phone = factories.phone();
+      vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
 
-    it('sends no OTP for a vendor that is already claimed', async () => {
-      const v = await aPromotedVendor();
-      await vendorsRepo.claim(testDb, {
-        vendorId: v.id,
-        phone: factories.phone(),
-        category: 'food',
-        // Setup only: this test does not exercise the claim-time name write, so `null` keeps
-        // the promoted `displayName` exactly as it was before that field became required.
-        displayName: null,
-        publicCode: 'AMNV-AAAAA-BBBBB',
-        now: NOW,
-      });
-      const otp = vi.spyOn(otpService, 'requestCode');
+      await vendorClaimService.request(testDb, { phone, now: NOW });
+      await drainBackgroundTasks();
 
-      const r = await vendorClaimService.request(testDb, adapter, {
-        bankCode: v.bankCode,
-        accountNumber: v.accountNumber,
-        phone: factories.phone(),
-        now: NOW,
-      });
-      expect(r.accepted).toBe(true);
-      expect(otp).not.toHaveBeenCalled();
+      expect(await vendorClaimsRepo.findPendingByPhone(testDb, phone, NOW)).toBeUndefined();
     });
   });
 
   describe('verify', () => {
+    // Under GATE 3 the request step binds nothing to a vendor — it only mints a code. The
+    // vendor is named at verify, so this just promotes one and primes the OTP.
     async function openAttempt(phone: string) {
       const v = await aPromotedVendor();
       vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
-      await vendorClaimService.request(testDb, adapter, {
-        bankCode: v.bankCode,
-        accountNumber: v.accountNumber,
-        phone,
-        now: NOW,
-      });
+      await vendorClaimService.request(testDb, { phone, now: NOW });
       return v;
     }
 
@@ -170,6 +106,8 @@ describe('vendorClaimService', () => {
 
       const r = await vendorClaimService.verify(testDb, adapter, {
         phone,
+        bankCode: v.bankCode,
+        accountNumber: v.accountNumber,
         code: '123456',
         category: 'food',
         now: NOW,
@@ -197,6 +135,8 @@ describe('vendorClaimService', () => {
 
       const r = await vendorClaimService.verify(testDb, adapter, {
         phone,
+        bankCode: v.bankCode,
+        accountNumber: v.accountNumber,
         code: '123456',
         category: 'pharmacy',
         now: NOW,
@@ -214,6 +154,8 @@ describe('vendorClaimService', () => {
 
       const r = await vendorClaimService.verify(testDb, adapter, {
         phone,
+        bankCode: v.bankCode,
+        accountNumber: v.accountNumber,
         code: '000000',
         category: 'food',
         now: NOW,
@@ -238,6 +180,8 @@ describe('vendorClaimService', () => {
 
       const r = await vendorClaimService.verify(testDb, adapter, {
         phone,
+        bankCode: v.bankCode,
+        accountNumber: v.accountNumber,
         code: '123456',
         category: 'food',
         now: NOW,
@@ -257,6 +201,8 @@ describe('vendorClaimService', () => {
 
       const r = await vendorClaimService.verify(testDb, adapter, {
         phone,
+        bankCode: v.bankCode,
+        accountNumber: v.accountNumber,
         code: '123456',
         category: 'food',
         now: NOW,
@@ -268,17 +214,25 @@ describe('vendorClaimService', () => {
       );
     });
 
-    it('returns no_attempt when the phone has no pending claim', async () => {
+    // Replaces 'returns no_attempt when the phone has no pending claim'. That kind no longer
+    // exists: with the account named here rather than at /request, there is no pre-OTP lookup to
+    // fail, so an unproven caller always lands on the same argon2-priced `invalid_code`. Removing
+    // the early return closed a timing channel as well as a status one.
+    it('answers invalid_code — not a cheaper, earlier kind — when nothing is pending', async () => {
+      const v = await aPromotedVendor();
+      vi.spyOn(otpService, 'verifyCode').mockResolvedValue({ kind: 'wrong_code' });
       const r = await vendorClaimService.verify(testDb, adapter, {
         phone: factories.phone(),
-        code: '123456',
-        category: 'food',
+        code: '000000',
+        bankCode: v.bankCode,
+        accountNumber: v.accountNumber,
+        category: null,
         now: NOW,
       });
-      expect(r.kind).toBe('no_attempt');
+      expect(r.kind).toBe('invalid_code');
     });
 
-    it('returns vendor_unavailable, not no_attempt, when the vendor is suspended mid-flow', async () => {
+    it('returns vendor_unavailable when the vendor is suspended mid-flow', async () => {
       // Site 2 of the old `no_attempt`. It sits BEHIND the verified OTP — the same gate that
       // protects the deliberately-retained 409 — so a distinct outcome reintroduces no oracle,
       // while collapsing it stranded the claimant: their code is already spent and their retry
@@ -296,6 +250,8 @@ describe('vendorClaimService', () => {
 
       const r = await vendorClaimService.verify(testDb, adapter, {
         phone,
+        bankCode: v.bankCode,
+        accountNumber: v.accountNumber,
         code: '123456',
         category: 'food',
         now: NOW,
@@ -309,7 +265,7 @@ describe('vendorClaimService', () => {
       // Site 3: someone else claimed the vendor between the status read and the transaction. Same
       // reasoning as site 2 — post-OTP, so it may speak plainly.
       const phone = factories.phone();
-      await openAttempt(phone);
+      const v = await openAttempt(phone);
       vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
         kind: 'verified',
         challengeId: 'c1',
@@ -320,6 +276,8 @@ describe('vendorClaimService', () => {
 
       const r = await vendorClaimService.verify(testDb, adapter, {
         phone,
+        bankCode: v.bankCode,
+        accountNumber: v.accountNumber,
         code: '123456',
         category: 'food',
         now: NOW,
@@ -338,6 +296,8 @@ describe('vendorClaimService', () => {
       proveOwnership(true);
       await vendorClaimService.verify(testDb, adapter, {
         phone,
+        bankCode: v.bankCode,
+        accountNumber: v.accountNumber,
         code: '123456',
         category: 'food',
         now: NOW,

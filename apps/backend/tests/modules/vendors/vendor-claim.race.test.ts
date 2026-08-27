@@ -23,96 +23,68 @@ async function aPromotedVendor(name = 'MAMA PUT KITCHEN') {
   return v;
 }
 
-function stubOtp() {
+function ownership(proved: boolean) {
   return vi
-    .spyOn(otpService, 'requestCode')
-    .mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+    .spyOn(vendorOwnershipService, 'proveByPhoneLookup')
+    .mockResolvedValue(
+      proved
+        ? { proved: true, proof: 'phone_lookup', accountName: 'MUSA ABDULLAHI' }
+        : { proved: false, reason: 'mismatch' },
+    );
 }
 
-async function request(v: { bankCode: string; accountNumber: string }, phone: string, now = NOW) {
-  return vendorClaimService.request(testDb, adapter, {
+async function verifyFor(
+  v: { bankCode: string; accountNumber: string },
+  phone: string,
+  category: string | null = 'food',
+) {
+  return vendorClaimService.verify(testDb, adapter, {
+    phone,
+    code: '123456',
     bankCode: v.bankCode,
     accountNumber: v.accountNumber,
-    phone,
-    now,
+    category,
+    now: NOW,
   });
 }
 
 /**
- * PRE-LAUNCH GATE 2 — the attacker-arrives-first race.
+ * PRE-LAUNCH GATE 2 — the attacker-arrives-first race, re-expressed for the GATE 3 flow.
  *
- * Nothing at `/request` proves the caller controls the phone they submitted; it is a string in a
- * request body. While a `pending` row held an EXCLUSIVE slot, whoever called first — with any
- * phone at all — took it, and the real owner was locked out until it lapsed.
- *
- * The fix is to stop making an unproven request exclusive. Several attempts may be pending on one
- * vendor; the slot is won at `/verify`, by whoever actually receives the OTP. An attacker who
- * cannot receive the SMS therefore holds nothing, and the race stops existing rather than being
- * bounded by a timer.
+ * Gate 2 removed the exclusive hold that `/request` used to hand out with no proof. Gate 3 then
+ * moved attempt creation behind the OTP entirely, so an attempt now exists only for a caller who
+ * has proved they hold the phone. The race is therefore structurally unreachable rather than
+ * merely fixed — but the per-(vendor, phone) shape still has to hold, because two DIFFERENT proven
+ * phones can legitimately both be waiting in the ops queue for the same vendor after a refused
+ * ownership proof.
  */
-describe('vendor claim — the attacker-arrives-first race (GATE 2)', () => {
+describe('vendor claim — concurrent attempts on one vendor (GATE 2, under the GATE 3 flow)', () => {
   beforeEach(async () => {
     await truncateAll();
     vi.restoreAllMocks();
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({ kind: 'verified' });
   });
 
-  it('a second phone can open its own attempt on a vendor someone else already requested', async () => {
+  it('two proven phones can both be pending on one vendor after a refused proof', async () => {
     const v = await aPromotedVendor();
-    const attacker = factories.phone();
-    const owner = factories.phone();
-    const otp = stubOtp();
+    const a = factories.phone();
+    const b = factories.phone();
+    ownership(false);
 
-    await request(v, attacker);
-    otp.mockClear();
-    await request(v, owner);
+    expect((await verifyFor(v, a)).kind).toBe('ownership_unproved');
+    expect((await verifyFor(v, b)).kind).toBe('ownership_unproved');
 
-    // The real owner must actually be sent a code. Before this fix the second caller was
-    // swallowed into the uniform 202 with no SMS at all — indistinguishable, to them, from
-    // success.
-    expect(otp).toHaveBeenCalledTimes(1);
-    expect(otp.mock.calls[0]?.[1]).toMatchObject({ phone: owner, purpose: 'vendor_claim' });
+    expect((await vendorClaimsRepo.findPendingByPhone(testDb, a, NOW))?.vendorId).toBe(v.id);
+    expect((await vendorClaimsRepo.findPendingByPhone(testDb, b, NOW))?.vendorId).toBe(v.id);
   });
 
-  it('both attempts exist and are pending — neither displaces the other', async () => {
-    const v = await aPromotedVendor();
-    const attacker = factories.phone();
-    const owner = factories.phone();
-    stubOtp();
-
-    await request(v, attacker);
-    await request(v, owner);
-
-    const forOwner = await vendorClaimsRepo.findPendingByPhone(testDb, owner, NOW);
-    const forAttacker = await vendorClaimsRepo.findPendingByPhone(testDb, attacker, NOW);
-    expect(forOwner?.vendorId).toBe(v.id);
-    expect(forAttacker?.vendorId).toBe(v.id);
-  });
-
-  // The cross-vendor half of the grief: an attempt opened under a victim's phone number used to
-  // block that number from starting a claim on any OTHER vendor.
-  it('a phone already pending on one vendor can still start a claim on another', async () => {
-    const v1 = await aPromotedVendor('MAMA PUT KITCHEN');
-    const v2 = await aPromotedVendor('SUYA SPOT');
-    const phone = factories.phone();
-    const otp = stubOtp();
-
-    await request(v1, phone);
-    otp.mockClear();
-    await request(v2, phone);
-
-    expect(otp).toHaveBeenCalledTimes(1);
-    const pending = await vendorClaimsRepo.findPendingByPhone(testDb, phone, NOW);
-    // Newest-first: the code that just arrived belongs to the most recent request.
-    expect(pending?.vendorId).toBe(v2.id);
-  });
-
-  it('a repeat request from the same phone on the same vendor renews rather than duplicating', async () => {
+  it('a repeat attempt from the same phone renews its own row rather than adding another', async () => {
     const v = await aPromotedVendor();
     const phone = factories.phone();
-    stubOtp();
+    ownership(false);
 
-    await request(v, phone);
-    await request(v, phone, new Date(NOW.getTime() + 60_000));
+    await verifyFor(v, phone);
+    await verifyFor(v, phone);
 
     const rows = await vendorClaimsRepo.listPendingForOps(testDb, NOW);
     expect(rows.filter((r) => r.vendorId === v.id && r.phone === phone)).toHaveLength(1);
@@ -120,30 +92,36 @@ describe('vendor claim — the attacker-arrives-first race (GATE 2)', () => {
 
   it('a successful claim closes the other pending attempts on that vendor', async () => {
     const v = await aPromotedVendor();
-    const attacker = factories.phone();
-    const owner = factories.phone();
-    stubOtp();
-    await request(v, attacker);
-    await request(v, owner);
+    const loser = factories.phone();
+    const winner = factories.phone();
 
-    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({ kind: 'verified' });
-    vi.spyOn(vendorOwnershipService, 'proveByPhoneLookup').mockResolvedValue({
-      proved: true,
-      proof: 'phone_lookup',
-      accountName: 'MUSA ABDULLAHI',
-    });
+    const refused = ownership(false);
+    expect((await verifyFor(v, loser)).kind).toBe('ownership_unproved');
+    refused.mockRestore();
 
-    const r = await vendorClaimService.verify(testDb, adapter, {
-      phone: owner,
-      code: '123456',
-      category: 'food',
-      now: NOW,
-    });
-    expect(r.kind).toBe('claimed');
+    ownership(true);
+    expect((await verifyFor(v, winner)).kind).toBe('claimed');
 
     // A vendor left claimed with a stranger's attempt still `pending` is a phantom ops-queue
     // entry for a business that no longer needs review.
-    const stillPending = await vendorClaimsRepo.findPendingByPhone(testDb, attacker, NOW);
-    expect(stillPending).toBeUndefined();
+    expect(await vendorClaimsRepo.findPendingByPhone(testDb, loser, NOW)).toBeUndefined();
+  });
+
+  it('one phone may be pending on several vendors at once', async () => {
+    const v1 = await aPromotedVendor('MAMA PUT KITCHEN');
+    const v2 = await aPromotedVendor('SUYA SPOT');
+    const phone = factories.phone();
+    ownership(false);
+
+    await verifyFor(v1, phone);
+    await verifyFor(v2, phone);
+
+    const rows = await vendorClaimsRepo.listPendingForOps(testDb, NOW);
+    expect(
+      rows
+        .filter((r) => r.phone === phone)
+        .map((r) => r.vendorId)
+        .sort(),
+    ).toEqual([v1.id, v2.id].sort());
   });
 });

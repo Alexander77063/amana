@@ -22,12 +22,14 @@ export type ClaimVerifyResult =
   | { kind: 'claimed'; publicCode: string; displayName: string }
   | { kind: 'invalid_code' }
   | { kind: 'too_many_attempts' }
-  | { kind: 'no_attempt' }
   /**
    * The vendor stopped being claimable between `/request` and here — suspended, already claimed,
-   * or the `claim` compare-and-set lost a race. Distinct from `no_attempt` on purpose: both of
-   * these are reached only from BEHIND a verified OTP, so telling the caller what happened
-   * reveals nothing to anyone who has not already proved control of the phone.
+   * or the `claim` compare-and-set lost a race. Reached only from BEHIND a verified OTP, so
+   * telling the caller what happened reveals nothing to anyone who has not already proved control
+   * of the phone.
+   *
+   * The former `no_attempt` kind is gone: with the account named at `/verify` (GATE 3) there is no
+   * pre-OTP lookup left that could fail, so the state cannot arise.
    */
   | { kind: 'vendor_unavailable' }
   | { kind: 'ownership_unproved'; reason: string }
@@ -46,107 +48,69 @@ export function phoneFingerprint(phone: string): string {
 
 export const vendorClaimService = {
   /**
-   * Begin a claim.
+   * Begin a claim: prove you hold this phone.
    *
-   * **Always resolves `{ accepted: true }`, whatever happens.** A caller must not be able to learn
-   * whether an account is in the registry, because that is precisely the aggregate the promotion
-   * threshold exists to protect — "has this account been paid by at least five Amana households".
-   * The work simply does not happen for an account we do not hold, and no OTP is sent.
+   * **Takes a phone and nothing else, and ALWAYS sends a code** (PRE-LAUNCH GATE 3). No account is
+   * named here, so nothing about the registry can decide whether an SMS goes out.
    *
-   * The *value* returned is a uniform non-oracle, but the code paths leading to it are not
-   * equal-cost: an unknown account is one SELECT, an in-flight attempt adds an INSERT, and only
-   * the happy path used to also await an outbound Termii SMS round trip. That gap is a timing
-   * side-channel that recovers the exact bit the uniform response exists to hide, so the OTP send
-   * is detached (`runInBackground`) rather than awaited — the response leaves at the same point
-   * in the control flow regardless of whether an SMS goes out behind it.
+   * That decision was the leak. The HTTP response was always a uniform 202 — but the code went to
+   * the CALLER-SUPPLIED phone, and only when the account resolved to a promoted, unclaimed vendor.
+   * So an attacker submitted their OWN number against someone else's account and watched their
+   * handset: one request, no Anchor call, and an unambiguous yes to "at least
+   * VENDOR_REGISTRY_MIN_HOUSEHOLDS Amana households have paid this account and nobody has claimed
+   * it". No amount of response shaping could close that, because the SMS is not part of the
+   * response.
    *
-   * The *arrival of the SMS itself* is a remaining channel that no amount of response shaping can
-   * close, because the code goes to the caller-supplied phone: see **PRE-LAUNCH GATE 3** in
-   * `docs/runbook/vendor-claim.md`.
+   * Naming the account at `/verify` instead puts every account-dependent answer BEHIND proof of
+   * phone control — which is what lets the honest owner keep a plain `409` telling them to contact
+   * support. Proving ownership at `/request` would have closed the same channel by replacing that
+   * 409 with silence, and this runbook records that mismatch (staff phone, a director's line, a
+   * changed number) as the common case rather than the edge case.
+   *
+   * This does not widen the platform's SMS surface: `/auth/otp/request` already sends a code to
+   * any phone string a caller supplies, under the same per-phone and per-IP limiters.
    */
-  async request(
-    db: DbOrTx,
-    adapter: AnchorAdapter,
-    input: { bankCode: string; accountNumber: string; phone: string; now: Date },
-  ): Promise<ClaimRequestResult> {
-    try {
-      const vendor = await vendorsRepo.findByAccount(db, input.bankCode, input.accountNumber);
-      if (!vendor || vendor.status !== 'observed') return { accepted: true };
-
-      // No cross-vendor check, and no per-vendor land-grab guard, deliberately (PRE-LAUNCH GATE 2).
-      //
-      // Both used to live here, and both were enforced against a caller who had proved nothing:
-      // `/request` never establishes that the caller controls the phone they submitted — it is a
-      // string in a request body. So the guards were as available to an attacker as to an owner,
-      // and whoever called FIRST held the vendor's only slot and blocked that phone number from
-      // claiming anywhere else. Exclusivity now waits for `/verify`, where the OTP proves phone
-      // control, and the claim transaction closes the losing attempts. Someone who cannot receive
-      // the SMS holds nothing.
-      //
-      // Several attempts pending on one vendor is therefore normal, and so is one phone pending on
-      // several vendors. `findPendingByPhone` orders newest-first, and — since Gate 1 scoped OTP
-      // invalidation by purpose while still superseding within a purpose — a phone has exactly one
-      // live `vendor_claim` code at a time: the one its most recent request minted. Newest-first is
-      // precisely the row that code belongs to.
-      const expiresAt = new Date(input.now.getTime() + env.VENDOR_CLAIM_TTL_SECONDS * 1000);
-      const attempt = await vendorClaimsRepo.openAttempt(db, {
-        vendorId: vendor.id,
-        phone: input.phone,
-        expiresAt,
-        now: input.now,
-      });
-      // Null now means only that the row changed status underneath us — a concurrent verify or
-      // sweep — rather than "someone else holds the slot". Same uniform response either way.
-      if (!attempt) return { accepted: true };
-
-      // Detached and on the connection pool, not the caller's `db` handle: this call must not
-      // block the response (the timing side-channel above), and it must not depend on a
-      // transaction the caller might still be holding open or that could later roll back. The
-      // task carries its own `.catch` per `runInBackground`'s contract — a send failure is
-      // exactly as invisible to the caller as every other failure mode of this method.
-      runInBackground(
-        otpService.requestCode(pool, { phone: input.phone, purpose: 'vendor_claim' }).catch((e) => {
-          logger.warn(
-            { err: e instanceof Error ? e.message : String(e) },
-            'vendor claim otp send failed',
-          );
-        }),
-      );
-      return { accepted: true };
-    } catch (e) {
-      // Even a failure is invisible to the caller — an error shape would itself be a signal. This
-      // is that guarantee's last line of defence (the route has no try/catch of its own), so the
-      // log line must never itself throw: `(e as Error).message` on a non-Error rejection would
-      // escape this catch and hand the caller a distinguishable 500.
-      logger.warn(
-        { err: e instanceof Error ? e.message : String(e) },
-        'vendor claim request failed',
-      );
-      return { accepted: true };
-    }
+  async request(db: DbOrTx, input: { phone: string; now: Date }): Promise<ClaimRequestResult> {
+    // Detached for the same reason it always was: an awaited Termii round trip is a timing
+    // channel. There is no longer a branch for it to leak, but the latency shape of the endpoint
+    // should not depend on the SMS provider either.
+    runInBackground(otpService.requestCode(pool, { phone: input.phone, purpose: 'vendor_claim' }));
+    return { accepted: true };
   },
 
   /**
-   * Complete a claim: OTP first, then ownership, then the state change.
+   * Complete a claim: OTP first, then the account, then ownership, then the state change.
    *
-   * The order matters for cost as well as security — ownership proof is a paid Anchor call, so it
-   * runs only after the OTP has established that the caller controls the phone.
+   * **The account is named HERE, not at `/request`** (PRE-LAUNCH GATE 3). Everything that depends
+   * on it — including whether it is in the registry at all — is therefore decided behind proof of
+   * phone control, where it can be answered plainly instead of being leaked by whether an SMS
+   * arrived.
+   *
+   * The order also matters for cost: ownership proof is a paid Anchor call, so it runs only after
+   * the OTP has established that the caller controls the phone. A junk code never reaches it.
+   *
+   * Residual, and deliberately so: a caller who DOES control a phone can still tell
+   * `vendor_unavailable` from `ownership_unproved` and so probe registry membership one account at
+   * a time. That is the dearer of the two channels the runbook describes — it costs an OTP round
+   * trip per probe and is bounded by the per-phone limiter — and closing it means collapsing the
+   * two, which takes the actionable answer away from the honest owner. See GATE 3's residual note.
    */
   async verify(
     db: DbOrTx,
     adapter: AnchorAdapter,
-    input: { phone: string; code: string; category: string | null; now: Date },
+    input: {
+      phone: string;
+      code: string;
+      bankCode: string;
+      accountNumber: string;
+      category: string | null;
+      now: Date;
+    },
   ): Promise<ClaimVerifyResult> {
-    // The ONE oracle-sensitive outcome in this method: it is decided before any proof of phone
-    // control, so the route must render it identically to a wrong code. Everything below this
-    // line sits behind a verified OTP and may speak plainly.
-    const attempt = await vendorClaimsRepo.findPendingByPhone(db, input.phone, input.now);
-    if (!attempt) return { kind: 'no_attempt' };
-
-    // `allowedPurposes` is required (purpose binding shipped ahead of SP-V2) — a login OTP must
-    // not complete a claim, and a claim OTP must not complete a login. `wrong_purpose` falls into
-    // the same response as a wrong code: the caller learns that it failed, not which of the two
-    // ways.
+    // FIRST, before anything account-shaped is touched. `allowedPurposes` is required (purpose
+    // binding, GATE 1) — a login OTP must not complete a claim, and a claim OTP must not complete
+    // a login. `wrong_purpose` collapses into the same answer as a wrong code: the caller learns
+    // that it failed, not which of the two ways.
     const otp = await otpService.verifyCode(db, {
       phone: input.phone,
       code: input.code,
@@ -155,13 +119,21 @@ export const vendorClaimService = {
     if (otp.kind === 'too_many_attempts') return { kind: 'too_many_attempts' };
     if (otp.kind !== 'verified') return { kind: 'invalid_code' };
 
-    const vendor = await vendorsRepo.findById(db, attempt.vendorId);
-    // `vendor_unavailable`, not `no_attempt`: the claimant's OTP has just been consumed, so
-    // rendering this as "invalid code" left them with a permanent dead end — their retry
-    // `/request` early-returns on `status !== 'observed'` into the uniform 202 and no second code
-    // ever arrives. Safe to distinguish because this is behind the verified OTP, the same gate
-    // that protects the deliberately-retained 409.
+    // Past this line the caller has proved they hold the phone, so the answers may be plain.
+    const vendor = await vendorsRepo.findByAccount(db, input.bankCode, input.accountNumber);
     if (!vendor || vendor.status !== 'observed') return { kind: 'vendor_unavailable' };
+
+    // The attempt row is created only NOW — after proof — which is what stops the ops queue
+    // filling with unproven land-grabs, and is the structural reason GATE 2's race cannot come
+    // back through this door.
+    const expiresAt = new Date(input.now.getTime() + env.VENDOR_CLAIM_TTL_SECONDS * 1000);
+    const attempt = await vendorClaimsRepo.openAttempt(db, {
+      vendorId: vendor.id,
+      phone: input.phone,
+      expiresAt,
+      now: input.now,
+    });
+    if (!attempt) return { kind: 'vendor_unavailable' };
 
     const verdict = await vendorOwnershipService.proveByPhoneLookup(adapter, {
       phone: input.phone,

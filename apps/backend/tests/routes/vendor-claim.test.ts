@@ -62,11 +62,11 @@ describe('POST /vendor-claim', () => {
     expect(await known.text()).toBe(await unknown.text());
   });
 
-  it('is a NON-ORACLE at /verify too: no attempt and a wrong code are byte-identical', async () => {
-    // The whole point. `verify` looks the attempt up BEFORE it checks the code, so if the two
-    // outcomes differed on the wire an unauthenticated caller with a junk code could ask "is this
-    // account a promoted registry vendor?" in one request — the same aggregate `/request`'s
-    // uniform 202 exists to hide. Modelled on the `/request` non-oracle test above.
+  it('is a NON-ORACLE at /verify too: an unknown phone and a wrong code are byte-identical', async () => {
+    // `verify` now checks the CODE first and only then looks at the account (GATE 3), so an
+    // unproven caller can no longer read registry membership off this endpoint at all. The
+    // collapse is kept anyway: it costs nothing, and it is what stops a future edit that
+    // reintroduces an early, account-shaped return from silently reopening the channel.
     const v = await vendorsRepo.promoteIfAbsent(testDb, {
       bankCode: '058',
       accountNumber: '0123456789',
@@ -86,12 +86,18 @@ describe('POST /vendor-claim', () => {
     // Has a pending attempt, wrong code.
     const wrongCode = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '000000',
       category: 'food',
     });
-    // No attempt at all — the service still returns the internal `no_attempt` kind here.
+    // A phone with no live challenge at all. Before GATE 3 this took a cheaper, earlier path
+    // (`no_attempt`, decided by a SELECT before the OTP was checked); now every unproven
+    // caller lands on the same argon2-priced `invalid_code`.
     const noAttempt = await post('/vendor-claim/verify', {
       phone: '+2348017654321',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '000000',
       category: 'food',
     });
@@ -102,11 +108,10 @@ describe('POST /vendor-claim', () => {
   });
 
   it('is a NON-ORACLE at /verify for an EXHAUSTED attempt too, not just a wrong code', async () => {
-    // `too_many_attempts` can only ever come back from `verifyCode`, and `verify` returns
-    // `no_attempt` before `verifyCode` ever runs when there is no attempt row. So the exhausted
-    // answer is reachable ONLY for a promoted `observed` vendor: five junk calls answering
-    // `invalid_code` and a sixth answering something else is the registry-membership bit again,
-    // read straight off the response body — the exact bit the collapse above exists to hide.
+    // `too_many_attempts` can only ever come back from `verifyCode`. Since GATE 3 that no longer
+    // implies a promoted vendor — the account is not consulted until after the code — so what it
+    // would leak is weaker: that this phone had a live `vendor_claim` challenge to exhaust. Still
+    // free to withhold, so it stays collapsed.
     //
     // Driven through the REAL otp service (no `verifyCode` mock) so the exhaustion is the
     // production one, argon2 and all.
@@ -133,7 +138,12 @@ describe('POST /vendor-claim', () => {
       // `OTP_MAX_ATTEMPTS` being tuned ABOVE `RATE_LIMIT_OTP_PER_PHONE`, which is exactly the
       // tuning this finding warns reopens the leak. See the note below the loop.
       resetRateLimitStore();
-      const res = await post('/vendor-claim/verify', { phone, code: '000000' });
+      const res = await post('/vendor-claim/verify', {
+        phone,
+        code: '000000',
+        bankCode: '058',
+        accountNumber: '0123456789',
+      });
       wrongCode.push({ status: res.status, body: await res.text() });
     }
 
@@ -143,9 +153,16 @@ describe('POST /vendor-claim', () => {
     // per-instance, and `auto_start_machines = true`. Resetting the store here stands in for the
     // second Fly machine, which starts with an empty one. Do not "simplify" this away.
     resetRateLimitStore();
-    const exhausted = await post('/vendor-claim/verify', { phone, code: '000000' });
+    const exhausted = await post('/vendor-claim/verify', {
+      phone,
+      code: '000000',
+      bankCode: '058',
+      accountNumber: '0123456789',
+    });
     const noAttempt = await post('/vendor-claim/verify', {
       phone: '+2348017654321',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '000000',
     });
 
@@ -196,6 +213,8 @@ describe('POST /vendor-claim', () => {
 
     const res = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '123456',
       category: 'food',
     });
@@ -210,6 +229,8 @@ describe('POST /vendor-claim', () => {
     // claimed category REPLACES the app-supplied one before the rule engine compares it.
     const res = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '123456',
       category: 'Food',
     });
@@ -252,6 +273,8 @@ describe('POST /vendor-claim', () => {
       .mockResolvedValue({ proved: false, reason: 'mismatch' });
     const unproved = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '123456',
       category: 'food',
     });
@@ -276,6 +299,8 @@ describe('POST /vendor-claim', () => {
     });
     const claimed = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '123456',
       category: 'food',
     });
@@ -290,7 +315,7 @@ describe('POST /vendor-claim', () => {
   // locked the real owner out until it lapsed. The uniform 202 meant the owner could not even
   // tell. Now both callers get a real attempt and a real code, and the vendor is won at
   // `/verify` by whoever can actually receive the SMS.
-  it('a second caller gets their own attempt and their own code', async () => {
+  it('a second caller gets their own code, and neither call binds a vendor', async () => {
     const v = await vendorsRepo.promoteIfAbsent(testDb, {
       bankCode: '058',
       accountNumber: '0123456789',
@@ -324,13 +349,15 @@ describe('POST /vendor-claim', () => {
     expect(otp).toHaveBeenCalledTimes(2);
 
     const now = new Date();
-    // Both attempts are live, on the same vendor, neither displacing the other.
+    // And NEITHER call created an attempt row. Under GATE 3 nothing is bound to a vendor until
+    // the OTP is verified, so the ops queue cannot be filled by callers who have proved nothing —
+    // which is also why GATE 2's race cannot return through this endpoint.
     expect(
-      (await vendorClaimsRepo.findPendingByPhone(testDb, '+2348012345678', now))?.vendorId,
-    ).toBe(v.id);
+      await vendorClaimsRepo.findPendingByPhone(testDb, '+2348012345678', now),
+    ).toBeUndefined();
     expect(
-      (await vendorClaimsRepo.findPendingByPhone(testDb, '+2348017654321', now))?.vendorId,
-    ).toBe(v.id);
+      await vendorClaimsRepo.findPendingByPhone(testDb, '+2348017654321', now),
+    ).toBeUndefined();
   });
 
   it('400s a malformed phone rather than passing it downstream', async () => {
@@ -370,6 +397,8 @@ describe('POST /vendor-claim', () => {
 
     const res = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '123456',
       category: 'food',
     });
@@ -398,6 +427,8 @@ describe('POST /vendor-claim', () => {
     vi.spyOn(otpService, 'verifyCode').mockResolvedValue({ kind: 'wrong_code' });
     const bad = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '000000',
       category: 'food',
     });
@@ -414,6 +445,8 @@ describe('POST /vendor-claim', () => {
     });
     const unproved = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '123456',
       category: 'food',
     });
@@ -447,6 +480,8 @@ describe('POST /vendor-claim', () => {
     });
     const res = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '123456',
       category: 'food',
     });
@@ -496,6 +531,8 @@ describe('POST /vendor-claim', () => {
 
     const res = await post('/vendor-claim/verify', {
       phone: '+2348012345678',
+      bankCode: '058',
+      accountNumber: '0123456789',
       code: '123456',
       category: 'food',
     });

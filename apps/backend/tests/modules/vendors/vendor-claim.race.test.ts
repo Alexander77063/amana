@@ -3,6 +3,7 @@ import type { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { otpService } from '../../../src/modules/auth/otp.service';
 import { vendorClaimService } from '../../../src/modules/vendors/vendor-claim.service';
 import { vendorClaimsRepo } from '../../../src/modules/vendors/vendor-claims.repo';
+import { CURRENT_TERMS_VERSION } from '../../../src/modules/vendors/vendor-consent.service';
 import { vendorOwnershipService } from '../../../src/modules/vendors/vendor-ownership.service';
 import { vendorsRepo } from '../../../src/modules/vendors/vendors.repo';
 import { factories } from '../../helpers/factories';
@@ -45,6 +46,7 @@ async function verifyFor(
     accountNumber: v.accountNumber,
     category,
     now: NOW,
+    acceptedTermsVersion: CURRENT_TERMS_VERSION,
   });
 }
 

@@ -6,6 +6,7 @@ import { auditRepo } from '../../../src/modules/audit/audit.repo';
 import { otpService } from '../../../src/modules/auth/otp.service';
 import { vendorClaimService } from '../../../src/modules/vendors/vendor-claim.service';
 import { vendorClaimsRepo } from '../../../src/modules/vendors/vendor-claims.repo';
+import { CURRENT_TERMS_VERSION } from '../../../src/modules/vendors/vendor-consent.service';
 import { vendorOwnershipService } from '../../../src/modules/vendors/vendor-ownership.service';
 import { vendorsRepo } from '../../../src/modules/vendors/vendors.repo';
 import { factories } from '../../helpers/factories';
@@ -111,6 +112,7 @@ describe('vendorClaimService', () => {
         code: '123456',
         category: 'food',
         now: NOW,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       });
 
       expect(r.kind).toBe('claimed');
@@ -140,6 +142,7 @@ describe('vendorClaimService', () => {
         code: '123456',
         category: 'pharmacy',
         now: NOW,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       });
       expect(r.kind).toBe('claimed');
       const after = await vendorsRepo.findByAccount(testDb, v.bankCode, v.accountNumber);
@@ -159,6 +162,7 @@ describe('vendorClaimService', () => {
         code: '000000',
         category: 'food',
         now: NOW,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       });
       expect(r.kind).toBe('invalid_code');
       // Ownership must not even be attempted before the OTP passes — it is a paid Anchor call.
@@ -185,6 +189,7 @@ describe('vendorClaimService', () => {
         code: '123456',
         category: 'food',
         now: NOW,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       });
       expect(r.kind).toBe('ownership_unproved');
       expect((await vendorsRepo.findByAccount(testDb, v.bankCode, v.accountNumber))?.status).toBe(
@@ -206,6 +211,7 @@ describe('vendorClaimService', () => {
         code: '123456',
         category: 'food',
         now: NOW,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       });
       expect(r.kind).toBe('invalid_code');
       expect(prove).not.toHaveBeenCalled();
@@ -228,6 +234,7 @@ describe('vendorClaimService', () => {
         accountNumber: v.accountNumber,
         category: null,
         now: NOW,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       });
       expect(r.kind).toBe('invalid_code');
     });
@@ -255,6 +262,7 @@ describe('vendorClaimService', () => {
         code: '123456',
         category: 'food',
         now: NOW,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       });
       expect(r.kind).toBe('vendor_unavailable');
       // Decided before the paid Anchor lookup.
@@ -281,6 +289,7 @@ describe('vendorClaimService', () => {
         code: '123456',
         category: 'food',
         now: NOW,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       });
       expect(r.kind).toBe('vendor_unavailable');
     });
@@ -301,6 +310,7 @@ describe('vendorClaimService', () => {
         code: '123456',
         category: 'food',
         now: NOW,
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       });
 
       const entries = await auditRepo.listByAction(testDb, 'vendor.claimed');

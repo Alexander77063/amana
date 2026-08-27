@@ -34,6 +34,9 @@ Four consequences, worst first:
 | Maker-checker | **Yes, on destructive actions AND role grants** | A role grant is more dangerous than a suspension: it converts into every other permission |
 | JIT elevation | **In v1**, for money operations | Even an OWNER holds no standing money power; it is requested per session, with expiry and a logged reason |
 | App | **A new Next.js app**, not an extension of the retailer portal | Different audience, different auth, different blast radius. A bug exposing staff tooling to retailers would be severe. |
+| Hosting | **Fly, `jnb`, beside the API — fronted by Cloudflare Access** | Same origin means session cookies just work. **No preview deployments**: Vercel's best feature is a liability for staff tooling, where every branch would get a public URL. Cloudflare Access with Google as IdP means the portal is unreachable without a Workspace login *before* app code runs — two independent gates. |
+| Staff identity domain | **Google Workspace on `elitesolutionshub.com`** — portal refuses any email outside it | Amana staff identity lives on the umbrella company's Workspace. A deliberate choice, noted because it is not an Amana domain. |
+| First owner | `david@elitesolutionshub.com` ⚠️ **CONFIRM** — supplied as `elitesolutionshub..com` (double dot, invalid) | Seeds invariant 6. No endpoint can mint another owner, so a wrong value means a corrective migration. |
 
 ## The role matrix
 
@@ -42,7 +45,7 @@ Four consequences, worst first:
 | `owner` | Money operations (via JIT elevation), break-glass | **Grant roles** |
 | `admin` | Onboard admins, assign and revoke roles | Touch money, read customer data |
 | `ops` | Vendor/retailer lifecycle: claim queue, approve, suspend, category, KYB | Money, IAM, unrestricted customer data |
-| `support` | Read-only customer lookup — household, wallets, rules, transactions | Any write, anywhere |
+| `support` | Help a customer **only after that customer verifies electronically** (Task 6). Sees masked account, amounts, rule outcomes | Any write. **BVN and NIN — absent, not masked.** Full account numbers, names, anything before the verification |
 | `auditor` | Read everything **including the audit log** | Any write, anywhere |
 
 ## Invariants — enforced in code, not policy
@@ -113,23 +116,86 @@ extra steps.
 Next.js app: sign-in, the ops surfaces, the IAM screens, an approvals inbox. Tokens duplicated in
 CSS as the retailer portal does (same accepted cost, same reason).
 
-### Task 6 — Support lookup
-Read-only household/wallet/rules/transaction views for `support`. **Every read is audited** — staff
-reading customer financial data is itself an event worth recording.
+### Task 6 — Support: verify the customer *before* the conversation, and see almost nothing
+
+Reframed from "support lookup" on Alex's instruction, and it is a materially better design.
+
+**The customer is verified electronically; support never sees who they are.** Support asks for a
+phone number, types it in, and gets back one bit: verified, or nothing.
+
+```
+CUSTOMER phones support
+  └── support enters the number the caller states
+        └── ALWAYS answers "verification sent" — never "no such customer"
+              (a staff-facing enumeration oracle is still an enumeration oracle;
+               same reasoning as PRE-LAUNCH GATE 3)
+        ├── push to the customer's app: "Are you speaking to Amana support? Approve"
+        │     (expo-push.provider.ts — the rail already exists)
+        └── falls back to an SMS code they read back
+              (termii-sms.provider.ts — likewise)
+
+  └── support's screen flips to: ✅ VERIFIED · session expires in 15 min
+        and NOTHING else identifying
+```
+
+**What support may see after verification — and it is deliberately little:**
+
+| Visible | Never visible |
+|---|---|
+| Masked account (`••••1234`) | Full account number |
+| Transaction amounts, times, status, denial reasons | **BVN, NIN** — not masked, *absent* |
+| Rule names and whether a rule denied a spend | Full name, address, date of birth |
+| Wallet balances | Anything before this verification |
+
+This answers the open question from the first draft: **`support` never sees BVN or NIN.** Alex's
+instruction was "without the support seeing any of the customer details", and the resolution is that
+verification is what unlocks *helping*, not what unlocks *looking*.
+
+**Every read is audited with `actorUserId` and the verification id**, so "which operator read this
+customer's transactions, under which verified session" is answerable. Reading customer financial
+data is itself an event.
+
+**Verification expires** (15 min, tunable). A new call is a new verification — support cannot hold a
+session open and reuse it for the next caller.
 
 ### Task 7 — JIT elevation and money operations
 Elevation request/approve/expire, then the money surfaces behind it. Last deliberately: it is the
 highest-risk surface and should land on an IAM that has been exercised.
 
-## Open questions for Alex — needed before Task 1
+## Open questions — answered 2026-08-28
 
-- **Workspace domain?** Which Google Workspace domain do staff accounts live on — and should the
-  portal refuse any email outside it?
-- **First owner email?** The seeded value for invariant 6.
-- **Hosting?** Fly alongside the API, or Vercel like the retailer portal? Affects the OAuth redirect
-  URI and the session cookie domain.
-- **Is `support` allowed to see full account numbers and BVN/NIN?** Currently the API returns them
-  to authorised callers; a support tier probably should not. Needs a decision, not a default.
+- ~~Workspace domain~~ → `elitesolutionshub.com`, and the portal **refuses any email outside it**.
+- ~~First owner~~ → `david@elitesolutionshub.com` ⚠️ **pending confirmation of the typo**.
+- ~~Hosting~~ → Fly `jnb` + Cloudflare Access. See Decisions.
+- ~~Support and BVN/NIN~~ → **never**. Resolved by the Task 6 redesign: support sees a verification
+  result, not an identity.
+
+### Still open, and blocking
+
+- **The Workspace does not exist yet.** `elitesolutionshub.com` needs a Google Workspace tenant, an
+  OAuth app, and the redirect URI before Task 1 can be tested against anything real. Task 1 can be
+  *built* against a stub, but not verified.
+- **Call recording (below) needs a platform decision** that is not Amana's to make in code.
+
+## Call recording — flagged, not planned here
+
+Alex asked for support conversations to be recorded, with the customer informed. Agreed in
+principle, and deliberately **not** folded into this sub-plan, because it is not primarily an Amana
+build:
+
+- **Amana has no telephony.** Recording requires a call platform (a helpdesk or contact-centre
+  provider). Which one decides everything else — where audio lives, for how long, and who can press
+  play.
+- **A recording is personal data**, and a sensitive kind. It needs its own NDPA basis, a retention
+  period, and access control — realistically `auditor` only, never `support`, because the person on
+  the call should not be able to re-listen to other people's.
+- **The notice must be given before recording starts**, not in terms accepted months earlier. That
+  is a script and a system prompt, not a paragraph in a document.
+- **It interacts with Task 6.** If the caller is not yet verified, the recording captures an
+  unverified person — so recording should start at the *point of contact*, and the verification
+  result should be stamped into the recording's metadata.
+
+Sub-plan **A2** should cover it, once the platform is chosen.
 
 ## Self-review
 

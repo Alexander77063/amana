@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS "vendor_claim_attempts_one_pending";--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "vendor_claim_attempts_one_pending_per_phone" ON "vendor_claim_attempts" USING btree ("vendor_id","phone") WHERE status = 'pending';

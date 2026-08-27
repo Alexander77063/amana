@@ -6,9 +6,6 @@ import { testDb, truncateAll } from '../../helpers/test-db';
 
 const NOW = new Date('2026-09-01T10:00:00Z');
 const LATER = new Date('2026-09-01T10:30:00Z');
-// `now - VENDOR_CLAIM_MAX_HOLD_SECONDS` for a caller at NOW: any row created before this
-// instant is past the absolute hold ceiling and may no longer be renewed.
-const RENEWABLE_SINCE = new Date('2026-09-01T09:00:00Z');
 
 async function aVendor() {
   const v = await vendorsRepo.promoteIfAbsent(testDb, {
@@ -27,29 +24,109 @@ describe('vendorClaimsRepo', () => {
     await truncateAll();
   });
 
-  it('opens one attempt and refuses a concurrent second', async () => {
+  // Inverted closing PRE-LAUNCH GATE 2. This test used to assert that a second phone got `null`
+  // — "the land-grab guard" — which is the vulnerability stated as a requirement: `/request`
+  // proves nothing about phone ownership, so that guard protected whoever called first, attacker
+  // included. Concurrency is still bounded, just per (vendor, phone) rather than per vendor.
+  it('lets a SECOND phone open its own attempt on the same vendor', async () => {
     const v = await aVendor();
     const first = await vendorClaimsRepo.openAttempt(testDb, {
       vendorId: v.id,
       phone: factories.phone(),
       expiresAt: LATER,
       now: NOW,
-      renewableSince: RENEWABLE_SINCE,
     });
     if (!first) throw new Error('open failed');
     expect(first.status).toBe('pending');
+
     const second = await vendorClaimsRepo.openAttempt(testDb, {
       vendorId: v.id,
       phone: factories.phone(),
-      // A LATER expiry than the incumbent's would be the giveaway if the different-phone branch
-      // ever started re-dating: the land-grab guard must be a pure no-op, not a silent renewal.
       expiresAt: new Date('2026-09-01T23:00:00Z'),
       now: NOW,
-      renewableSince: RENEWABLE_SINCE,
     });
-    expect(second).toBeNull();
+    expect(second).not.toBeNull();
+    expect(second?.status).toBe('pending');
+
+    // The incumbent is untouched — a second caller neither displaces nor re-dates it.
     const incumbent = await vendorClaimsRepo.findPendingByPhone(testDb, first.phone, NOW);
+    expect(incumbent?.id).toBe(first.id);
     expect(incumbent?.expiresAt.getTime()).toBe(LATER.getTime());
+  });
+
+  it('a repeat open from the SAME phone renews its own row rather than adding another', async () => {
+    const v = await aVendor();
+    const phone = factories.phone();
+    const first = await vendorClaimsRepo.openAttempt(testDb, {
+      vendorId: v.id,
+      phone,
+      expiresAt: LATER,
+      now: NOW,
+    });
+    if (!first) throw new Error('open failed');
+
+    const renewed = await vendorClaimsRepo.openAttempt(testDb, {
+      vendorId: v.id,
+      phone,
+      expiresAt: new Date('2026-09-01T23:00:00Z'),
+      now: NOW,
+    });
+    expect(renewed?.id).toBe(first.id);
+    expect(renewed?.expiresAt.getTime()).toBe(new Date('2026-09-01T23:00:00Z').getTime());
+  });
+
+  // The honest-owner trap the old ceiling created: a row past the ceiling that had not yet lapsed
+  // could not be renewed, so `openAttempt` returned null and the OWNER — whose row it was — got
+  // the uniform 202 with no code. With no exclusivity there is nothing left to ration, so an old
+  // row simply renews.
+  it('renews the same phone even on a very old row — no ceiling to strand the owner', async () => {
+    const v = await aVendor();
+    const phone = factories.phone();
+    const ancient = await vendorClaimsRepo.openAttempt(testDb, {
+      vendorId: v.id,
+      phone,
+      expiresAt: LATER,
+      now: NOW,
+    });
+    if (!ancient) throw new Error('open failed');
+
+    const muchLater = new Date('2026-09-02T18:00:00Z');
+    const renewed = await vendorClaimsRepo.openAttempt(testDb, {
+      vendorId: v.id,
+      phone,
+      expiresAt: new Date('2026-09-02T18:30:00Z'),
+      now: muchLater,
+    });
+    expect(renewed).not.toBeNull();
+    expect(renewed?.id).toBe(ancient.id);
+  });
+
+  it('closes the other pending attempts on a vendor when one is verified', async () => {
+    const v = await aVendor();
+    const winnerPhone = factories.phone();
+    const loserPhone = factories.phone();
+    const winner = await vendorClaimsRepo.openAttempt(testDb, {
+      vendorId: v.id,
+      phone: winnerPhone,
+      expiresAt: LATER,
+      now: NOW,
+    });
+    const loser = await vendorClaimsRepo.openAttempt(testDb, {
+      vendorId: v.id,
+      phone: loserPhone,
+      expiresAt: LATER,
+      now: NOW,
+    });
+    if (!winner || !loser) throw new Error('open failed');
+
+    const closed = await vendorClaimsRepo.rejectOtherPendingForVendor(testDb, v.id, winner.id);
+    expect(closed).toBe(1);
+
+    expect(await vendorClaimsRepo.findPendingByPhone(testDb, loserPhone, NOW)).toBeUndefined();
+    // The winner is deliberately left alone — `markVerified` is what moves it on.
+    expect((await vendorClaimsRepo.findPendingByPhone(testDb, winnerPhone, NOW))?.id).toBe(
+      winner.id,
+    );
   });
 
   it('finds a pending attempt by phone, but not an expired one', async () => {
@@ -60,7 +137,6 @@ describe('vendorClaimsRepo', () => {
       phone,
       expiresAt: LATER,
       now: NOW,
-      renewableSince: RENEWABLE_SINCE,
     });
 
     expect(await vendorClaimsRepo.findPendingByPhone(testDb, phone, NOW)).toBeDefined();
@@ -75,7 +151,6 @@ describe('vendorClaimsRepo', () => {
       phone: factories.phone(),
       expiresAt: LATER,
       now: NOW,
-      renewableSince: RENEWABLE_SINCE,
     });
     if (!a) throw new Error('open failed');
     expect(await vendorClaimsRepo.markVerified(testDb, a.id, 'phone_lookup', NOW)).toBe(true);
@@ -90,14 +165,12 @@ describe('vendorClaimsRepo', () => {
       phone: factories.phone(),
       expiresAt: NOW,
       now: NOW,
-      renewableSince: RENEWABLE_SINCE,
     });
     await vendorClaimsRepo.openAttempt(testDb, {
       vendorId: v2.id,
       phone: factories.phone(),
       expiresAt: new Date('2026-09-02T00:00:00Z'),
       now: NOW,
-      renewableSince: RENEWABLE_SINCE,
     });
     expect(await vendorClaimsRepo.expireOverdue(testDb, LATER)).toBe(1);
   });
@@ -107,136 +180,6 @@ describe('vendorClaimsRepo', () => {
   // These tests therefore build their instants from `new Date()`, or the ceiling would be crossed
   // by six days of calendar skew rather than by the thing under test.
   const HOUR = 3_600_000;
-
-  it('renews a hold inside the ceiling, and refuses to extend it past the ceiling', async () => {
-    const v = await aVendor();
-    const phone = factories.phone();
-    const t0 = new Date();
-    // A deliberately long TTL so the row stays UNEXPIRED throughout. If it lapsed, the inline
-    // expiry would release the slot and this test would prove that instead of the ceiling.
-    const opened = await vendorClaimsRepo.openAttempt(testDb, {
-      vendorId: v.id,
-      phone,
-      expiresAt: new Date(t0.getTime() + 10 * HOUR),
-      now: t0,
-      renewableSince: new Date(t0.getTime() - HOUR),
-    });
-    if (!opened) throw new Error('open failed');
-
-    // Ten minutes on, well inside VENDOR_CLAIM_MAX_HOLD_SECONDS: the same phone renews, which is
-    // what unlocks the legitimate retry after `409 ownership_unproved`.
-    const inside = new Date(t0.getTime() + 10 * 60_000);
-    const renewed = await vendorClaimsRepo.openAttempt(testDb, {
-      vendorId: v.id,
-      phone,
-      expiresAt: new Date(t0.getTime() + 11 * HOUR),
-      now: inside,
-      renewableSince: new Date(inside.getTime() - HOUR),
-    });
-    expect(renewed?.id).toBe(opened.id);
-    expect(renewed?.expiresAt.getTime()).toBe(t0.getTime() + 11 * HOUR);
-
-    // Two hours on, past the ceiling. Renewal is refused and — the part that matters — the slot's
-    // expiry is NOT pushed out. Without this an attacker holding a phone STRING they do not
-    // control renews for ever, squatting the vendor and blocking that number from every other one.
-    const past = new Date(t0.getTime() + 2 * HOUR);
-    const refused = await vendorClaimsRepo.openAttempt(testDb, {
-      vendorId: v.id,
-      phone,
-      expiresAt: new Date(past.getTime() + 15 * 60_000),
-      now: past,
-      renewableSince: new Date(past.getTime() - HOUR),
-    });
-    expect(refused).toBeNull();
-    const held = await vendorClaimsRepo.findPendingByPhone(testDb, phone, past);
-    expect(held?.expiresAt.getTime()).toBe(t0.getTime() + 11 * HOUR);
-
-    // And once that un-extended expiry lapses the slot really is claimable again — by anyone,
-    // released inline rather than by the hourly sweep.
-    const afterLapse = new Date(t0.getTime() + 12 * HOUR);
-    const other = factories.phone();
-    const taken = await vendorClaimsRepo.openAttempt(testDb, {
-      vendorId: v.id,
-      phone: other,
-      expiresAt: new Date(afterLapse.getTime() + 15 * 60_000),
-      now: afterLapse,
-      renewableSince: new Date(afterLapse.getTime() - HOUR),
-    });
-    expect(taken?.phone).toBe(other);
-  });
-
-  it('expires a lapsed pending row inline instead of waiting for the hourly sweep', async () => {
-    const v = await aVendor();
-    const first = factories.phone();
-    const t0 = new Date();
-    await vendorClaimsRepo.openAttempt(testDb, {
-      vendorId: v.id,
-      phone: first,
-      expiresAt: new Date(t0.getTime() + 30 * 60_000),
-      now: t0,
-      renewableSince: new Date(t0.getTime() - HOUR),
-    });
-
-    // An hour on the row has lapsed, but `vendor-registry-sweep.job` only runs at 17 past, so up
-    // to ~59 minutes of the old behaviour was a slot nobody could take.
-    const later = new Date(t0.getTime() + HOUR);
-    const second = factories.phone();
-    const fresh = await vendorClaimsRepo.openAttempt(testDb, {
-      vendorId: v.id,
-      phone: second,
-      expiresAt: new Date(later.getTime() + 15 * 60_000),
-      now: later,
-      renewableSince: new Date(later.getTime() - HOUR),
-    });
-    expect(fresh?.phone).toBe(second);
-
-    // The lapsed row was moved to `expired`, not merely stepped over. `findPendingByPhone` at the
-    // epoch matches on status alone (every `expires_at` is after 1970), so an undefined result
-    // here means the status really changed.
-    expect(await vendorClaimsRepo.findPendingByPhone(testDb, first, new Date(0))).toBeUndefined();
-  });
-
-  it('lets the SAME phone re-take a lapsed slot on a NEW row — the ceiling bounds one hold, not the total', async () => {
-    // This pins the ceiling's actual security posture, which the two tests above leave open: they
-    // both hand the post-lapse takeover to a DIFFERENT phone, so neither says what happens when
-    // the squatter simply comes back. The answer is that it re-inserts — a fresh row, a fresh
-    // `created_at`, a fresh hour — which is why the runbook says the ceiling bounds any single
-    // hold rather than total harassment, and why PRE-LAUNCH GATE 2 is still open.
-    //
-    // Asserting a NEW id is the load-bearing part. Scoping the inline release to `phone`, or
-    // adding `createdAt` to it, would silently turn this into a renewal and reset the ceiling
-    // without extending it — a strictly worse posture that nothing else in this file would catch.
-    const v = await aVendor();
-    const squatter = factories.phone();
-    const t0 = new Date();
-    const first = await vendorClaimsRepo.openAttempt(testDb, {
-      vendorId: v.id,
-      phone: squatter,
-      expiresAt: new Date(t0.getTime() + 15 * 60_000),
-      now: t0,
-      renewableSince: new Date(t0.getTime() - HOUR),
-    });
-    if (!first) throw new Error('open failed');
-
-    // Past both the row's expiry and its ceiling, so renewal is refused and the inline release
-    // fires instead. The same phone comes straight back.
-    const afterLapse = new Date(t0.getTime() + 2 * HOUR);
-    const retaken = await vendorClaimsRepo.openAttempt(testDb, {
-      vendorId: v.id,
-      phone: squatter,
-      expiresAt: new Date(afterLapse.getTime() + 15 * 60_000),
-      now: afterLapse,
-      renewableSince: new Date(afterLapse.getTime() - HOUR),
-    });
-    expect(retaken).not.toBeNull();
-    expect(retaken?.id).not.toBe(first.id);
-    expect(retaken?.phone).toBe(squatter);
-    // The old row was released, not left pending alongside the new one — the partial unique index
-    // permits exactly one pending row per vendor, so a stale one would have blocked this insert.
-    expect(await vendorClaimsRepo.findPendingByPhone(testDb, squatter, afterLapse)).toMatchObject({
-      id: retaken?.id,
-    });
-  });
 
   it('claims a vendor from observed and refuses a second claim', async () => {
     const v = await aVendor();

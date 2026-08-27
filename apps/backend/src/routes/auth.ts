@@ -6,6 +6,7 @@ import { type ActorVariables, jwtAuth } from '../middleware/jwt-auth';
 import { otpService } from '../modules/auth/otp.service';
 import { pairingService } from '../modules/auth/pairing.service';
 import { sessionService } from '../modules/auth/session.service';
+import { requiredTermsVersion, userConsentService } from '../modules/identity/user-consent.service';
 import { usersRepo } from '../modules/identity/users.repo';
 
 const PHONE_RE = /^\+\d{8,15}$/;
@@ -21,6 +22,12 @@ const OtpVerifySchema = z.object({
   pairingCode: z.string().optional(),
   nin: z.string().optional(),
   bvn: z.string().optional(),
+  /**
+   * The terms version the app displayed. Required when this call CREATES a user (either role);
+   * ignored on an ordinary sign-in, because an existing user already accepted at sign-up and
+   * re-prompting them is a separate flow that does not exist yet.
+   */
+  acceptedTermsVersion: z.string().min(1).max(40).optional(),
 });
 
 const RefreshSchema = z.object({
@@ -72,11 +79,26 @@ export const authRoute = new Hono()
 
     if (!user && body.pairingCode) {
       if (!body.nin) return c.json({ error: 'nin_required_for_signup' }, 400);
+      // Checked BEFORE the user row is created. A user that exists with no recorded acceptance is
+      // someone whose data we are processing with no lawful basis — the gap this closes — and
+      // creating them first would leave exactly that row behind on the error path.
+      if (!userConsentService.isCurrentTermsVersion('agent', body.acceptedTermsVersion)) {
+        return c.json(
+          { error: 'terms_not_accepted', requiredVersion: requiredTermsVersion('agent') },
+          400,
+        );
+      }
       user = await usersRepo.insert(db, {
         role: 'agent',
         phone: body.phone,
         nin: body.nin,
         kycTier: '1',
+      });
+      await userConsentService.recordAcceptance(db, {
+        userId: user.id,
+        termsVersion: requiredTermsVersion('agent'),
+        source: 'signup',
+        now: new Date(),
       });
       const consumed = await pairingService.consume(db, {
         code: body.pairingCode,
@@ -89,12 +111,24 @@ export const authRoute = new Hono()
     if (!user) {
       if (!body.nin || !body.bvn)
         return c.json({ error: 'nin_and_bvn_required_for_principal_signup' }, 400);
+      if (!userConsentService.isCurrentTermsVersion('principal', body.acceptedTermsVersion)) {
+        return c.json(
+          { error: 'terms_not_accepted', requiredVersion: requiredTermsVersion('principal') },
+          400,
+        );
+      }
       user = await usersRepo.insert(db, {
         role: 'principal',
         phone: body.phone,
         nin: body.nin,
         bvn: body.bvn,
         kycTier: '1',
+      });
+      await userConsentService.recordAcceptance(db, {
+        userId: user.id,
+        termsVersion: requiredTermsVersion('principal'),
+        source: 'signup',
+        now: new Date(),
       });
     }
 

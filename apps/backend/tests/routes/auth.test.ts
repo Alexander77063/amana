@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as codes from '../../src/modules/auth/codes';
 import { sessionService } from '../../src/modules/auth/session.service';
+import { PRINCIPAL_TERMS_VERSION } from '../../src/modules/identity/user-consent.service';
 import { usersRepo } from '../../src/modules/identity/users.repo';
 import { createServer } from '../../src/server';
 import { factories } from '../helpers/factories';
@@ -61,6 +62,9 @@ describe('POST /auth/otp/verify (principal signup)', () => {
         code: '123456',
         nin: '12345678901',
         bvn: '12345678901',
+        // Required since sign-up records an NDPA lawful basis. Refusing it is covered in
+        // tests/routes/auth-terms.test.ts; this test is about the happy path returning tokens.
+        acceptedTermsVersion: PRINCIPAL_TERMS_VERSION,
       }),
     });
     expect(res.status).toBe(200);

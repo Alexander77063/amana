@@ -4,6 +4,17 @@ export type OtpChallengeRow = typeof phoneOtpChallenges.$inferSelect;
 export type AuthSessionRow = typeof authSessions.$inferSelect;
 export type PairingTokenRow = typeof pairingTokens.$inferSelect;
 
+/**
+ * What an OTP challenge was minted for.
+ *
+ * **Adding a value here is not a one-line change.** `verifyCode` refuses a challenge whose purpose
+ * is not in the caller's `allowedPurposes` (`otp.service.ts`), so every existing call site keeps
+ * working — which is exactly the point, and also why a new purpose is easy to add carelessly.
+ * Decide deliberately, per call site, whether it belongs in that site's allow-list; the default of
+ * "no" is the safe one. `requestCode` also invalidates a phone's active challenges before inserting,
+ * so a new purpose reachable from an unauthenticated endpoint can cancel someone's in-flight login
+ * OTP — weigh that before exposing one.
+ */
 export type OtpPurpose = 'login' | 'pair';
 
 /**

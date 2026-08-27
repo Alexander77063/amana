@@ -65,7 +65,12 @@ describe('vendorClaimService', () => {
       expect(await vendorClaimsRepo.findPendingByPhone(testDb, phone, NOW)).toBeDefined();
     });
 
-    it('does not open a second attempt when the phone already has a pending one on a different vendor', async () => {
+    // Inverted closing PRE-LAUNCH GATE 2. This asserted that a phone already pending on v1 got
+    // NO second code for v2 — the cross-vendor guard. Because `/request` proves nothing about
+    // phone ownership, that guard was equally available to an attacker: opening an attempt under
+    // a victim's number blocked that number from claiming anywhere else, for as long as the hold
+    // lasted. Exclusivity now waits for `/verify`, so the guard is gone and both requests stand.
+    it('lets a phone already pending on one vendor start a claim on another', async () => {
       const phone = factories.phone();
       const v1 = await aPromotedVendor();
       const otp = vi
@@ -91,25 +96,15 @@ describe('vendorClaimService', () => {
       });
       await drainBackgroundTasks();
 
-      // Indistinguishable from every other outcome — the non-oracle contract holds even here.
       expect(r2.accepted).toBe(true);
-      // No second OTP: the phone was already mid-claim on v1, so v2's request is a no-op.
-      expect(otp).toHaveBeenCalledTimes(1);
+      // A second code really is sent now — the caller asked about a different vendor.
+      expect(otp).toHaveBeenCalledTimes(2);
 
-      // v1's attempt is untouched and still the one on file for this phone.
+      // Newest-first: the live `vendor_claim` code belongs to the most recent request, because
+      // `requestCode` supersedes the previous challenge of the same purpose. So `verify` must
+      // resolve v2, not v1.
       const pending = await vendorClaimsRepo.findPendingByPhone(testDb, phone, NOW);
-      expect(pending?.vendorId).toBe(v1.id);
-
-      // No attempt row was ever created for v2 — proved by the vendor-scoped unique index: a
-      // direct open still succeeds (it would return null if a pending row already existed).
-      const directOpenForV2 = await vendorClaimsRepo.openAttempt(testDb, {
-        vendorId: v2.id,
-        phone: factories.phone(),
-        expiresAt: NOW,
-        now: NOW,
-        renewableSince: new Date(NOW.getTime() - 3_600_000),
-      });
-      expect(directOpenForV2).not.toBeNull();
+      expect(pending?.vendorId).toBe(v2.id);
     });
 
     it('sends NO OTP for an account that is not in the registry', async () => {

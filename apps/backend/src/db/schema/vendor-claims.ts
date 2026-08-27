@@ -35,11 +35,25 @@ export const vendorClaimAttempts = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    // At most one pending attempt per vendor. A partial unique index rather than a plain one so
-    // that the historical expired/rejected rows are unconstrained: without the WHERE clause a
-    // vendor could never be retried after a failed claim.
-    onePending: uniqueIndex('vendor_claim_attempts_one_pending')
-      .on(t.vendorId)
+    // At most one pending attempt per vendor PER PHONE — not one per vendor.
+    //
+    // Scoped on phone deliberately (PRE-LAUNCH GATE 2, docs/runbook/vendor-claim.md). Keyed on
+    // `vendorId` alone, a `pending` row was an EXCLUSIVE slot that `/request` handed out with no
+    // proof of anything: nothing there establishes that the caller controls the phone they
+    // submitted, it is a string in a request body. So anyone who knew a vendor's account number —
+    // printed on shop POS stickers, not secret — could take the slot and lock the real owner out
+    // until it lapsed.
+    //
+    // Exclusivity now happens at `/verify`, where the OTP proves phone control, and the claim
+    // transaction closes the losing attempts. Someone who cannot receive the SMS holds nothing,
+    // so the race stops existing rather than being bounded by a timer.
+    //
+    // Still partial, for the original reason: historical expired/rejected rows must be
+    // unconstrained or a vendor could never be retried after a failed claim. Still unique per
+    // (vendor, phone) so a repeat request from the same phone renews its own row instead of
+    // piling up duplicates.
+    onePendingPerPhone: uniqueIndex('vendor_claim_attempts_one_pending_per_phone')
+      .on(t.vendorId, t.phone)
       .where(sql`status = 'pending'`),
     phoneIdx: index('vendor_claim_attempts_phone_idx').on(t.phone),
   }),

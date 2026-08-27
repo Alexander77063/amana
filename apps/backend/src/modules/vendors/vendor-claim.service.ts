@@ -73,42 +73,30 @@ export const vendorClaimService = {
       const vendor = await vendorsRepo.findByAccount(db, input.bankCode, input.accountNumber);
       if (!vendor || vendor.status !== 'observed') return { accepted: true };
 
-      // A phone can only ever be mid-claim on one vendor at a time. Without this check, a caller
-      // who does not control the phone (proof only happens at verify) could pile a second pending
-      // attempt onto a victim's phone for a different vendor, stranding the victim's real attempt
-      // and burning a paid Anchor lookup when it later gets picked non-deterministically. This
-      // closes the interleaving where the attacker arrives while a legitimate attempt is already
-      // open; it cannot stop an attacker who calls first — that race is bounded by the route's
-      // rate limiter (Task 6) and by the hold ceiling below, not by this check.
-      const existingForPhone = await vendorClaimsRepo.findPendingByPhone(
-        db,
-        input.phone,
-        input.now,
-      );
-      if (existingForPhone && existingForPhone.vendorId !== vendor.id) return { accepted: true };
-
+      // No cross-vendor check, and no per-vendor land-grab guard, deliberately (PRE-LAUNCH GATE 2).
+      //
+      // Both used to live here, and both were enforced against a caller who had proved nothing:
+      // `/request` never establishes that the caller controls the phone they submitted — it is a
+      // string in a request body. So the guards were as available to an attacker as to an owner,
+      // and whoever called FIRST held the vendor's only slot and blocked that phone number from
+      // claiming anywhere else. Exclusivity now waits for `/verify`, where the OTP proves phone
+      // control, and the claim transaction closes the losing attempts. Someone who cannot receive
+      // the SMS holds nothing.
+      //
+      // Several attempts pending on one vendor is therefore normal, and so is one phone pending on
+      // several vendors. `findPendingByPhone` orders newest-first, and — since Gate 1 scoped OTP
+      // invalidation by purpose while still superseding within a purpose — a phone has exactly one
+      // live `vendor_claim` code at a time: the one its most recent request minted. Newest-first is
+      // precisely the row that code belongs to.
       const expiresAt = new Date(input.now.getTime() + env.VENDOR_CLAIM_TTL_SECONDS * 1000);
-      // Derived from the caller's `now`, like `expiresAt` above: one clock for both bounds, and a
-      // ceiling that is reproducible in tests. `createdAt` on the other side of the comparison IS
-      // Postgres-written (`defaultNow()`), so a few seconds of app/DB skew do ride on this —
-      // accepted, against an hour.
-      const renewableSince = new Date(
-        input.now.getTime() - env.VENDOR_CLAIM_MAX_HOLD_SECONDS * 1000,
-      );
       const attempt = await vendorClaimsRepo.openAttempt(db, {
         vendorId: vendor.id,
         phone: input.phone,
         expiresAt,
         now: input.now,
-        renewableSince,
       });
-      // Null means the vendor's one pending slot is held and could not be taken: by a DIFFERENT
-      // phone (the land-grab guard), or by THIS phone on a row already past
-      // `VENDOR_CLAIM_MAX_HOLD_SECONDS` and not yet lapsed. Either way, the same uniform response
-      // as every other outcome. A repeat request from the same phone inside the ceiling is not
-      // null: `openAttempt` recovers and re-dates the existing row, so the OTP below is re-sent.
-      // That is what lets a claimant retry after the `409 ownership_unproved` path, which consumes
-      // the code but deliberately leaves the attempt `pending` for ops.
+      // Null now means only that the row changed status underneath us — a concurrent verify or
+      // sweep — rather than "someone else holds the slot". Same uniform response either way.
       if (!attempt) return { accepted: true };
 
       // Detached and on the connection pool, not the caller's `db` handle: this call must not
@@ -213,6 +201,11 @@ export const vendorClaimService = {
       if (!claimedRow) return null;
 
       await vendorClaimsRepo.markVerified(txDb, attempt.id, verdict.proof, input.now);
+      // Everyone else who had an attempt open on this vendor has just lost it — the vendor is
+      // claimed and cannot be claimed again. Closing them here, in the same transaction as the
+      // claim, is what keeps "several pending attempts per vendor" from leaving phantom ops-queue
+      // rows behind, and stops `findPendingByPhone` handing a dead attempt to a later `/verify`.
+      await vendorClaimsRepo.rejectOtherPendingForVendor(txDb, vendor.id, attempt.id);
       await auditRepo.append(txDb, {
         actorKind: 'system',
         action: 'vendor.claimed',

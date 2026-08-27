@@ -284,7 +284,13 @@ describe('POST /vendor-claim', () => {
     expect(body.publicCode).toMatch(/^AMNV-/);
   });
 
-  it('keeps the land-grab guard: a repeat /request from a DIFFERENT phone is a silent no-op', async () => {
+  // Inverted closing PRE-LAUNCH GATE 2. The old name said it plainly — "keeps the land-grab
+  // guard" — and the guard was the vulnerability: `/request` proves nothing about phone
+  // ownership, so whoever called FIRST, with any phone string, held the vendor's only slot and
+  // locked the real owner out until it lapsed. The uniform 202 meant the owner could not even
+  // tell. Now both callers get a real attempt and a real code, and the vendor is won at
+  // `/verify` by whoever can actually receive the SMS.
+  it('a second caller gets their own attempt and their own code', async () => {
     const v = await vendorsRepo.promoteIfAbsent(testDb, {
       bankCode: '058',
       accountNumber: '0123456789',
@@ -310,19 +316,21 @@ describe('POST /vendor-claim', () => {
       accountNumber: '0123456789',
       phone: '+2348017654321',
     });
-    // Indistinguishable response, no second code: whoever opened the attempt has proved nothing
-    // yet, so letting a second caller take the slot is the attack the index exists to stop.
+    // The response is still byte-identical — the non-oracle contract is unchanged by this, and
+    // was never what the land-grab guard was for.
     expect(theirs.status).toBe(mine.status);
     expect(await theirs.text()).toBe(await mine.text());
     await drainBackgroundTasks();
-    expect(otp).toHaveBeenCalledTimes(1);
+    expect(otp).toHaveBeenCalledTimes(2);
 
     const now = new Date();
-    const held = await vendorClaimsRepo.findPendingByPhone(testDb, '+2348012345678', now);
-    expect(held?.vendorId).toBe(v.id);
+    // Both attempts are live, on the same vendor, neither displacing the other.
     expect(
-      await vendorClaimsRepo.findPendingByPhone(testDb, '+2348017654321', now),
-    ).toBeUndefined();
+      (await vendorClaimsRepo.findPendingByPhone(testDb, '+2348012345678', now))?.vendorId,
+    ).toBe(v.id);
+    expect(
+      (await vendorClaimsRepo.findPendingByPhone(testDb, '+2348017654321', now))?.vendorId,
+    ).toBe(v.id);
   });
 
   it('400s a malformed phone rather than passing it downstream', async () => {

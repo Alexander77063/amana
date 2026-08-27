@@ -68,6 +68,20 @@ export type TxnIntent = {
    * the correct reading of "only these merchants".
    */
   retailerId: string | null;
+  /**
+   * The registry vendor this spend resolved to. Attribution and audit ONLY — no evaluator reads
+   * this field. In particular it is NOT a second `retailerId`: vendor identity and marketplace
+   * retailer identity are separate namespaces, and `evaluateMerchant` still denies any intent
+   * whose `retailerId` is null, bank transfers included.
+   */
+  vendorId: string | null;
+  /**
+   * What the registry says this vendor's category is, recorded whether or not it was enforced.
+   * When enforcement is on for the household AND the category is claimed or ops-set, this value
+   * is what `category` above was populated from; otherwise `category` is the app-supplied string
+   * and this field is the counterfactual.
+   */
+  resolvedCategory: string | null;
   vendorBankCode: string | null;
   vendorAccountNumber: string | null;
   vendorResolvedName: string | null;

@@ -22,6 +22,8 @@ describe('replay corpus runner', () => {
       vendorBankCode: '058',
       vendorAccountNumber: '0123456789',
       vendorResolvedName: 'MAMA',
+      vendorId: null,
+      resolvedCategory: null,
       confirmedAt: new Date('2026-05-03T12:00:00Z'),
     };
     const ruleSet = { id: 'rs', subWalletId: 'sw', version: 1, rules: [] };

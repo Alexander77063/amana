@@ -29,3 +29,39 @@ describe('loadEnv', () => {
     expect(env.ANCHOR_WEBHOOK_SECRET).toBeUndefined();
   });
 });
+
+describe('vendor registry config', () => {
+  it('defaults enforcement OFF and supplies registry thresholds', () => {
+    const parsed = loadEnv({ NODE_ENV: 'test' });
+    expect(parsed.VENDOR_CATEGORY_ENFORCE_DEFAULT).toBe(false);
+    expect(parsed.VENDOR_REGISTRY_MIN_HOUSEHOLDS).toBe(5);
+    expect(parsed.VENDOR_REGISTRY_CONSENSUS_MIN_HOUSEHOLDS).toBe(8);
+    expect(parsed.VENDOR_REGISTRY_CONSENSUS_RATIO).toBe(0.6);
+    expect(parsed.VENDOR_OBSERVATION_RETENTION_DAYS).toBe(180);
+  });
+
+  it('only the exact string "true" enables enforcement', () => {
+    expect(
+      loadEnv({ NODE_ENV: 'test', VENDOR_CATEGORY_ENFORCE_DEFAULT: 'true' })
+        .VENDOR_CATEGORY_ENFORCE_DEFAULT,
+    ).toBe(true);
+    for (const v of ['false', '1', 'yes', 'TRUE', '']) {
+      expect(
+        loadEnv({ NODE_ENV: 'test', VENDOR_CATEGORY_ENFORCE_DEFAULT: v })
+          .VENDOR_CATEGORY_ENFORCE_DEFAULT,
+      ).toBe(false);
+    }
+  });
+
+  it('parses sensitive categories to a trimmed lowercase list', () => {
+    const parsed = loadEnv({
+      NODE_ENV: 'test',
+      VENDOR_SENSITIVE_CATEGORIES: ' Pharmacy , CLINIC ,, alcohol ',
+    });
+    expect(parsed.VENDOR_SENSITIVE_CATEGORIES).toEqual(['pharmacy', 'clinic', 'alcohol']);
+  });
+
+  it('ships a non-empty sensitive default that includes pharmacy', () => {
+    expect(loadEnv({ NODE_ENV: 'test' }).VENDOR_SENSITIVE_CATEGORIES).toContain('pharmacy');
+  });
+});

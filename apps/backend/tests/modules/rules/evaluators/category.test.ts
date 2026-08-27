@@ -9,6 +9,8 @@ const intent = (category: string | null): TxnIntent => ({
   vendorBankCode: null,
   vendorAccountNumber: null,
   vendorResolvedName: null,
+  vendorId: null,
+  resolvedCategory: null,
   confirmedAt: new Date('2026-05-03T12:00:00Z'),
 });
 

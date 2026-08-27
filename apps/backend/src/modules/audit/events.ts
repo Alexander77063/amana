@@ -64,6 +64,47 @@ export const auditEvents = {
     };
   },
 
+  /**
+   * Recorded only when the registry's category would have produced a DIFFERENT rule decision than
+   * the app-supplied one. This is the measurement the whole shadow-mode rollout exists to take:
+   * counting these rows per household is how we learn what enforcement would cost before anyone
+   * is denied a purchase at a market stall.
+   */
+  vendorCategoryShadow(input: {
+    transactionId: string;
+    vendorId: string;
+    appCategory: string | null;
+    registryCategory: string | null;
+    /**
+     * Where the registry category came from. Load-bearing for the operator query, not decoration:
+     * an `observed` category NEVER enforces (D-V7), so rows carrying one describe a difference that
+     * will not happen. Grouping the shadow log without this field blends "enforcement would change
+     * this" with "enforcement can never change this", and the whole point of the log is deciding
+     * whether to switch enforcement on. In V1 every vendor is `observed` and the field looks
+     * redundant; from SP-V2 onward both sources coexist and it is the only thing separating them.
+     */
+    categorySource: 'observed' | 'claimed' | 'ops';
+    liveDecision: 'allow' | 'require_bump';
+    shadowDecision: 'allow' | 'require_bump';
+    enforced: boolean;
+  }): AuditEntry {
+    return {
+      actorKind: 'system',
+      action: 'vendor.category_shadow',
+      subjectKind: 'transaction',
+      subjectId: input.transactionId,
+      payloadJson: {
+        vendorId: input.vendorId,
+        appCategory: input.appCategory,
+        registryCategory: input.registryCategory,
+        categorySource: input.categorySource,
+        liveDecision: input.liveDecision,
+        shadowDecision: input.shadowDecision,
+        enforced: input.enforced,
+      },
+    };
+  },
+
   anomalyScored(input: {
     transactionId: string;
     score: number;

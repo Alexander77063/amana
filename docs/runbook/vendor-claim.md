@@ -24,17 +24,23 @@ Two unauthenticated endpoints, mounted at `/vendor-claim` (`apps/backend/src/rou
 Unauthenticated is deliberate: the claimant is a shopkeeper who has never used Amana and has
 no account to sign into.
 
+**Step 1 takes a phone and nothing else** (GATE 3, closed 2026-08-27) and ALWAYS sends a code.
+No account is named, so nothing about the registry can decide whether an SMS goes out.
+
 ```bash
 curl -X POST "$API/vendor-claim/request" \
   -H 'content-type: application/json' \
-  -d '{"bankCode":"058","accountNumber":"0123456789","phone":"+2348012345678"}'
+  -d '{"phone":"+2348012345678"}'
 # -> 202 {"status":"pending_verification"}
 ```
+
+**Step 2 names the account**, behind proof of phone control — which is what lets every
+account-dependent answer below speak plainly instead of being leaked by whether a text arrived.
 
 ```bash
 curl -X POST "$API/vendor-claim/verify" \
   -H 'content-type: application/json' \
-  -d '{"phone":"+2348012345678","code":"123456","category":"food"}'
+  -d '{"phone":"+2348012345678","code":"123456","bankCode":"058","accountNumber":"0123456789","category":"food"}'
 ```
 
 `verify`'s `category` is optional (nullable, defaults to `null` — a claimant can claim
@@ -46,7 +52,7 @@ without asserting a category at all). Response by outcome
 | `claimed` | 200 | `{publicCode, displayName}` | Vendor moved `observed` → `claimed`. |
 | `invalid_code` | 401 | `{error: 'invalid_code'}` | Wrong code, or a challenge minted for a different purpose (`wrong_purpose` folds into this — see Deferred follow-ups). |
 | `too_many_attempts` | 401 | `{error: 'invalid_code'}` | `OTP_MAX_ATTEMPTS` exhausted on the challenge. **Byte-identical to `invalid_code` on the wire**, unlike `/auth/otp/verify` — see the note below for why the auth precedent stops applying here. |
-| `no_attempt` | 401 | `{error: 'invalid_code'}` | No pending, unexpired claim attempt for this phone. **Byte-identical to `invalid_code` on the wire** — the kind stays distinct inside the service, but not in the response. See the note below. |
+| ~~`no_attempt`~~ | — | — | **Removed 2026-08-27** closing GATE 3. It was decided by a lookup that ran *before* the OTP was checked, which made it an oracle in its own right; with the account named at `/verify` there is no pre-OTP lookup left to fail, so the state cannot arise. A phone with no live challenge now takes the same `invalid_code` path as a wrong code. |
 | `vendor_unavailable` | 409 | `{error: 'vendor_unavailable'}` | OTP was correct, but the vendor stopped being claimable in the meantime — suspended, already `claimed`, or the `claim` compare-and-set lost a race. Distinguishable because it is decided *behind* the verified OTP; see the note below. |
 | `ownership_unproved` | 409 | `{error: 'ownership_unproved', detail}` | OTP was correct; NIBSS phone lookup didn't confirm the account. See below — and **[PRE-LAUNCH GATE 3](#pre-launch-gate-3-the-claim-rail-is-still-a-registry-oracle-for-a-caller-who-uses-their-own-phone)**, of which this response is the *more expensive* of two remaining residuals. |
 | `partner_down` | 503 | `{error: 'anchor_unavailable'}` | Anchor/NIBSS unreachable during the lookup. Retry later. |
@@ -61,48 +67,41 @@ blocklist any non-colliding value passes, and under an allowlist `"Food"` or a t
 silently denies a legitimate spend. Same closed vocabulary, same reason, as the retailer
 portal's item categories.
 
-### `no_attempt`, `invalid_code` and `too_many_attempts` are one response — deliberately
+### `invalid_code` and `too_many_attempts` are one response — deliberately
 
-`verify` resolves the claim attempt **before** it checks the OTP, so if those outcomes
-differed on the wire an unauthenticated caller could submit a junk code and read the
-difference as "is this bank account a promoted registry vendor?" — one request, no control of
-any phone required, and exactly the aggregate `/request`'s uniform 202 exists to hide. So the
-route collapses all three into one `401 {"error": "invalid_code"}`.
+Both collapse into a single `401 {"error": "invalid_code"}`.
 
-Three consequences worth knowing before you debug from a log:
+**This used to be load-bearing and is now belt-and-braces**, which is worth understanding before
+anyone "simplifies" it. Before GATE 3 closed, `verify` resolved the claim attempt *before* checking
+the OTP, so an unauthenticated caller could submit a junk code and read the difference as "is this
+bank account a promoted registry vendor?" — one request, no control of any phone. The account is now
+named at `/verify` and consulted only after the code verifies, so that probe is gone at the source.
+The collapse stays because it costs nothing and it is what stops a future edit that reintroduces an
+early, account-shaped return from silently reopening the channel.
+
+Two consequences worth knowing before you debug from a log:
 
 - **`routes/auth.ts` is the precedent for collapsing `no_challenge` / `wrong_code` /
-  `wrong_purpose`, and is NOT the precedent for `too_many_attempts`.** `/auth/otp/verify`
-  keeps the exhausted-attempts answer distinguishable, and is right to: there it guards
-  nothing but the caller's own challenge. On this route it is reachable **only** for a
-  promoted `observed` vendor — `verify` returns `no_attempt` before `verifyCode` ever runs
-  when there is no attempt row, and only `verifyCode` can produce `too_many_attempts`. Five
-  junk `/verify` calls answering `invalid_code` and a sixth answering anything else is the
-  same registry-membership bit, one probe later. What masks that today is a coincidence, not
-  a design: `OTP_MAX_ATTEMPTS` (5) happens to equal `RATE_LIMIT_OTP_PER_PHONE` (5), in an
-  **in-memory, per-instance** limiter on a Fly app with `auto_start_machines = true`. A second
-  machine, or either constant being tuned, reopens it. Do not re-split them.
-- **`no_attempt` now fires from ONE place** — the pre-OTP attempt lookup, which is the oracle.
-  The two outcomes that used to share it (the vendor no longer `observed`, and the `claim`
-  compare-and-set losing a race) return `409 vendor_unavailable` instead. Both sit *behind*
-  the verified OTP — the same gate that protects the deliberately-retained
-  `409 ownership_unproved` — so distinguishing them reintroduces no oracle, and collapsing
-  them was a real dead end: the claimant's code is already consumed, so they read "invalid
-  code" while their retry `/request` early-returns on `status != 'observed'` into the uniform
-  202 and never sends another.
-- **The status channel closes here; the timing channel closes with GATE 3.** These three are
-  byte-identical, not time-identical. `no_attempt` returns after a single SELECT, while
-  `invalid_code` has already paid for `otpService.verifyCode` → `argon2.verify` (argon2id,
-  ~64 MiB, t = 3 — `modules/auth/codes.ts`) on top of the challenge lookup and the
-  attempt-claim UPDATE. Two orders of magnitude, separating exactly the two cases the collapse
-  merges. This branch already detached the `/request` SMS for the same reason. The fix is not a
-  dummy hash on the fast path — a dummy verify really would shrink the gap, but it buys nothing
-  while a *cheaper* channel is open: GATE 3's SMS-arrival probe needs no measurement at all. Nor
-  does GATE 3 stop an attacker reaching this branch — they can always POST `/verify` with any
-  phone and a junk code. What GATE 3 changes is what the delta is worth: afterwards it reveals
-  only "does this phone have a claim in flight", not registry membership.
-- **This closes the junk-code channel only, and it is not even the cheapest one.** See
-  PRE-LAUNCH GATE 3.
+  `wrong_purpose`, and is NOT the precedent for `too_many_attempts`.** `/auth/otp/verify` keeps the
+  exhausted-attempts answer distinguishable, and is right to: there it guards nothing but the
+  caller's own challenge. Here it would report that this phone had a live `vendor_claim` challenge
+  to exhaust — weaker than the old registry-membership bit, since the account is no longer consulted
+  first, but free to withhold. What would otherwise mask it is a coincidence rather than a design:
+  `OTP_MAX_ATTEMPTS` (5) happens to equal `RATE_LIMIT_OTP_PER_PHONE` (5), in an **in-memory,
+  per-instance** limiter on a Fly app with `auto_start_machines = true`. A second machine, or either
+  constant being tuned, reopens it. Do not re-split them.
+- **`vendor_unavailable` is deliberately NOT collapsed into this.** The vendor no longer being
+  `observed`, and the `claim` compare-and-set losing a race, both sit *behind* the verified OTP —
+  the same gate that protects the retained `409 ownership_unproved` — so distinguishing them
+  reintroduces no oracle for an unproven caller. Collapsing them was a real dead end: the
+  claimant's code is already consumed, so they would read "invalid code" with no way forward.
+
+**The timing channel closed with the same change.** These answers were byte-identical but never
+time-identical: `no_attempt` returned after a single SELECT, while `invalid_code` had already paid
+for `otpService.verifyCode` → `argon2.verify` (argon2id, ~64 MiB, t = 3 — `modules/auth/codes.ts`).
+Two orders of magnitude, separating exactly the cases the collapse merged. Removing the pre-OTP
+lookup put every unproven caller on the argon2-priced path, so there is no fast path left to
+measure — and no dummy hash was needed to get there.
 
 ### Why `/request` always returns 202 — this is a rule, not a quirk
 
@@ -505,71 +504,51 @@ renews and always re-sends.
 still requires no pending row, so ops can always claim a vendor for the real business. And the
 per-phone and per-IP rate limiters on `/request` are still the only bound on request volume.
 
-### PRE-LAUNCH GATE 3: the claim rail is still a registry oracle for a caller who uses their own phone
+### ~~PRE-LAUNCH GATE 3~~: the registry-membership oracle — **CLOSED 2026-08-27**
 
-Collapsing `no_attempt`, `invalid_code` and `too_many_attempts` into one
-`401 {"error": "invalid_code"}` (above) closed the *junk-code* probe on `/verify`. It did
-**not** close the channel — and `/verify` is not where the cheapest question gets asked.
+**What the hole was.** The cheapest channel needed no `/verify` call at all. `/request` sent the OTP
+to the **caller-supplied** phone, and only when the account resolved to a promoted, unclaimed
+vendor. So an attacker submitted their **own** number against someone else's bank account and
+watched their handset: one request, no Anchor call. The uniform 202 could not hide it, because the
+SMS is not part of the HTTP response. An arriving code was an unambiguous yes to "at least
+`VENDOR_REGISTRY_MIN_HOUSEHOLDS` Amana households have paid this account and nobody has claimed it"
+— the payment-graph aggregate the promotion threshold exists to keep private.
 
-**The cheapest channel is `/request` on its own: one request, no `/verify`, no Anchor call.**
-`/vendor-claim/request` sends the OTP to the **caller-supplied** phone, not to a phone on
-file for the account. So an attacker submits their **own** number against someone else's
-bank account and simply watches whether an SMS arrives. Nothing in the HTTP response
-distinguishes the cases — that is the entire point of the uniform `202` — but the SMS is not
-part of the HTTP response.
+**How it was closed: the account moved to `/verify`.**
 
-Be precise about what an arriving code answers. One is sent only when **all** of these hold,
-so the bit leaked is "promoted **and unclaimed and unheld**", not merely "in the registry":
+`/request` now takes a phone and nothing else and always sends a code, so no registry fact can
+influence whether a text goes out. The account is named at `/verify`, which sits behind a verified
+OTP.
 
-- the account resolves to a `vendors` row at all;
-- that row's `status` is `observed` — a `claimed` or `suspended` vendor sends nothing;
-- `openAttempt` returned non-null — which since GATE 2 closed means only that the row did not
-  change status underneath the call, not that anyone else was excluded.
+**This is not the fix this section used to propose.** That was "prove ownership at `/request` and
+send a code only on a NIBSS match", and its cost was stated here as the reason to defer: an honest
+owner whose NIBSS-linked phone does not match the account — staff phone, a director's personal
+line, a recently changed number, all *expected* rather than exceptional — would get **silence**
+instead of a `409` telling them to contact support. Reordering achieves the same thing about the
+SMS while keeping that `409`, because the caller is past proof by the time the account is judged.
 
-The cross-vendor and one-slot-per-vendor conditions that used to sit in this list were removed by
-GATE 2, which **narrows** what an arriving code proves: it no longer also tells the attacker that
-nobody else is mid-claim on that vendor.
+| Also removed by the reorder | Why it mattered |
+|---|---|
+| The `no_attempt` result kind | It was decided by a SELECT **before** the OTP was checked, so it was a status channel on its own. Nothing can produce it now: there is no pre-OTP lookup left to fail. |
+| The timing channel beside it | `no_attempt` answered after one SELECT while `invalid_code` had already paid for `argon2.verify` (argon2id, 64 MiB, t=3). Byte-identical was never time-identical. Every unproven caller now takes the argon2-priced path. |
+| Attempt rows created by unproven callers | A row is written only after the OTP verifies, so the ops queue no longer fills with land-grabs — and GATE 2's race cannot return through this endpoint at all. |
 
-Silence is therefore ambiguous. An **arriving** code is not: it is an unambiguous yes to
-"this account has been paid by at least `VENDOR_REGISTRY_MIN_HOUSEHOLDS` Amana households
-and nobody has claimed it" — the payment-graph aggregate the promotion threshold exists to
-keep private.
+**The residual, stated plainly.** A caller who really does control a phone can still tell
+`vendor_unavailable` from `ownership_unproved` and probe registry membership one account at a time.
+That is the dearer of the two channels this section always described: it costs an OTP round trip per
+probe and is bounded by the per-phone limiter, where the SMS channel cost one unauthenticated
+request. Collapsing the two would close it — and would take the actionable answer away from the
+honest owner whose bank record simply does not match, which is the trade this gate refused once
+already. Left open deliberately; revisit if sandbox data shows the mismatch is rarer than assumed.
 
-**The second, more expensive channel is `409` vs `401` on `/verify`.** The same attacker,
-holding a code that really did arrive, passes `verifyCode`, fails the NIBSS bank-record
-match and lands on `409 ownership_unproved`; against an account the registry does not hold,
-the same two calls return `401`. That costs two requests and a **paid Anchor NIBSS round
-trip** the `401` path never makes — so the pair differs in timing as well as status, and
-collapsing the bodies alone would not close it.
+**On SMS volume.** `/request` now sends a code to any phone string a caller supplies. That is not a
+new capability on the platform: `/auth/otp/request` has always done exactly this, under the same
+per-phone and per-IP limiters.
 
-**Collapsing the 409 does not meet this gate.** It is the dearer of the two channels and the
-less useful one; an attacker who can already read the answer off an SMS has no reason to pay
-for it. Meeting the gate means the *SMS* stops being an answer.
-
-**Why this is deferred rather than fixed** — a decision with a cost, not an oversight:
-
-- Nothing is deployed and the claim rail carries no live traffic, so there is no real
-  payment-graph data behind the leak today.
-- The proper fix is to **prove ownership at `/request`** and send a code only when the
-  caller's phone already resolves to the claimed account. That closes both the status channel
-  and the timing channel at once. Its cost is that an honest shop owner whose NIBSS-linked
-  phone does not match the account gets **silence** instead of a `409` that tells them to
-  contact support — and this runbook states above that such a mismatch is *expected, not
-  exceptional* (staff phones, a director's personal line, a recently changed number).
-  Degrading the most common honest-failure path, before sandbox data shows how often it
-  actually fires, was judged the worse trade.
-- **The obvious alternative — sending the OTP to the phone on file for the account — is not
-  implementable against the current partner surface.** Anchor's NIBSS lookup runs phone →
-  account only (`AnchorPhoneLookupRequest` takes `phoneNumber`;
-  `GET /nibss/phone-lookup?phoneNumber=…`, `integrations/anchor/adapter.ts`). There is no
-  account → phone direction to call. Recorded here so nobody re-proposes it.
-
-**What must happen before launch.** Move the ownership proof to `/request`, with the whole
-path **detached behind an immediate uniform `202`** so no timing signal survives the change,
-and record a `rejected` attempt row for the ops queue so a genuinely blocked owner is still
-reachable through support rather than left in silence. Until then the only mitigation is the
-per-phone and per-IP rate limiting on both endpoints — a real brake on walking the registry
-in volume, none at all on a single targeted question.
+**Not implementable, recorded so nobody re-proposes it:** sending the OTP to the phone on file for
+the account. Anchor's NIBSS lookup runs phone → account only (`AnchorPhoneLookupRequest` takes
+`phoneNumber`; `GET /nibss/phone-lookup?phoneNumber=…`, `integrations/anchor/adapter.ts`). There is
+no account → phone direction to call.
 
 ### Other
 

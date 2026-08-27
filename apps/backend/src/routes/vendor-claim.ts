@@ -15,15 +15,20 @@ const PHONE_RE = /^\+\d{10,15}$/;
  */
 const SPEND_CATEGORY_VALUES = SPEND_CATEGORIES.map((c) => c.value) as [string, ...string[]];
 
+/**
+ * A phone and nothing else (PRE-LAUNCH GATE 3). The account moved to `/verify` so that no
+ * registry-dependent decision — least of all "does an SMS go out" — happens before the caller has
+ * proved they hold the phone.
+ */
 const RequestSchema = z.object({
-  bankCode: z.string().min(1).max(10),
-  accountNumber: z.string().regex(/^\d{10}$/, 'invalid_account_number'),
   phone: z.string().regex(PHONE_RE, 'invalid_phone'),
 });
 
 const VerifySchema = z.object({
   phone: z.string().regex(PHONE_RE, 'invalid_phone'),
   code: z.string().min(1).max(10),
+  bankCode: z.string().min(1).max(10),
+  accountNumber: z.string().regex(/^\d{10}$/, 'invalid_account_number'),
   /**
    * Closed vocabulary, not free text. The claimed category REPLACES the app-supplied one before
    * `evaluateCategory` compares it (`modules/transactions/lifecycle.service.ts`), so an
@@ -50,7 +55,7 @@ export const vendorClaimRoute = new Hono()
   .post('/request', async (c) => {
     const body = await parseBody(c, RequestSchema);
     if (body instanceof Response) return body;
-    await vendorClaimService.request(db, anchorAdapterSingleton, { ...body, now: new Date() });
+    await vendorClaimService.request(db, { phone: body.phone, now: new Date() });
     return c.json({ status: 'pending_verification' }, 202);
   })
   .post('/verify', async (c) => {
@@ -59,6 +64,8 @@ export const vendorClaimRoute = new Hono()
     const r = await vendorClaimService.verify(db, anchorAdapterSingleton, {
       phone: body.phone,
       code: body.code,
+      bankCode: body.bankCode,
+      accountNumber: body.accountNumber,
       category: body.category,
       now: new Date(),
     });
@@ -66,40 +73,33 @@ export const vendorClaimRoute = new Hono()
     switch (r.kind) {
       case 'claimed':
         return c.json({ publicCode: r.publicCode, displayName: r.displayName }, 200);
-      // `no_attempt`, `invalid_code` and `too_many_attempts` fall through to ONE byte-identical
-      // response. The service keeps the three kinds apart because they mean different things
-      // internally; on the wire they must not, because `verify` looks the attempt up BEFORE it
-      // checks the code (`vendor-claim.service.ts`), so anything distinguishable here tells an
-      // unauthenticated caller holding a junk code whether a bank account is a promoted registry
-      // vendor — no control of the phone required. That is the same aggregate the uniform 202 on
-      // `/request` exists to hide, so it cannot be readable here.
+      // `invalid_code` and `too_many_attempts` fall through to ONE byte-identical response. The
+      // service keeps them apart because they mean different things internally; on the wire they
+      // must not.
       //
-      // `routes/auth.ts`'s `/otp/verify` collapses `no_challenge`/`wrong_code`/`wrong_purpose` for
-      // the same reason but KEEPS `too_many_attempts` distinguishable, and that precedent stops
-      // applying here: on `/auth` the exhausted-attempts answer guards nothing but the caller's
-      // own challenge, whereas on this route it is reachable ONLY for a promoted `observed`
-      // vendor — `verify` returns `no_attempt` before `verifyCode` ever runs when there is no
-      // attempt row, and only `verifyCode` can produce `too_many_attempts`. Five junk `/verify`
-      // calls answering `invalid_code` and a sixth answering `too_many_attempts` is the registry
-      // membership bit again, read off the response body. What masks it today is a coincidence,
-      // not a design: `OTP_MAX_ATTEMPTS` (5) happens to equal `RATE_LIMIT_OTP_PER_PHONE` (5) in an
-      // IN-MEMORY, PER-INSTANCE limiter on a Fly app with `auto_start_machines = true`. A second
-      // machine, or either constant being tuned, reopens it. Do NOT re-split these.
+      // `routes/auth.ts`'s `/otp/verify` KEEPS `too_many_attempts` distinguishable, and that
+      // precedent still does not apply here. On `/auth` the exhausted-attempts answer guards
+      // nothing but the caller's own challenge. Here it would report that a phone had a live
+      // `vendor_claim` challenge to exhaust — weaker than the old registry-membership leak, but
+      // free, so there is no reason to give it away. What used to mask this was a coincidence
+      // rather than a design: `OTP_MAX_ATTEMPTS` (5) happens to equal `RATE_LIMIT_OTP_PER_PHONE`
+      // (5) in an IN-MEMORY, PER-INSTANCE limiter on a Fly app with `auto_start_machines = true`.
+      // A second machine, or either constant being tuned, reopens it. Do NOT re-split these.
       //
-      // NOTE — this closes the STATUS channel on `/verify` only, and the job is half done. The
-      // cheapest residual needs no `/verify` call at all: `/request` sends the OTP to the
-      // caller-supplied phone, so an attacker who submits their OWN number against someone else's
-      // account simply observes whether an SMS arrives. A second, more expensive residual is that
-      // the same attacker can then reach `409 ownership_unproved`, which stays distinguishable
-      // from this 401 — two requests and a paid Anchor round trip. Both close together when
-      // ownership is proved at `/request` and a code is sent only on a NIBSS match: see
-      // **PRE-LAUNCH GATE 3** in `docs/runbook/vendor-claim.md`. Do NOT collapse the 409 and call
-      // the gate met — that leaves the cheaper channel wide open.
+      // GATE 3 (closed) is why this list is two kinds and not three. `no_attempt` used to sit here
+      // — returned when the phone had no pending claim row, decided BEFORE the OTP was checked.
+      // That was both a status channel and a timing one: it answered after a single SELECT, while
+      // `invalid_code` had already paid for `argon2.verify` (argon2id, 64 MiB, t=3 —
+      // `modules/auth/codes.ts`), so the two were byte-identical but never time-identical. Naming
+      // the account at THIS endpoint instead of at `/request` removed the pre-OTP lookup
+      // altogether, so the state cannot arise and both channels close with it.
       //
-      // The timing channel is also still open here: `no_attempt` returns after one SELECT, while
-      // `invalid_code` has paid for `argon2.verify` (argon2id, 64 MiB, t=3 — `modules/auth/
-      // codes.ts`). Byte-identical, not time-identical. GATE 3 is what closes that too.
-      case 'no_attempt':
+      // The residual, stated plainly: a caller who really does hold a phone can still tell
+      // `vendor_unavailable` from `ownership_unproved` below and probe registry membership one
+      // account at a time. That is the dearer channel — an OTP round trip per probe, bounded by
+      // the per-phone limiter — and collapsing the two would take the actionable answer away from
+      // an honest owner whose bank record simply does not match. See GATE 3's residual note in
+      // `docs/runbook/vendor-claim.md`.
       case 'invalid_code':
       case 'too_many_attempts':
         return c.json({ error: 'invalid_code' }, 401);

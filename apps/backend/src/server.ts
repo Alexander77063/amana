@@ -5,6 +5,7 @@ import { logger } from './lib/logger';
 import { errorHandler } from './middleware/error-handler';
 import { bodyFieldKey, clientIp, rateLimit } from './middleware/rate-limit';
 import { requestId } from './middleware/request-id';
+import { securityHeaders } from './middleware/security-headers';
 import { authRoute, logoutRoute, meRoute } from './routes/auth';
 import { bumpsRoute } from './routes/bumps';
 import { devicesRoute } from './routes/devices';
@@ -203,6 +204,10 @@ function attachCors(app: Hono): void {
 
 export function createServer(): Hono {
   const app = new Hono();
+  // First, and above every route including /health, /webhooks and the public /v page. HSTS has to
+  // be on EVERY response — see go-live-checklist.md §6, item 1 of the vendor-code
+  // pre-distribution gate.
+  app.use(securityHeaders());
   app.use(requestId());
   attachCors(app);
   attachRateLimiters(app);

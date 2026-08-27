@@ -90,11 +90,27 @@ page's one job is letting a payer confirm they are paying the right shop, and th
 defeats it. `force_https = true` in `fly.toml` is **a 301 that travels in cleartext**; it is
 not HSTS.
 
-| # | Must be true before any code is printed | Kind of work |
-|---|---|---|
-| 1 | `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` served **app-wide** — every response, not just `/v` | **Engineering.** There is no HSTS and no app-wide security-header middleware in the codebase today; this is a `server.ts` change, not a config flip |
-| 2 | `amana.ng` submitted to the HSTS preload list **and accepted** into shipped browser lists | Ops + a wait |
-| 3 | `pay.amana.ng` DNS record — CNAME to the Fly app, plus a Fly cert for the hostname | Ops |
+| # | Must be true before any code is printed | Kind of work | Status |
+|---|---|---|---|
+| 1 | `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` served **app-wide** — every response, not just `/v` | Engineering | ✅ **Built 2026-08-27.** `middleware/security-headers.ts`, mounted first in `createServer()`. Ships on the next deploy — which is itself blocked on the Anchor keys, so **verify it on the live host before submitting item 2** |
+| 2 | `amana.ng` submitted to the HSTS preload list **and accepted** into shipped browser lists | Ops + a wait | ⬜ Open — the long pole; start it as soon as item 1 is deployed and verified |
+| 3 | `pay.amana.ng` DNS record — CNAME to the Fly app, plus a Fly cert for the hostname | Ops | ⬜ Open |
+
+**Verifying item 1 once deployed** — the preload scanner reads the live HTTPS response, not the
+repo:
+
+```bash
+curl -sI https://amana-api.fly.dev/health | grep -i strict-transport-security
+# expect: strict-transport-security: max-age=63072000; includeSubDomains; preload
+```
+
+Two properties of the implementation worth knowing before anyone changes it. The value is a
+**constant, not an env var**: preload refuses a `max-age` under a year and refuses a policy missing
+`includeSubDomains` or `preload`, so a knob would let a deploy silently fall out of eligibility long
+after acceptance — and de-listing propagates on browser-release timescales. And the header is
+written **after** `await next()`, onto whatever response came back, because `errorHandler` builds a
+brand-new `Response` and an unregistered route never reaches a handler at all; those 404s and 500s
+are exactly what a mistyped sticker produces.
 
 **Item 2 is the load-bearing one; item 3 alone is not the gate.** An HSTS header can only
 protect a hostname the browser has already visited over HTTPS. It cannot protect the

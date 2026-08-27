@@ -85,6 +85,9 @@ async function assertVasRulesAllow(
       // Airtime and bills are bought from a biller through Anchor, not from a marketplace
       // retailer, so there is no retailer for a merchant rule to match.
       retailerId: null,
+      // Neither a retailer nor a registry vendor — permanently null.
+      vendorId: null,
+      resolvedCategory: null,
       confirmedAt: input.now,
     },
     relevant,

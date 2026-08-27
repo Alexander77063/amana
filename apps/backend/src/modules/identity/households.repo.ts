@@ -68,4 +68,25 @@ export const householdsRepo = {
       joinedAt: r.joined_at,
     }));
   },
+
+  /**
+   * The household that owns a master wallet, with its registry-enforcement flag.
+   *
+   * One join rather than two round trips because both the settlement observation write and the
+   * rule-evaluation enforcement check need exactly this pair, on paths that already do plenty.
+   */
+  async findByMasterWalletId(
+    db: DbOrTx,
+    masterWalletId: string,
+  ): Promise<{ id: string; vendorCategoryEnforced: boolean | null } | undefined> {
+    const rows = await db.execute<{ id: string; vendor_category_enforced: boolean | null }>(sql`
+      SELECT h.id, h.vendor_category_enforced
+      FROM master_wallets mw
+      INNER JOIN households h ON h.id = mw.household_id
+      WHERE mw.id = ${masterWalletId}
+      LIMIT 1
+    `);
+    const row = rows[0];
+    return row ? { id: row.id, vendorCategoryEnforced: row.vendor_category_enforced } : undefined;
+  },
 };

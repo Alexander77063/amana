@@ -1,13 +1,16 @@
+import { sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { kobo } from '../../../src/lib/kobo';
 import { isOk } from '../../../src/lib/result';
 import { anomalyService } from '../../../src/modules/anomaly/anomaly.service';
+import { auditRepo } from '../../../src/modules/audit/audit.repo';
 import { bumpWorkflowService } from '../../../src/modules/bumps/bump-workflow.service';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { notificationsRepo } from '../../../src/modules/notifications/notifications.repo';
 import { ruleSetService } from '../../../src/modules/rules/rule-set.service';
 import { lifecycleService } from '../../../src/modules/transactions/lifecycle.service';
+import { vendorsRepo } from '../../../src/modules/vendors/vendors.repo';
 import { ledgerService } from '../../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
@@ -79,6 +82,7 @@ async function seedFundedSubWallet(fundSubLedger = true) {
     agentId: agent.id,
     subWalletId: sw.sub.id,
     masterId: mw.master.id,
+    householdId: hh.id,
   };
 }
 
@@ -349,5 +353,314 @@ describe('lifecycleService — anomaly_alert', () => {
       { timeout: 5000 },
     );
     expect(row.status).toBe('sent');
+  });
+});
+
+describe('lifecycle — vendor category shadow mode', () => {
+  const NOW = new Date('2026-08-25T10:00:00Z');
+
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  /** A claimed vendor categorised `transport`, on an account the tests then spend to. */
+  async function claimedTransportVendor(bankCode: string, accountNumber: string): Promise<string> {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode,
+      accountNumber,
+      displayName: 'DANFO PARK',
+      promotedHouseholdCount: 9,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    await testDb.execute(
+      sql`UPDATE vendors SET category = 'transport', category_source = 'claimed' WHERE id = ${v.id}`,
+    );
+    return v.id;
+  }
+
+  it('does NOT change the decision while enforcement is off, even when the registry disagrees', async () => {
+    const { agentId, subWalletId, masterId, principalId } = await seedFundedSubWallet();
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId,
+      createdByUserId: principalId,
+      rules: [
+        { kind: 'category', priority: 10, config: { mode: 'allowlist', categories: ['food'] } },
+      ],
+    });
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    await claimedTransportVendor(bankCode, accountNumber);
+
+    // The agent claims "food"; the registry says "transport". A food-only allowlist would deny
+    // under enforcement — but enforcement is off, so this must still be allowed.
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: bankCode,
+      vendorAccount: accountNumber,
+      vendorResolvedName: 'M',
+      category: 'food',
+    });
+
+    const result = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: NOW,
+    });
+    expect(result.kind).toBe('allow');
+  });
+
+  it('records the registry answer on the transaction regardless of enforcement', async () => {
+    const { agentId, subWalletId, masterId, principalId } = await seedFundedSubWallet();
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId,
+      createdByUserId: principalId,
+      rules: [
+        { kind: 'category', priority: 10, config: { mode: 'allowlist', categories: ['food'] } },
+      ],
+    });
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    const vendorId = await claimedTransportVendor(bankCode, accountNumber);
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: bankCode,
+      vendorAccount: accountNumber,
+      vendorResolvedName: 'M',
+      category: 'food',
+    });
+
+    await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: NOW,
+    });
+
+    const rows = await testDb.execute<{ vendor_id: string; resolved_category: string }>(
+      sql`SELECT vendor_id, resolved_category FROM transactions WHERE id = ${txn.id}`,
+    );
+    expect(rows[0]?.vendor_id).toBe(vendorId);
+    expect(rows[0]?.resolved_category).toBe('transport');
+  });
+
+  it('audits the counterfactual when the shadow decision differs', async () => {
+    const { agentId, subWalletId, masterId, principalId } = await seedFundedSubWallet();
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId,
+      createdByUserId: principalId,
+      rules: [
+        { kind: 'category', priority: 10, config: { mode: 'allowlist', categories: ['food'] } },
+      ],
+    });
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    await claimedTransportVendor(bankCode, accountNumber);
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: bankCode,
+      vendorAccount: accountNumber,
+      vendorResolvedName: 'M',
+      category: 'food',
+    });
+
+    await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: NOW,
+    });
+
+    const entries = await auditRepo.listByAction(testDb, 'vendor.category_shadow');
+    expect(entries).toHaveLength(1);
+    const payload = entries[0]?.payloadJson as Record<string, unknown>;
+    expect(payload.appCategory).toBe('food');
+    expect(payload.registryCategory).toBe('transport');
+    expect(payload.enforced).toBe(false);
+    expect(payload.liveDecision).toBe('allow');
+    expect(payload.shadowDecision).toBe('require_bump');
+  });
+
+  it('writes no shadow audit row when the registry agrees with the app', async () => {
+    const { agentId, subWalletId, masterId, principalId } = await seedFundedSubWallet();
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId,
+      createdByUserId: principalId,
+      rules: [
+        {
+          kind: 'category',
+          priority: 10,
+          config: { mode: 'allowlist', categories: ['transport'] },
+        },
+      ],
+    });
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    await claimedTransportVendor(bankCode, accountNumber);
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: bankCode,
+      vendorAccount: accountNumber,
+      vendorResolvedName: 'M',
+      category: 'transport',
+    });
+
+    await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: NOW,
+    });
+    expect(await auditRepo.listByAction(testDb, 'vendor.category_shadow')).toEqual([]);
+  });
+
+  it('ENFORCES the registry category when the household opts in', async () => {
+    const { agentId, subWalletId, masterId, principalId, householdId } =
+      await seedFundedSubWallet();
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId,
+      createdByUserId: principalId,
+      rules: [
+        { kind: 'category', priority: 10, config: { mode: 'allowlist', categories: ['food'] } },
+      ],
+    });
+    await testDb.execute(
+      sql`UPDATE households SET vendor_category_enforced = TRUE WHERE id = ${householdId}`,
+    );
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    await claimedTransportVendor(bankCode, accountNumber);
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: bankCode,
+      vendorAccount: accountNumber,
+      vendorResolvedName: 'M',
+      category: 'food',
+    });
+
+    const result = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: NOW,
+    });
+    expect(result.kind).toBe('bump_pending');
+  });
+
+  it('never enforces an OBSERVED category, even for an opted-in household', async () => {
+    const { agentId, subWalletId, masterId, principalId, householdId } =
+      await seedFundedSubWallet();
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId,
+      createdByUserId: principalId,
+      rules: [
+        { kind: 'category', priority: 10, config: { mode: 'allowlist', categories: ['food'] } },
+      ],
+    });
+    await testDb.execute(
+      sql`UPDATE households SET vendor_category_enforced = TRUE WHERE id = ${householdId}`,
+    );
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode,
+      accountNumber,
+      displayName: 'DANFO PARK',
+      promotedHouseholdCount: 9,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    await vendorsRepo.setObservedCategory(testDb, v.id, 'transport', 9); // observed, not claimed
+
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: bankCode,
+      vendorAccount: accountNumber,
+      vendorResolvedName: 'M',
+      category: 'food',
+    });
+    const result = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: NOW,
+    });
+    expect(result.kind).toBe('allow');
+  });
+
+  it('writes no shadow row when the sub-wallet has no active rule set', async () => {
+    // No category rule published — fetchActiveRuleSet returns null, evaluate is never called,
+    // and the decision is a degenerate allow. There is nothing a category could have changed.
+    const { agentId, subWalletId, masterId } = await seedFundedSubWallet();
+    const bankCode = factories.bankCode();
+    const accountNumber = factories.bankAccount();
+    await claimedTransportVendor(bankCode, accountNumber);
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: bankCode,
+      vendorAccount: accountNumber,
+      vendorResolvedName: 'M',
+      category: 'food',
+    });
+
+    const result = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: NOW,
+    });
+    expect(result.kind).toBe('allow');
+    expect(await auditRepo.listByAction(testDb, 'vendor.category_shadow')).toEqual([]);
+  });
+
+  it('allows a spend to an unregistered vendor exactly as before', async () => {
+    const { agentId, subWalletId, masterId, principalId } = await seedFundedSubWallet();
+    await ruleSetService.publishNewVersion(testDb, {
+      subWalletId,
+      createdByUserId: principalId,
+      rules: [
+        { kind: 'category', priority: 10, config: { mode: 'allowlist', categories: ['food'] } },
+      ],
+    });
+    const txn = await transactionsRepo.insert(testDb, {
+      masterWalletId: masterId,
+      subWalletId,
+      kind: 'spend',
+      amountKobo: kobo(10_000n),
+      idempotencyKey: factories.idempotencyKey(),
+      vendorBankCode: factories.bankCode(),
+      vendorAccount: factories.bankAccount(),
+      vendorResolvedName: 'M',
+      category: 'food',
+    });
+    const result = await lifecycleService.evaluate(testDb, {
+      transactionId: txn.id,
+      initiatingUserId: agentId,
+      now: NOW,
+    });
+    expect(result.kind).toBe('allow');
+    expect(await auditRepo.listByAction(testDb, 'vendor.category_shadow')).toEqual([]);
   });
 });

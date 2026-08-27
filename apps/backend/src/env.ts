@@ -71,6 +71,31 @@ const EnvSchema = z.object({
   RATE_LIMIT_OTP_PER_IP: z.coerce.number().int().positive().default(20),
   RATE_LIMIT_AUTH_PER_IP: z.coerce.number().int().positive().default(60),
   RATE_LIMIT_PAIRING_PER_IP: z.coerce.number().int().positive().default(30),
+  // Vendor registry (SP-V1). Enforcement is OFF unless explicitly enabled — the registry ships
+  // as a measurement instrument and only becomes a control once shadow data justifies it.
+  // Note the inverted transform vs RATE_LIMIT_ENABLED: that one defaults ON (`v !== 'false'`),
+  // this one defaults OFF, so only the exact string 'true' switches it on.
+  VENDOR_CATEGORY_ENFORCE_DEFAULT: z
+    .string()
+    .optional()
+    .transform((v) => v === 'true'),
+  VENDOR_REGISTRY_MIN_HOUSEHOLDS: z.coerce.number().int().positive().default(5),
+  // Deliberately above MIN_HOUSEHOLDS: being listed is a weaker claim than being categorised,
+  // so a vendor is always promoted before it can be categorised (never in the same sweep).
+  VENDOR_REGISTRY_CONSENSUS_MIN_HOUSEHOLDS: z.coerce.number().int().positive().default(8),
+  VENDOR_REGISTRY_CONSENSUS_RATIO: z.coerce.number().positive().max(1).default(0.6),
+  VENDOR_OBSERVATION_RETENTION_DAYS: z.coerce.number().int().positive().default(180),
+  // Categories that may never be DERIVED from observation — only claimed or ops-set. Knowing a
+  // vendor is a clinic supports a health inference about every household that pays it.
+  VENDOR_SENSITIVE_CATEGORIES: z
+    .string()
+    .default('pharmacy,clinic,health,alcohol,gambling,religious,legal')
+    .transform((s) =>
+      s
+        .split(',')
+        .map((c) => c.trim().toLowerCase())
+        .filter(Boolean),
+    ),
   // Marketplace (SP1 voucher/redemption ledger core). Additive with safe defaults; the fee is
   // an explicit TBD (pricing pass) kept at 0 so it never double-dips a discounted purchase.
   MARKETPLACE_COMMISSION_BPS: z.coerce.number().int().nonnegative().max(10_000).default(500),

@@ -75,6 +75,10 @@ async function assertMarketplaceRulesAllow(
       // supplies it. Everywhere else passes null, so a merchant rule denies there — correctly,
       // since "only these merchants" cannot permit a payment to someone who is not one.
       retailerId: input.retailerId,
+      // A marketplace purchase goes to a retailer, a separate namespace from a registry vendor
+      // (D-V1). Permanently null here — there is no bank account for the registry to resolve.
+      vendorId: null,
+      resolvedCategory: null,
       confirmedAt: input.now,
     },
     relevant,

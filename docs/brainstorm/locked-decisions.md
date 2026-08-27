@@ -11,7 +11,7 @@ Controlled-spend wallet where a principal (parent or employer) funds a master wa
 
 **Phone-to-phone is the main thing.** It is the differentiating mechanic and must remain visible in the architecture, the UX, and the brand. Card-centric or merchant-centric framings are explicitly rejected.
 
-## The 13 locked decisions
+## The locked decisions
 
 1. **Licensing path** — Hybrid. Start on a BaaS partner; transition to own CBN license once volume justifies.
 2. **Wedge** — Household domestic-staff + family allowance, unified as a single primitive (principal funds, dependent spends within rules, principal controls).
@@ -71,3 +71,33 @@ Controlled-spend wallet where a principal (parent or employer) funds a master wa
     - **Hosting (initial):** AWS af-south (Cape Town — closest AWS region to Lagos), ECS Fargate for backend, Aurora Postgres. Parallel CBN data-residency legal review track to confirm before public launch; reversible to a Nigerian DC provider (Layer3, MainOne) if legal requires.
     - **Why these picks:** TS + RN gives one type system, one team, one hiring pool — critical at our scale. Hono is fast, modern, and trivial to test. Drizzle + Postgres gives us proper transactions and migrations. Expo accelerates mobile iteration without locking us out of native modules later (we can eject if needed). AWS af-south is the lowest-latency major-cloud option to NG today.
     - **ADRs to be written in Sub-plan 1:** `docs/adr/0001` through `0005` will document each choice with the considered alternatives, so future re-evaluation has a paper trail.
+
+19. **D-V1 — Vendor identity and marketplace retailer identity stay separate namespaces.**
+    A vendor never receives a `retailerId`. `evaluateMerchant` is unchanged and remains `retailerId`-only.
+    *Why:* `merchant.ts` denies when `intent.retailerId` is null, by documented design — "every bank transfer, VAS top-up and direct spend is denied." Unifying the namespaces would make a principal's existing merchant allowlist silently start *permitting* bank transfers it denies today. On an allowlist-only control, a change that quietly widens permission is the wrong direction to be wrong in.
+
+20. **D-V2 — Issue an Amana code, never a NIBSS NQR.**
+    *Why:* there is no QR or merchant-provisioning surface anywhere in `integrations/anchor/`, so minting a real NQR is at minimum an open question with Anchor and plausibly requires a licensed acquirer. It is also unnecessary: path B already reads the NQR the vendor has. The code carries Amana identity, which a bank NQR structurally cannot.
+
+21. **D-V3 — QR before NFC.**
+    Decision #14A specifies an NFC sticker. We ship QR first.
+    *Why:* the camera path already works on both platforms (`NQRScanScreen.tsx` + `expo-camera`), whereas this codebase's NFC path is gated to Android (`PairingMethodScreen.tsx:44`) because phone-to-phone pairing needs HCE. To be precise, that gate is about *pairing*; iOS can read a passive NFC tag via Core NFC, so an NFC vendor sticker is not dead on iPhone — it is simply a client capability we would have to build. QR additionally costs nothing to distribute: printable, screenshottable, sendable over WhatsApp, displayable on the vendor's own screen. NFC tags cost ~₦50 each plus a fulfilment operation we would be inventing. NFC stays as the v1.2 premium upgrade for high-traffic shops.
+
+22. **D-V4 — Category enforcement ships in shadow mode first.** *(user decision)*
+    The registry category is resolved and logged on every evaluation, but the app-supplied category continues to drive rule outcomes until enforcement is flipped on, per household.
+    *Why:* switching authority is a retroactive tightening of controls principals wrote under the old semantics. A spend that succeeded yesterday by typing "food" would start requiring a bump. Without shadow data, the first signal is a real denial at a real market stall.
+
+23. **D-V5 — Registry inclusion is gated by a distinct-household threshold.** *(user decision)*
+    An account becomes a registry row only once **N distinct households** (default 5) have settled a payment to it.
+    *Why:* decision #16 makes paying a mechanic or vulcaniser a first-class flow, so the observation stream is thick with private individuals' personal accounts. The threshold *is* the operational definition of "public-facing merchant" — no self-declaration needed — and it is the defensible NDPR line: we promote aggregate commercial facts, never a directory of private individuals.
+
+24. **D-V6 — Observations are written at settlement, not at resolution.**
+    *Why:* a resolution is a free lookup. Anyone able to call `GET /vendors/name-enquiry` could otherwise cheaply poison the registry into promoting an account or shifting its category. A *settled* transaction costs real money to fabricate, and it must clear five distinct households. Grounding the threshold in settled money makes registry poisoning economically pointless.
+
+25. **D-V7 — An observed-consensus category is never enforced in v1.**
+    Only `category_source IN ('claimed','ops')` is ever authoritative, and only once enforcement is on for that household. Observed consensus is advisory: it populates suggestions and the shadow log.
+    *Why:* YAGNI, and the shadow data is precisely what will tell us whether observed consensus is trustworthy enough to promote. Deciding now would be deciding without the measurement we are building.
+
+26. **D-V8 — Consensus is one household, one vote; sensitive categories are claimed-only.**
+    Category consensus is computed over **distinct households**, never over raw payment counts. Categories on the sensitive list are never derived from observation at all — only a claimed or ops-set category may carry them.
+    *Why:* see spec §10.2. Counting payments rather than households lets a single frequent customer set a vendor's category alone, and a rare category is far more disclosive about the people who pay it than a common one. These are the two real weaknesses in a bare threshold rule, and both are cheap to close.

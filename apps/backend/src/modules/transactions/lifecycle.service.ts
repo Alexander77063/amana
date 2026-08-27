@@ -1,4 +1,5 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { env } from '../../env';
 import { runInBackground } from '../../lib/background';
 import { ConflictError } from '../../lib/errors';
 import { type Kobo, kobo } from '../../lib/kobo';
@@ -8,10 +9,12 @@ import { loadHistoryForSubWallet } from '../anomaly/history.loader';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
 import { bumpWorkflowService } from '../bumps/bump-workflow.service';
+import { householdsRepo } from '../identity/households.repo';
 import { notificationService } from '../notifications/notification.service';
 import { evaluate } from '../rules/engine';
 import { fetchActiveRuleSet } from '../rules/rule-set.fetcher';
-import type { Decision, TxnIntent } from '../rules/types';
+import type { Decision, RuleEvaluationContext, TxnIntent } from '../rules/types';
+import { vendorCategoryResolver } from '../vendors/vendor-category-resolver.service';
 import { ledgerAccountsRepo } from '../wallet/ledger-accounts.repo';
 import { postingsRepo } from '../wallet/postings.repo';
 import { subWalletsRepo } from '../wallet/sub-wallets.repo';
@@ -62,20 +65,56 @@ export const lifecycleService = {
     // subWalletId is non-null: the null branch returned early above
     const subWalletId = txn.subWalletId;
 
+    // --- Vendor registry: resolve, then decide whether it may drive the outcome. ---
+    //
+    // Both reads run on the pool handle, BEFORE the transaction below opens — never inside it.
+    // vendorCategoryResolver.resolve already swallows its own errors, but that swallow only
+    // works on its own connection: a caught Postgres error still poisons a surrounding
+    // transaction (SQLSTATE 25P02), which would fail every later statement in it even though
+    // this call itself returned cleanly. The realistic trigger is a stale test/dev DB missing
+    // migration 0035 ("relation vendors does not exist").
+    const registry = await vendorCategoryResolver.resolve(
+      db,
+      txn.vendorBankCode,
+      txn.vendorAccount,
+    );
+    // Same hazard applies here — there is no registry-style built-in swallow, so match it.
+    const household = await householdsRepo
+      .findByMasterWalletId(db, txn.masterWalletId)
+      .catch(() => undefined);
+    // Three-state: an explicit household setting wins in BOTH directions; NULL inherits the
+    // global default. `?? env...` and not `||` — `false` is a real answer, not a missing one.
+    const householdEnforces =
+      household?.vendorCategoryEnforced ?? env.VENDOR_CATEGORY_ENFORCE_DEFAULT;
+    // An observed category is never enforced however strong its consensus (spec D-V7).
+    const enforced = householdEnforces && registry !== null && registry.enforceable;
+    const liveCategory = enforced ? (registry?.category ?? txn.category) : txn.category;
+
     const result = await db.transaction(async (tx) => {
       const txDb = tx as DbOrTx;
 
       await transactionsRepo.setStatus(txDb, txn.id, 'rule_eval');
 
+      if (registry) {
+        await transactionsRepo.setRegistryAttribution(
+          txDb,
+          txn.id,
+          registry.vendorId,
+          registry.category,
+        );
+      }
+
       const intent: TxnIntent = {
         amountKobo: kobo(txn.amountKobo as bigint),
-        category: txn.category,
+        category: liveCategory,
         vendorBankCode: txn.vendorBankCode,
         vendorAccountNumber: txn.vendorAccount,
         vendorResolvedName: txn.vendorResolvedName,
         // A bank transfer has no retailer. A merchant rule therefore denies it — which is why a
         // merchant rule is only ever evaluated on the marketplace path, never here.
         retailerId: null,
+        vendorId: registry?.vendorId ?? null,
+        resolvedCategory: registry?.category ?? null,
         confirmedAt: input.now,
       };
 
@@ -108,16 +147,15 @@ export const lifecycleService = {
       );
 
       const ruleSet = await fetchActiveRuleSet(txDb, subWalletId);
-      const decision: Decision = ruleSet
-        ? evaluate(intent, ruleSet, {
-            ledger: {
-              subWalletAvailableKobo: subBalance,
-              spentLast24hKobo: spent24,
-              spentLast30dKobo: spent30d,
-            },
-            anomalyScore: anomaly.score,
-          })
-        : { kind: 'allow' };
+      const evalCtx: RuleEvaluationContext = {
+        ledger: {
+          subWalletAvailableKobo: subBalance,
+          spentLast24hKobo: spent24,
+          spentLast30dKobo: spent30d,
+        },
+        anomalyScore: anomaly.score,
+      };
+      const decision: Decision = ruleSet ? evaluate(intent, ruleSet, evalCtx) : { kind: 'allow' };
 
       await auditRepo.append(
         txDb,
@@ -129,6 +167,43 @@ export const lifecycleService = {
           decision,
         }),
       );
+
+      // The counterfactual. `evaluate` is a pure function over an already-loaded rule set and an
+      // already-computed context, so running it a second time costs one in-memory pass and no
+      // database work at all — which is what makes shadow mode affordable on the spend path.
+      //
+      // The branch flips with `enforced` so the same instrument keeps working after enforcement is
+      // switched on: before, it reports what enforcement WOULD change; after, what it IS changing.
+      //
+      // `ruleSet` is in the guard because a sub-wallet with no active rule set never calls
+      // `evaluate` at all — there is nothing for a category to change.
+      if (
+        ruleSet &&
+        registry !== null &&
+        registry.category !== null &&
+        registry.category !== txn.category
+      ) {
+        const shadowIntent: TxnIntent = {
+          ...intent,
+          category: enforced ? txn.category : registry.category,
+        };
+        const shadowDecision = evaluate(shadowIntent, ruleSet, evalCtx);
+        if (shadowDecision.kind !== decision.kind) {
+          await auditRepo.append(
+            txDb,
+            auditEvents.vendorCategoryShadow({
+              transactionId: txn.id,
+              vendorId: registry.vendorId,
+              appCategory: txn.category,
+              registryCategory: registry.category,
+              categorySource: registry.categorySource,
+              liveDecision: decision.kind,
+              shadowDecision: shadowDecision.kind,
+              enforced,
+            }),
+          );
+        }
+      }
 
       if (decision.kind === 'allow') {
         await transactionsRepo.setStatus(txDb, txn.id, 'in_flight');

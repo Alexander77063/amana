@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { vendorsRepo } from '../../../src/modules/vendors/vendors.repo';
 import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
@@ -93,5 +93,121 @@ describe('vendorsRepo', () => {
 
     const observed = await vendorsRepo.listByCategorySource(testDb, 'observed');
     expect(observed.map((v) => v.id)).toEqual([a.id]);
+  });
+
+  it('finds a claimed vendor by its public code', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'CODED SHOP',
+      promotedHouseholdCount: 5,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    const claimed = await vendorsRepo.claim(testDb, {
+      vendorId: v.id,
+      phone: factories.phone(),
+      category: 'food',
+      // Setup only: this test does not exercise the claim-time name write, so `null` keeps
+      // the promoted `displayName` exactly as it was before that field became required.
+      displayName: null,
+      publicCode: 'AMNV-1AB2C-3DE4F',
+      now: NOW,
+    });
+    if (!claimed) throw new Error('claim failed');
+
+    const found = await vendorsRepo.findByPublicCode(testDb, 'AMNV-1AB2C-3DE4F');
+    expect(found?.id).toBe(v.id);
+    expect(await vendorsRepo.findByPublicCode(testDb, 'AMNV-ZZZZZ-ZZZZZ')).toBeUndefined();
+  });
+
+  it('refuses a null, undefined or blank code before it ever reaches the database', async () => {
+    // public_code is nullable AND unique, so Postgres permits any number of NULL rows. An
+    // unguarded lookup carrying NULL matches nothing and LOOKS correct — the dangerous kind of
+    // safe. This observed vendor is exactly such a row: it must never come back.
+    const observed = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'UNCLAIMED SHOP',
+      promotedHouseholdCount: 5,
+      now: NOW,
+    });
+    if (!observed) throw new Error('promotion failed');
+    expect(observed.publicCode).toBeNull();
+
+    const select = vi.spyOn(testDb, 'select');
+    for (const bad of [null, undefined, '', '   ']) {
+      expect(await vendorsRepo.findByPublicCode(testDb, bad as unknown as string)).toBeUndefined();
+    }
+    expect(select).not.toHaveBeenCalled();
+    select.mockRestore();
+  });
+
+  it('normalizes a mistyped code before the query, so lower case and I/L/O still hit', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'WINDOW SHOP',
+      promotedHouseholdCount: 5,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    // Contains both a 1 and a 0, so the I/L -> 1 and O -> 0 folds are actually exercised.
+    const stored = 'AMNV-10K2H-9PZ0R';
+    const claimed = await vendorsRepo.claim(testDb, {
+      vendorId: v.id,
+      phone: factories.phone(),
+      category: 'food',
+      // Setup only: this test does not exercise the claim-time name write, so `null` keeps
+      // the promoted `displayName` exactly as it was before that field became required.
+      displayName: null,
+      publicCode: stored,
+      now: NOW,
+    });
+    if (!claimed) throw new Error('claim failed');
+    expect(claimed.publicCode).toBe(stored); // the stored form is the minted, upper-case one
+
+    // Postgres `=` on text is case- and byte-sensitive, so the ONLY way any of these come back is
+    // if the value was folded before it reached the query. That is the before-the-DB proof.
+    for (const typed of [
+      'amnv-10k2h-9pz0r', // read off a shop window, typed in lower case
+      'AMNV-I0K2H-9PZ0R', // I mistaken for 1
+      'AMNV-L0K2H-9PZ0R', // L mistaken for 1
+      'AMNV-1OK2H-9PZOR', // O mistaken for 0, twice
+      'amnv-ilo2h-9pz0r'.replace('ilo2h', 'i0k2h'), // lower case AND a glyph fold together
+    ]) {
+      const found = await vendorsRepo.findByPublicCode(testDb, typed);
+      expect(found?.id).toBe(v.id);
+    }
+
+    // U is excluded from the alphabet with no digit to fold into, so it is simply not a code
+    // character and must miss rather than being coerced into something that hits.
+    expect(await vendorsRepo.findByPublicCode(testDb, 'AMNV-U0K2H-9PZ0R')).toBeUndefined();
+    // And normalization must not turn a genuinely unknown code into a hit.
+    expect(await vendorsRepo.findByPublicCode(testDb, 'amnv-zzzzz-zzzzz')).toBeUndefined();
+  });
+
+  it('folds the INPUT rather than loosening the comparison', async () => {
+    // The test above would pass equally well if the fold had been implemented as a case-insensitive
+    // SQL comparison, which is a different thing: it would loosen every lookup at the database
+    // instead of canonicalising the input before it. Separate the two by planting a row whose
+    // stored code is NOT in minted form. Looking it up by its own exact bytes must MISS, because
+    // the input is folded to upper case before an exact `=` — proof the fold is on the input side.
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: factories.bankCode(),
+      accountNumber: factories.bankAccount(),
+      displayName: 'MALFORMED',
+      promotedHouseholdCount: 5,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    await testDb.execute(
+      sql`UPDATE vendors SET public_code = 'amnv-abcde-fghjk' WHERE id = ${v.id}`,
+    );
+
+    expect(await vendorsRepo.findByPublicCode(testDb, 'amnv-abcde-fghjk')).toBeUndefined();
+    // ...and the upper-case form still misses too, because no row holds it. The comparison is
+    // exact in both directions; only the input moves.
+    expect(await vendorsRepo.findByPublicCode(testDb, 'AMNV-ABCDE-FGHJK')).toBeUndefined();
   });
 });

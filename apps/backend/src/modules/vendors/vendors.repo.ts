@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { vendors } from '../../db/schema';
+import { normalizeCrockford } from '../../lib/crockford';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -25,6 +26,36 @@ export const vendorsRepo = {
       .select()
       .from(vendors)
       .where(and(eq(vendors.bankCode, bankCode), eq(vendors.accountNumber, accountNumber)))
+      .limit(1);
+    return row;
+  },
+
+  /**
+   * Look a vendor up by its printed public code.
+   *
+   * The guard is load-bearing, not defensive noise. `public_code` is nullable AND unique, so
+   * Postgres happily holds any number of NULL rows — every observed, unclaimed vendor is one. A
+   * lookup that reached the database carrying NULL would match nothing and return `undefined`,
+   * which looks exactly like a correct miss; the bug would only surface the day the comparison
+   * semantics changed under it. Refuse before the query instead, so a blank code is a caller
+   * error and not a silent no-op.
+   *
+   * A suspended vendor is still FOUND here on purpose — refusing it is the resolution layer's
+   * job, because only a caller can decide whether "real but dead" and "never existed" deserve
+   * the same answer.
+   *
+   * Normalization lives HERE, at the single lookup boundary, rather than in each route: the
+   * in-app scan, the public landing page and any ops surface all reach a vendor through this
+   * method, and a fold applied in only some of them is worse than none at all. See
+   * `normalizeCrockford` for why accepting I/L/O is the other half of excluding them.
+   */
+  async findByPublicCode(db: DbOrTx, publicCode: string): Promise<VendorRow | undefined> {
+    if (!publicCode || publicCode.trim().length === 0) return undefined;
+    const normalized = normalizeCrockford(publicCode);
+    const [row] = await db
+      .select()
+      .from(vendors)
+      .where(eq(vendors.publicCode, normalized))
       .limit(1);
     return row;
   },
@@ -89,6 +120,19 @@ export const vendorsRepo = {
    * second claim — a replay, or a race between two people who both control the phone — matches
    * nothing and returns null. Category and source move together with the status because a claimed
    * category that is still marked `observed` would silently fail to enforce.
+   *
+   * `displayName` moves with them, and is REQUIRED rather than optional, because this is the write
+   * that turns a private shadow-data row into public identity content. Until the claim, the name
+   * is `vendor_observations.account_name` — which traces back to `vendorResolvedName` on
+   * `POST /transactions/intent` and is therefore client-supplied. From the claim onward it is
+   * rendered on the unauthenticated `/v/:code` page under a "Verified on Amana" badge. A required
+   * field makes every caller state, at the call site, what provenance it is claiming for that
+   * string; an optional one let the question go unasked, which is exactly how the payer-supplied
+   * name reached the public internet in the first place.
+   *
+   * `null` means "leave the existing name alone" and is a deliberate, spelled-out choice for the
+   * ops rail, which has no bank enquiry of its own to draw on. It is implemented as a conditional
+   * spread rather than a `null` write because `display_name` is `notNull`.
    */
   async claim(
     db: DbOrTx,
@@ -96,6 +140,8 @@ export const vendorsRepo = {
       vendorId: string;
       phone: string;
       category: string | null;
+      /** The bank-confirmed name to publish, or `null` to keep the observation-derived one. */
+      displayName: string | null;
       publicCode: string;
       now: Date;
     },
@@ -107,6 +153,7 @@ export const vendorsRepo = {
         category: input.category,
         categorySource: 'claimed',
         categoryHouseholdCount: null,
+        ...(input.displayName === null ? {} : { displayName: input.displayName }),
         publicCode: input.publicCode,
         claimedByPhone: input.phone,
         claimedAt: input.now,

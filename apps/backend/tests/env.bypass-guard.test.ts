@@ -20,3 +20,48 @@ describe('env: DEV_OTP_BYPASS_CODE production guard', () => {
     ).not.toThrow();
   });
 });
+
+/**
+ * The same class of defect as the OTP bypass: one env var, set once, that quietly removes a
+ * production safety property. `RATE_LIMIT_ENABLED=false` makes `attachRateLimiters` return before
+ * registering anything AND makes every route-level limiter's key function return the `null` skip
+ * sentinel — so it disables the OTP surfaces (an SMS bill and a phone-enumeration oracle), the
+ * vendor claim rail, the public vendor page's only protection for Postgres, and the per-account
+ * bound on our paid Anchor calls, all at once. It is a dev/test escape hatch; in production it is
+ * a single-character outage.
+ */
+describe('env: RATE_LIMIT_ENABLED production guard', () => {
+  const prodSecrets = {
+    ANCHOR_API_KEY: 'anchor-test-key',
+    ANCHOR_WEBHOOK_SECRET: 'whsec-test',
+    TERMII_API_KEY: 'termii-test-key',
+    ADMIN_API_KEY: 'z'.repeat(32),
+  };
+
+  it('throws when RATE_LIMIT_ENABLED is false in production', () => {
+    expect(() =>
+      loadEnv({ ...base, ...prodSecrets, NODE_ENV: 'production', RATE_LIMIT_ENABLED: 'false' }),
+    ).toThrow(/RATE_LIMIT_ENABLED/);
+  });
+
+  it('boots in production when RATE_LIMIT_ENABLED is unset (it defaults ON)', () => {
+    expect(() => loadEnv({ ...base, ...prodSecrets, NODE_ENV: 'production' })).not.toThrow();
+  });
+
+  /**
+   * The transform is `v !== 'false'`, so ONLY the exact string turns it off. Pinned because the
+   * neighbouring `VENDOR_CATEGORY_ENFORCE_DEFAULT` uses the inverted `v === 'true'`, and a guard
+   * copied against the wrong one would reject every production boot.
+   */
+  it('does not reject other truthy-ish values in production', () => {
+    expect(() =>
+      loadEnv({ ...base, ...prodSecrets, NODE_ENV: 'production', RATE_LIMIT_ENABLED: 'true' }),
+    ).not.toThrow();
+  });
+
+  it('allows RATE_LIMIT_ENABLED=false outside production', () => {
+    expect(() =>
+      loadEnv({ ...base, NODE_ENV: 'development', RATE_LIMIT_ENABLED: 'false' }),
+    ).not.toThrow();
+  });
+});

@@ -1,9 +1,16 @@
 # Amana — App Flow
 
 
-> **Refreshed 2026-08-25.** The principal and agent wallet flows below were accurate and are
-> unchanged. Three surfaces that did not exist when this was written have been added: digital VAS
-> (§3.6), the buyer marketplace and the control fusion (§6), and the retailer portal (§7).
+> **Refreshed 2026-08-25.** Three surfaces that did not exist when this was written have been
+> added: digital VAS (§3.6), the buyer marketplace and the control fusion (§6), and the retailer
+> portal (§7).
+>
+> **Amended 2026-08-26 (SP-V3).** §3.2's agent scan step now branches on payload shape — an Amana
+> Vendor Code and a bank NQR go to different endpoints from one camera. And the 2026-08-25 refresh
+> was wrong on one point: it said "the principal and agent wallet flows were accurate and are
+> unchanged". The **agent** flows were. The **principal** capture flow (§1.1's `PayTab`, and all of
+> §2.5) documents screens that do not exist in `apps/principal/src/` and never have; both are now
+> marked. Found by diffing the file listing before adding the vendor-code branch to it.
 >
 > Index: [`docs/product/README.md`](../product/README.md)
 
@@ -34,7 +41,7 @@ RootNavigator
     │   ├── WalletsTab → SubWalletListScreen
     │   │               └── SubWalletDetailScreen
     │   │                   └── SubWalletRulesScreen
-    │   ├── PayTab → [vendor capture flow]
+    │   ├── PayTab → [vendor capture flow]   ← NOT BUILT; see the note on §2.5
     │   └── InboxTab → NotificationsInboxScreen
     │                  └── TransactionDetailScreen (deep-link target)
     ├── TransactionDetailScreen (standalone — deep-link)
@@ -60,7 +67,7 @@ RootNavigator
     │   ├── HomeTab → HomeScreen
     │   ├── PayTab → PayStack
     │   │   ├── CaptureMethodScreen
-    │   │   ├── NqrScanScreen
+    │   │   ├── NQRScanScreen        (reads NQR *and* Amana Vendor Codes)
     │   │   ├── PhoneLookupScreen
     │   │   ├── AccountEntryScreen
     │   │   ├── ConfirmScreen
@@ -127,6 +134,16 @@ WalletsTab → SubWalletListScreen (GET /households/:id/sub-wallets)
 ```
 
 ### 2.5 Principal Direct Spend
+
+> ⚠️ **NOT BUILT IN THE PRINCIPAL APP — verified 2026-08-26.** The server side of this is real
+> (`subWalletId: null` direct spend, decision #17); the client side never was. `apps/principal/src/`
+> has no `PayTab`, no `PayStack`, no `CaptureMethodScreen`, no `NqrScanScreen` and no
+> `ConfirmScreen`, and `expo-camera` is a dependency of `apps/agent` alone. **A principal cannot
+> scan anything today** — not an NQR and not an Amana Vendor Code. SP-V3's plan called for
+> "mirroring" the vendor-code branch into this app; there was nothing to mirror, and building it
+> means building decision #17's client half end to end. Read the tree below as the intended design,
+> not as shipped behaviour. See
+> [`docs/runbook/vendor-registry.md`](../runbook/vendor-registry.md) → "What SP-V3 did NOT ship".
 
 ```
 PayTab → CaptureMethodScreen
@@ -205,9 +222,19 @@ PairingStack
 HomeScreen → "Pay" button  OR  PayTab
   └── CaptureMethodScreen
         ├── recent vendor cards → skip to ConfirmScreen with pre-filled vendor
-        ├── "Scan QR" → NqrScanScreen
-        │     → camera scans QR → POST /vendors/nqr-decode
-        │     → result → ConfirmScreen
+        ├── "Scan QR" → NQRScanScreen        ← ONE camera, two payload kinds
+        │     → camera scans QR → parseScannedPayload() branches on SHAPE
+        │           ├── [Amana Vendor Code — bare AMNV-XXXXX-XXXXX, or a
+        │           │    pay.amana.ng/v/<code> URL on the anchored host]
+        │           │     → GET /vendors/code/:code?subWalletId=…
+        │           │     → result carries vendorId + category
+        │           │     → ConfirmScreen (Verified badge; category pre-filled)
+        │           └── [anything else — NIBSS TLV, or unrecognised]
+        │                 → POST /vendors/nqr-decode
+        │                 → ConfirmScreen
+        │     → on failure: describeScanFailure() replaces the camera with one
+        │       sentence, and offers TRY AGAIN only on the retryable rungs
+        │       (0 / 429 / 502 / 503) — never on 404 / 409 / 410
         ├── "Phone number" → PhoneLookupScreen
         │     → enter phone → GET /vendors/phone-lookup
         │     → confirm name → ConfirmScreen

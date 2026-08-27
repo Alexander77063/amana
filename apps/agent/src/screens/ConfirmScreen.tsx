@@ -1,6 +1,7 @@
-import { SPEND_CATEGORIES } from '@amana/types';
+import { SPEND_CATEGORIES, SPEND_CATEGORY_VALUES } from '@amana/types';
 import {
   AmountText,
+  Badge,
   Body,
   Button,
   Card,
@@ -20,10 +21,41 @@ import { useAgentStore } from '../state/agent.store';
 
 type Props = NativeStackScreenProps<PayStackParamList, 'Confirm'>;
 
+/**
+ * A kobo string from the QR, as the naira text this screen's amount field holds.
+ *
+ * Done with BigInt and string parts, never `Number`: kobo is the money, and routing it through a
+ * float to render it is the one habit the ledger's whole bigint discipline exists to forbid. The
+ * digits-only guard is not paranoia about our own backend — it is that this value is typed into a
+ * money field the payer is about to approve, and there is no sensible thing to show for garbage.
+ * Anything unparseable yields an empty field, which is exactly what the payer gets today.
+ */
+function koboToNairaInput(kobo: string | null | undefined): string {
+  if (!kobo || !/^\d+$/.test(kobo)) return '';
+  const k = BigInt(kobo);
+  const remainder = k % 100n;
+  const naira = k / 100n;
+  return remainder === 0n ? String(naira) : `${naira}.${String(remainder).padStart(2, '0')}`;
+}
+
 export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
   const theme = useTheme();
-  const { resolvedName, bankCode, accountNumber, accountMasked } = route.params;
-  const [amountNaira, setAmountNaira] = useState('');
+  // Destructured EXPLICITLY, and kept that way. `vendorId` and `category` are inputs to this
+  // screen's rendering only; `vendorId` in particular must never reach the spend intent, and
+  // `{ ...route.params }` in the intent literal below would put it there while typechecking green
+  // (TypeScript exempts spreads from excess-property checking). See ConfirmScreen.test.tsx.
+  const {
+    resolvedName,
+    bankCode,
+    accountNumber,
+    accountMasked,
+    vendorId,
+    category: registryCategory,
+    suggestedAmountKobo,
+  } = route.params;
+  // Seeded from the QR when it carried an amount (NQR tag 54). A pre-fill, like the category: the
+  // field stays editable, because the payer — not the sticker — decides what leaves their wallet.
+  const [amountNaira, setAmountNaira] = useState(koboToNairaInput(suggestedAmountKobo));
   const [note, setNote] = useState('');
   const [gpsEnabled, setGpsEnabled] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -31,7 +63,23 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
   // The principal's category rules compare against this exact string, so it has to come from
   // the shared vocabulary in @amana/types. The previous hardcoded 'ad_hoc_service' meant any
   // allowlist the parent set would have denied every payment.
-  const [category, setCategory] = useState<string>('other');
+  //
+  // The registry's category seeds it when the payment came from an Amana Vendor Code. That is a
+  // PRE-FILL and nothing more: the server is authoritative when enforcement is on, and a client
+  // that pretended to enforce would be a second, weaker copy of the rule in the one place a
+  // modified client can ignore. The picker below stays live and unlocked.
+  //
+  // Membership is checked because this is the only path that sets the state from something other
+  // than a Chip press. An out-of-vocabulary value would leave NO chip lit and then ride onto the
+  // intent — `POST /transactions/intent` takes `category` as free text — which is precisely the
+  // silent allow/deny drift the closed vocabulary exists to prevent. Both writers of
+  // `vendors.category` constrain it today, so this is belt-and-braces; it costs one comparison
+  // against the same shared constant the picker is built from, so the two cannot drift apart.
+  const [category, setCategory] = useState<string>(
+    registryCategory && SPEND_CATEGORY_VALUES.includes(registryCategory)
+      ? registryCategory
+      : 'other',
+  );
 
   const send = async () => {
     const sw = useAgentStore.getState().selectedSubWallet;
@@ -93,7 +141,21 @@ export function ConfirmScreen({ route, navigation }: Props): JSX.Element {
   return (
     <Screen title="Confirm Payment" keyboardAvoiding scrollable>
       <Card style={{ alignItems: 'center', gap: 4, marginBottom: 8 }}>
+        {/* The name keeps its own line and its own weight — decision #16 makes that large bold
+            name the in-person trust handshake, so the badge sits under it rather than beside it,
+            where a long trading name would otherwise push one of the two out of the row. */}
         <Body strong>{resolvedName}</Body>
+        {/* An identity claim about the merchant, so it is only ever rendered for a payment that
+            actually came from a registry code. `vendorId` is absent (not null) on every other
+            capture path, and a badge that is always on is worse than no badge at all. */}
+        {vendorId ? (
+          // The label goes ON the Badge, not on a wrapper. iOS ignores an accessibilityLabel on a
+          // container that is not itself `accessible`, so VoiceOver descends to the children and a
+          // blind payer hears the visible "Verified" instead of the full claim — the one thing this
+          // badge exists to say. `Badge` sets `accessible` whenever it is given a label; a wrapper
+          // bypasses that and silently downgrades the announcement.
+          <Badge label="Verified" variant="success" accessibilityLabel="Verified Amana vendor" />
+        ) : null}
         <Body muted>{accountMasked}</Body>
         {amountNaira ? (
           <AmountText

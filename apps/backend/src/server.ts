@@ -24,6 +24,7 @@ import { subWalletsRoute } from './routes/sub-wallets';
 import { transactionsRoute } from './routes/transactions';
 import { vasRoute } from './routes/vas';
 import { vendorClaimRoute } from './routes/vendor-claim';
+import { vendorPageRoute } from './routes/vendor-page';
 import { vendorsRoute } from './routes/vendors';
 import { vendorsAdminRoute } from './routes/vendors-admin';
 import { webhooksRoute } from './routes/webhooks';
@@ -113,6 +114,26 @@ function attachRateLimiters(app: Hono): void {
     );
   }
 
+  // The vendor-code lookup used to be limited here, per IP. It is not any more: it now lives
+  // inside `vendorsRoute`, after `jwtAuth()`, keyed on the authenticated account. See the comment
+  // at that `.use('/code/*', …)` for why the mechanism had to move rather than just be resized.
+  // Nothing keyed on `clientIp` can bound the resource that limiter is protecting.
+
+  // The public vendor landing page. Unauthenticated by necessity — it is opened by whoever points
+  // a phone camera at a sticker in a shop window — and it reaches Postgres on every request.
+  // The code is unguessable at 32^10, so this is not an enumeration defence: it is here so a
+  // sticker photographed off a shop window cannot be turned into free load on the API's database.
+  // Keyed by IP, like every other limiter in this file; there is no actor to key on.
+  app.use(
+    '/v/*',
+    rateLimit({
+      limit: env.RATE_LIMIT_VENDOR_PAGE_PER_IP,
+      windowSeconds,
+      keyPrefix: 'vendor-page:ip',
+      key: clientIp,
+    }),
+  );
+
   app.use(
     '/auth/otp/verify',
     rateLimit({
@@ -188,6 +209,10 @@ export function createServer(): Hono {
   app.route('/health', healthRoute);
   app.route('/webhooks', webhooksRoute);
   app.route('/vendors', vendorsRoute);
+  // Mounted ahead of `buildMeRouter()`, which is routed at `/` and applies `jwtAuth()` with no
+  // path — i.e. to `/*`. Registered after it, this public page would 401 every camera that opened
+  // it. Same reason `/health` and `/webhooks` sit above.
+  app.route('/v', vendorPageRoute);
   app.route('/transactions', transactionsRoute);
   app.route('/bumps', bumpsRoute);
   app.route('/devices', devicesRoute);
@@ -203,6 +228,15 @@ export function createServer(): Hono {
   app.route('/vendor-claim', vendorClaimRoute);
   app.route('/vendors-admin', vendorsAdminRoute);
   app.route('/media', mediaRoute);
+  // MOUNTED LAST, AND IT IS A CATCH-ALL. Every router inside `buildMeRouter()` calls
+  // `.use(jwtAuth())` with no path, which at a `/` mount means `/*` — so this does not only
+  // authenticate `/me`, it authenticates every request that matched no route above it. That is why
+  // an unrouted or not-yet-mounted path answers 401 rather than 404 (SP-V2 hit exactly this on
+  // `/vendors-admin/*` and could not explain it). Two consequences worth knowing before you debug
+  // a mysterious 401 on a URL you have not mounted yet:
+  //   - a 401 from this API is not proof the path exists;
+  //   - any PUBLIC route must be mounted ABOVE this line, or it inherits the auth. `/health`,
+  //     `/webhooks` and `/v` all sit above for that reason.
   app.route('/', buildMeRouter());
   app.onError(errorHandler);
   return app;

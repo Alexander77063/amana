@@ -7,12 +7,14 @@ import { phoneLookupService } from './phone-lookup.service';
 import { recentsService } from './recents.service';
 import { stickerLookupService } from './sticker-lookup.service';
 import type { ResolveError, ResolvedVendor } from './types';
+import { vendorCodeLookupService } from './vendor-code-lookup.service';
 
 export type ResolveInput =
   | { kind: 'account'; bankCode: string; accountNumber: string; subWalletId: string; now: Date }
   | { kind: 'phone'; phoneNumber: string; subWalletId: string; now: Date }
   | { kind: 'sticker'; stickerUuid: string; subWalletId: string; now: Date }
-  | { kind: 'nqr'; payload: string; subWalletId: string; now: Date };
+  | { kind: 'nqr'; payload: string; subWalletId: string; now: Date }
+  | { kind: 'vendor'; publicCode: string; subWalletId: string; now: Date };
 
 export const vendorResolutionService = {
   async resolve(
@@ -54,6 +56,10 @@ export const vendorResolutionService = {
         });
         break;
       }
+
+      case 'vendor':
+        result = await vendorCodeLookupService.lookup(db, adapter, input.publicCode);
+        break;
     }
 
     if (isOk(result)) {

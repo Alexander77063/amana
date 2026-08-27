@@ -17,6 +17,8 @@ export default defineConfig({
       'react-native-safe-area-context': at('../../packages/ui/test/safe-area.mock.tsx'),
       'react-native-svg': at('../../packages/ui/test/svg.mock.tsx'),
       '@react-navigation/native': at('./test/mocks/react-navigation-native.tsx'),
+      'expo-camera': at('./test/mocks/expo-camera.tsx'),
+      'expo-location': at('./test/mocks/expo-location.ts'),
     },
   },
   test: {

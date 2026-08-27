@@ -6,6 +6,10 @@
 > Predates five of the fifteen schema files (VAS, marketplace, sticker, recents, and the retailer
 > additions). Use [`docs/product/database-schema.md`](../product/database-schema.md), which is
 > generated from `apps/backend/src/db/schema/` and states the money invariants.
+>
+> **The supersession covers §1 (the data model) only.** `database-schema.md` has no endpoint
+> section, so §2 below is still the only API endpoint table in the repo — keep it current rather
+> than forking a second copy elsewhere.
 
 **Version:** 1.0 | **Date:** 2026-05-13
 **Stack:** Hono · Drizzle ORM 0.34.1 · Postgres 15 (Supabase + PostGIS)
@@ -333,7 +337,15 @@ All endpoints require `Authorization: Bearer <JWT>` unless noted.
 | GET | `/vendors/phone-lookup` | Required | Phone → account resolution |
 | GET | `/vendors/sticker/:uuid` | Required | NFC sticker → vendor (v1.1 stub) |
 | POST | `/vendors/nqr-decode` | Required | Decode NQR / bank QR payload |
+| GET | `/vendors/code/:code` | Required | Amana Vendor Code → vendor, with a fresh NIBSS name enquiry |
 | GET | `/vendors/recents` | Required | Recent vendor list for agent |
+| GET | `/v/:code` | **None** | Public HTML landing page for a vendor code — name + last 4 digits only |
+
+`/v/:code` is the one unauthenticated HTML surface in this API; it is mounted at `/v`, not
+under `/vendors`, and it must stay mounted above the catch-all `/` router or it inherits that
+router's `jwtAuth`. Status ladders for both of these, and the reasons they differ, are in
+[`docs/runbook/vendor-registry.md`](../runbook/vendor-registry.md) → "The Amana Vendor Code";
+that runbook is the source of truth for this pair, not this table.
 
 ### 2.8 Notifications
 

@@ -26,6 +26,20 @@ export type PayStackParamList = {
     bankCode: string;
     accountNumber: string;
     accountMasked: string;
+    /**
+     * The registry vendor, when the payment came from an Amana Vendor Code. OUTPUT ONLY: it exists
+     * so the confirm screen can show a verified badge. It must never be put on the spend intent —
+     * `CreateIntentInput` has no such field, and the server re-resolves the vendor from the bank
+     * code and account number precisely so a payer cannot choose whose category rules apply.
+     */
+    vendorId?: string | null;
+    /** The registry's category, pre-filled into the confirm screen. Advisory, never enforced here. */
+    category?: string | null;
+    /**
+     * An amount the QR itself carried (NQR tag 54), as a kobo string. Pre-fills the amount field
+     * and stays editable — the payer, not the sticker, decides what leaves their wallet.
+     */
+    suggestedAmountKobo?: string | null;
   };
   BumpWait: {
     transactionId: string;

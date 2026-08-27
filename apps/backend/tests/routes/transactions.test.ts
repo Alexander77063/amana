@@ -101,6 +101,45 @@ describe('POST /transactions/intent + evaluate', () => {
     expect(evalBody.status).toBe('in_flight');
   });
 
+  /**
+   * `vendorResolvedName` is client-supplied and, via `vendor_observations.account_name` and the
+   * registry sweep, ends up as `vendors.display_name` — rendered on the unauthenticated
+   * `/v/:code` page. The provenance fix is at claim time (the NIBSS name overwrites it there);
+   * this cap is the defence in depth, and it belongs at the entry point because this is the only
+   * place the string is under the caller's control.
+   *
+   * 200 matches `routes/retailers.ts`'s `businessName` — this repo's existing bar for "cannot
+   * truncate a real Nigerian business name". Same shape of string, same cap, so there is no
+   * second number for a reader to reconcile.
+   */
+  it('400s an over-length vendorResolvedName', async () => {
+    const { masterId, subWalletId, agentUser } = await seedFundedSubWallet();
+    const app = createServer();
+    const agentHeaders = await bearerHeaders(agentUser);
+    async function intentWithName(name: string) {
+      return app.request('/transactions/intent', {
+        method: 'POST',
+        headers: agentHeaders,
+        body: JSON.stringify({
+          masterWalletId: masterId,
+          subWalletId,
+          amountKobo: '5000',
+          idempotencyKey: factories.idempotencyKey(),
+          vendorBankCode: '058',
+          vendorAccountNumber: '0123456789',
+          vendorResolvedName: name,
+          category: null,
+          agentNote: null,
+        }),
+      });
+    }
+
+    expect((await intentWithName('A'.repeat(201))).status).toBe(400);
+    // The boundary from the other side, so the cap cannot be quietly tightened to something that
+    // would truncate a long-but-legitimate registered business name.
+    expect((await intentWithName('A'.repeat(200))).status).toBe(201);
+  });
+
   it('rejects intent without bearer (401)', async () => {
     const { masterId, subWalletId } = await seedFundedSubWallet();
     const app = createServer();

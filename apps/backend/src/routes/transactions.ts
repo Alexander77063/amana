@@ -26,7 +26,25 @@ const IntentBodySchema = z.object({
   idempotencyKey: z.string().min(1),
   vendorBankCode: z.string().min(1),
   vendorAccountNumber: z.string().min(1),
-  vendorResolvedName: z.string().min(1),
+  /**
+   * Capped because this string does not stay inside the transaction.
+   *
+   * `settlement.service.ts` copies it into `vendor_observations.account_name`, the registry sweep
+   * promotes that into `vendors.display_name`, and `routes/vendor-page.ts` renders it under a
+   * "Verified on Amana" badge on an unauthenticated page. So a client-controlled field reaches the
+   * open internet, and `min(1)` alone let it be arbitrarily long.
+   *
+   * This is defence in depth, NOT the fix. The fix is provenance: `vendorClaimService.verify`
+   * overwrites `display_name` with the name NIBSS returns for the account, so nothing a payer
+   * types survives to the public page of a self-service-claimed vendor. The cap bounds the blast
+   * radius of everything upstream of that — the observation rows, the logs, and the ops-claimed
+   * vendors whose name is still observation-derived.
+   *
+   * 200 rather than a new number: `routes/retailers.ts`'s `businessName` already sets 200 as this
+   * repo's bar for "cannot truncate a real Nigerian business name", and this is the same shape of
+   * string. Reusing the existing cap leaves nothing for a later reader to reconcile.
+   */
+  vendorResolvedName: z.string().min(1).max(200),
   /**
    * A CLOSED vocabulary, and this is a spend control rather than a formatting preference.
    *

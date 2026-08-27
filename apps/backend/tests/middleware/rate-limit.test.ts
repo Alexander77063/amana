@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  actorOrIpKey,
   bodyFieldKey,
   clientIp,
   rateLimit,
@@ -148,5 +149,57 @@ describe('bodyFieldKey', () => {
 
   it('returns null on an unparseable body', async () => {
     expect(await extract('phone', 'not-json{')).toBeNull();
+  });
+});
+
+/**
+ * `actorOrIpKey` guards a middleware-ORDERING invariant the compiler cannot see. Today the vendor
+ * limiter is registered after a pathless `jwtAuth()`, so the actor is always set — but reorder the
+ * `.use()` calls, or mount an unauthenticated route under the same prefix, and a
+ * `(c.get('actor') as Actor).userId` cast is a `TypeError` on a payment-path read: a 500 rather
+ * than a degrade.
+ */
+describe('actorOrIpKey', () => {
+  afterEach(() => resetRateLimitStore());
+
+  async function keyFor(actor: unknown, headers: Record<string, string> = {}): Promise<string> {
+    let seen = '';
+    const app = new Hono();
+    app.get('/k', (c) => {
+      if (actor !== undefined) c.set('actor', actor);
+      seen = actorOrIpKey(c);
+      return c.text('ok');
+    });
+    await app.request('/k', { headers });
+    return seen;
+  }
+
+  it('keys on the authenticated user id when the actor is present', async () => {
+    expect(await keyFor({ userId: 'user-1', role: 'agent' })).toBe('user-1');
+  });
+
+  it('falls back to the client IP when the actor is absent', async () => {
+    expect(await keyFor(undefined, { 'fly-client-ip': '102.89.0.7' })).toBe('102.89.0.7');
+  });
+
+  /**
+   * The assertion that matters. `null` is `rateLimit`'s DISABLED sentinel, so degrading to it
+   * would turn a broken ordering invariant into silently no rate limiting at all — failing open
+   * on exactly the surface the limiter protects. Even with no IP source at all the fallback must
+   * be a real key.
+   */
+  it('never degrades to null — the disabled sentinel — even with no IP source', async () => {
+    const key = await keyFor(undefined);
+    expect(key).not.toBeNull();
+    expect(key).toBe('unknown');
+  });
+
+  it('still limits when it has degraded to the IP key', async () => {
+    const app = new Hono();
+    app.use('/t', rateLimit({ limit: 1, windowSeconds: 60, keyPrefix: 'deg', key: actorOrIpKey }));
+    app.get('/t', (c) => c.json({ ok: true }));
+    const headers = { 'fly-client-ip': '102.89.0.8' };
+    expect((await app.request('/t', { headers })).status).toBe(200);
+    expect((await app.request('/t', { headers })).status).toBe(429);
   });
 });

@@ -16,6 +16,8 @@ export const stickerLookupService = {
         accountName: r.value.accountName,
         source: 'sticker',
         suggestedAmountKobo: null,
+        vendorId: null,
+        category: null,
       });
     }
     switch (r.error.code) {

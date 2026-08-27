@@ -24,6 +24,14 @@ export const redactConfig = {
     'authorization',
     '*.authorization',
     'req.headers.authorization',
+    // A NUBAN identifies a person's bank account and travels with `bankCode`, which is logged
+    // beside it. Added after a review found `routes/vendors.ts` passing it as a named field on the
+    // enquiry-failure path: the commit that stopped a phone being interpolated into a log MESSAGE
+    // moved identifiers to named FIELDS, which is right, but only `phone` was on this list — so
+    // closing one leak opened its neighbour. If you add an identifier to a log call, add it here in
+    // the same change.
+    'accountNumber',
+    '*.accountNumber',
   ],
   censor: '[redacted]',
 };

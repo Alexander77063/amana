@@ -12,6 +12,24 @@ export type CreateIntentInput = {
   category: string | null;
   agentNote: string | null;
   geolocation: { lat: number; lng: number } | null;
+  /**
+   * DO NOT DELETE — this field exists precisely because it is never set.
+   *
+   * A client-supplied vendor id would let a payer choose WHICH merchant's category rules get
+   * applied to their own spend. The server re-resolves the vendor from `vendorBankCode` +
+   * `vendorAccountNumber` for exactly that reason, and `vendorId` must never reach this wire.
+   *
+   * Merely omitting the field does not enforce that. TypeScript exempts SPREADS from excess-property
+   * checking, so `createIntent({ ...route.params, … })` on the confirm screen — where `vendorId` is
+   * a navigation param — compiles green and smuggles it through. Declaring it `?: never` makes that
+   * spread a type error while a clean object literal still passes, because `string | undefined` is
+   * not assignable to `undefined`.
+   *
+   * This is a compile-time backstop, not the only one: `ConfirmScreen.test.tsx` asserts the exact
+   * runtime key set, which catches what the type system cannot (a cast, a widened value, a body
+   * built dynamically).
+   */
+  vendorId?: never;
 };
 
 export type CreateIntentResult = { transactionId: string; status: string };

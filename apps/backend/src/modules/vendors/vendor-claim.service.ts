@@ -199,6 +199,14 @@ export const vendorClaimService = {
         vendorId: vendor.id,
         phone: input.phone,
         category: input.category,
+        // The bank's name for the account, from the enquiry that just proved ownership — NOT a
+        // second Anchor call, and not the observed name it replaces. Until this write
+        // `display_name` was `vendor_observations.account_name`, which came from
+        // `vendorResolvedName` on a payer's `POST /transactions/intent`; the claim is the moment
+        // that row becomes public identity content on `/v/:code`, so it is also the moment the
+        // string has to stop being client-supplied. Inside the existing transaction, as one more
+        // column on the write that was already happening.
+        displayName: verdict.accountName,
         publicCode,
         now: input.now,
       });

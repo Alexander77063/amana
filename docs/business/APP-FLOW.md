@@ -12,10 +12,19 @@
 > §2.5) documents screens that do not exist in `apps/principal/src/` and never have; both are now
 > marked. Found by diffing the file listing before adding the vendor-code branch to it.
 >
+> **Amended 2026-08-27.** New **§8, the vendor arc** — the passive registry, the claim rail and the
+> payable code. These shipped across SP-V1/V2/V3 and had **no flow here at all**; §7.1 covers a
+> different rail (the marketplace retailer), with a different actor. §8 is written from the code as
+> it stands after PR #50 rather than from the sub-plans, which document the pre-Gate-3 claim shape
+> and remain correct as history. It also carries the only actor in this document who is **not an
+> Amana user** — the shopkeeper being paid.
+>
 > Index: [`docs/product/README.md`](../product/README.md)
 
 **Version:** 1.0 | **Date:** 2026-05-13
-**Apps covered:** Principal (iOS + Android) · Agent (Android first, iOS secondary)
+**Apps covered:** Principal (iOS + Android) · Agent (Android first, iOS secondary) · plus two
+surfaces belonging to neither app: the retailer portal (§7, web) and the vendor claim rail and
+public code page (§8, web + unauthenticated)
 
 > **Executive summary:** Amana has two separate mobile apps — Principal and Agent — built in React Native (Expo). The principal controls and funds; the agent spends within rules. This document maps every screen, transition, and deep-link in both apps, plus the shared transaction lifecycle that connects them.
 
@@ -515,3 +524,120 @@ Earnings      → paid to your bank · on its way · earned in total · vouchers
 **Suspended is asymmetric, and the banner says so:** a suspended retailer cannot publish or run
 deals, but can still redeem vouchers already sold, and those payouts still reach them. The buyer
 already paid; stranding them to punish the retailer puts the cost on the wrong party.
+
+---
+
+## 8. Vendor arc — registry, claim rail, payable code *(added 2026-08-27)*
+
+Three surfaces that no other section covers, and the only ones with an actor who is **not an Amana
+user**: the shopkeeper being paid. Written from the code as it stands after PR #50, not from the
+sub-plans — the sub-plan documents show the pre-Gate-3 claim shape and are correct as history.
+
+Detail lives in [`runbook/vendor-registry.md`](../runbook/vendor-registry.md) and
+[`runbook/vendor-claim.md`](../runbook/vendor-claim.md).
+
+### 8.1 The registry builds itself — nobody signs up
+
+```
+AGENT pays a vendor by NIP (§3.2)
+  └── transfer.completed webhook → settlementService.finalise
+        └── vendorObservationService.recordSettlement   ← AFTER the settlement commits
+              ⇒ one row in vendor_observations: household, bank code, account, name, category
+              ⇒ NEVER THROWS. A registry fault must not turn a paid transfer into an error,
+                 and a dropped observation is statistically harmless.
+
+hourly sweep, 17 * * * *  (offset off :00 — the recon sweep already runs there)
+  ├── promote     ≥ VENDOR_REGISTRY_MIN_HOUSEHOLDS (5) DISTINCT households
+  │                 → vendors row, status = observed
+  ├── categorise  ≥ CONSENSUS_MIN_HOUSEHOLDS (8) at ≥ CONSENSUS_RATIO (0.6) agreement
+  └── expire      abandoned claim attempts released
+```
+
+**Distinct households, not payments.** One household paying fifty times promotes nothing — the
+threshold is a statement about how many separate people recognise this account as a business, which
+is exactly the aggregate the claim rail then has to avoid leaking (§8.2).
+
+**The consensus floor sits ABOVE the promotion floor deliberately**, so a vendor is never promoted
+and categorised in the same sweep. An inferred category also never *enforces* — only a claimed or
+ops-set one does.
+
+```
+observed ──(claim rail §8.2, or ops approve-claim)──▶ claimed ──(ops)──▶ suspended
+```
+
+### 8.2 A shopkeeper claims their account — phone first, account second
+
+The ordering is the security property, not a UX preference (**PRE-LAUNCH GATE 3**, closed
+2026-08-27).
+
+```
+SHOPKEEPER (no Amana account, never signed in)
+  └── POST /vendor-claim/request   { phone }              ← a phone and NOTHING else
+        ⇒ ALWAYS sends a code. 202 {"status":"pending_verification"}, always.
+        ⇒ nothing is bound to a vendor yet, and no attempt row exists
+
+  └── POST /vendor-claim/verify    { phone, code, bankCode, accountNumber, category }
+        ├── OTP checked FIRST — a junk code never reaches a paid Anchor call
+        ├── then the account is resolved, then NIBSS proves phone ↔ account
+        └── 200  { publicCode: "AMNV-XXXXX-XXXXX", displayName }
+            409  ownership_unproved → the ops queue's inbox, not a dead end
+            409  vendor_unavailable → suspended, already claimed, or lost the CAS race
+            401  invalid_code       → wrong code, exhausted, or no live challenge (one answer)
+            503  anchor_unavailable
+```
+
+**Why the account cannot be named at `/request`.** It used to be, and the code was sent only when
+the account resolved to a promoted, unclaimed vendor — so an attacker submitted their **own**
+number against someone else's account and watched their handset. One unauthenticated request, no
+Anchor call, and the uniform 202 could not hide it, because **an SMS is not part of an HTTP
+response**. Every account-dependent answer now sits behind proof of phone control.
+
+**The `409` is deliberately kept.** The obvious alternative — prove ownership at `/request` and
+text only on a NIBSS match — closes the same channel by giving an honest owner *silence*. A phone
+that does not match the bank record (staff phone, a director's line, a recently changed number) is
+the **common** case here, not the edge case, and those people need to be told to call support.
+
+**On the claimed name:** `displayName` is overwritten with the name NIBSS returns, replacing the
+observed one a payer typed. The claim is the moment that string becomes public content on §8.3, so
+it is also the moment it stops being client-supplied.
+
+### 8.3 The code becomes payable
+
+```
+PAYER (agent)                         ANYONE (no app, no account)
+  └── camera → NQRScanScreen           └── types pay.amana.ng/v/AMNV-XXXXX-XXXXX
+        reads NQR *and* AMNV codes           └── GET /v/:code   ← unauthenticated HTML,
+        └── GET /vendors/code/:code               the first Amana surface reached
+              (authenticated;                     by typing a hostname
+               assertSubWalletAccess)             └── shop name, "Verified on Amana",
+              └── confirm screen                     account ending — so a payer can
+                    └── normal NIP spend (§3.2)      confirm WHO they are paying
+                        — rules apply as ever
+```
+
+**⚠️ No code may be PRINTED until three things hold** — app-wide HSTS (built, PR #48), `amana.ng`
+**accepted** into browser preload lists, and the `pay.amana.ng` record. `force_https` is a 301 that
+travels in cleartext; an on-path attacker on market Wi-Fi replaces it and serves the same page with
+a different account ending, defeating the page's only job. Preload is what covers the *first* hit to
+a hostname, which is exactly and only what a printed sticker creates. See
+[`runbook/go-live-checklist.md`](../runbook/go-live-checklist.md) §6. **This blocks printing, not
+launch** — the scan path needs no public hostname and works today.
+
+### 8.4 Ops surfaces
+
+Admin-key authenticated (`ADMIN_API_KEY`), no UI — `curl` against `/vendors-admin`:
+
+```
+GET  /vendors-admin/claim-queue                    attempts awaiting a human
+POST /vendors-admin/vendors/:id/approve-claim      claim for the real business; needs NO
+                                                   pending row, so ops are never blocked
+                                                   by whoever holds the queue
+POST /vendors-admin/vendors/:id/category           set an ENFORCEABLE category
+POST /vendors-admin/vendors/:id/suspend            revoke enforcement, keep observing
+POST /vendors-admin/households/:id/enforcement     per-household switch — shadow vs enforce
+```
+
+**Suspension revokes enforcement but still returns the row**, so shadow logging keeps recording. And
+there is **no unsuspend route**: it needs a prior-status column to restore to, which makes it SP-V2b
+scope rather than a bolt-on. The SQL workaround is in the runbook.
+

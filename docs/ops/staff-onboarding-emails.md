@@ -1,6 +1,8 @@
 # Staff onboarding — email templates
 
-Fill in `{{NAME}}`, `{{EMAIL}}` and `{{ROLE}}`; send. Two emails, deliberately, in this order.
+Fill in `{{NAME}}`, `{{EMAIL}}` and `{{ROLE}}`; send. Two emails, deliberately, in this order. Staff
+addresses are on the **`amana.ng`** Workspace — the portal refuses any address outside it, so an
+account on any other domain cannot be granted access no matter who asks.
 
 ---
 
@@ -21,9 +23,9 @@ The templates below assume the correct flow — Google sends the credential link
 
 ---
 
-## Email 1 — your Elite Solutions Hub account
+## Email 1 — your Amana account
 
-> **Subject:** Your Elite Solutions Hub account — {{NAME}}
+> **Subject:** Your Amana account — {{NAME}}
 >
 > Hi {{NAME}},
 >

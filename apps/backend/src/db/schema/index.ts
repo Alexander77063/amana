@@ -13,3 +13,4 @@ export * from './auth';
 export * from './marketplace';
 export * from './vas';
 export * from './vendors';
+export * from './vendor-claims';

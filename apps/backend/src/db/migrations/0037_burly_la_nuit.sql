@@ -1,0 +1,1 @@
+ALTER TYPE "actor_kind" ADD VALUE 'ops';

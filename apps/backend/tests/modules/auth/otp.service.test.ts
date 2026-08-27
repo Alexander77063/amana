@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { otpService } from '../../../src/modules/auth/otp.service';
+import type { OtpPurpose } from '../../../src/modules/auth/types';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
 beforeEach(async () => {
@@ -150,5 +151,88 @@ describe('otpService.verifyCode', () => {
       });
       expect(r.kind).toBe('verified');
     });
+  });
+});
+
+// PRE-LAUNCH GATE 1 (docs/runbook/vendor-claim.md). `requestCode` invalidated EVERY unconsumed
+// challenge for a phone regardless of purpose. `/vendor-claim/request` is unauthenticated and a
+// promoted vendor's account number is printed on shop stickers rather than secret, so anyone could
+// cancel any user's in-flight login OTP by requesting a claim against that user's phone number.
+// The purpose binding in `verifyCode` stops a claim code COMPLETING a login; it does nothing about
+// a claim request CANCELLING one. That cancellation half is what these cover.
+describe('otpService cross-purpose isolation', () => {
+  const PHONE = '+2348012345678';
+
+  async function requestWithCode(purpose: OtpPurpose, code: string) {
+    const codesModule = await import('../../../src/modules/auth/codes');
+    const spy = vi.spyOn(codesModule, 'generateOtpCode').mockReturnValue(code);
+    const r = await otpService.requestCode(testDb, { phone: PHONE, purpose });
+    spy.mockRestore();
+    return r;
+  }
+
+  it('a vendor_claim request does not cancel a pending login challenge', async () => {
+    await requestWithCode('login', '111111');
+    await requestWithCode('vendor_claim', '222222');
+
+    const r = await otpService.verifyCode(testDb, {
+      phone: PHONE,
+      code: '111111',
+      allowedPurposes: ['login'],
+    });
+    expect(r.kind).toBe('verified');
+  });
+
+  it('a login request does not cancel a pending vendor_claim challenge', async () => {
+    await requestWithCode('vendor_claim', '222222');
+    await requestWithCode('login', '111111');
+
+    const r = await otpService.verifyCode(testDb, {
+      phone: PHONE,
+      code: '222222',
+      allowedPurposes: ['vendor_claim'],
+    });
+    expect(r.kind).toBe('verified');
+  });
+
+  // Scoping the invalidate is what makes two live challenges for one phone possible at all, which
+  // is exactly why the lookup needs to care about purpose too: an unordered `limit 1` across both
+  // rows would hand verifyCode the wrong one and reject a code that is genuinely correct.
+  it('verifyCode picks the challenge matching allowedPurposes when both are active', async () => {
+    await requestWithCode('login', '111111');
+    await requestWithCode('vendor_claim', '222222');
+
+    const claim = await otpService.verifyCode(testDb, {
+      phone: PHONE,
+      code: '222222',
+      allowedPurposes: ['vendor_claim'],
+    });
+    expect(claim.kind).toBe('verified');
+  });
+
+  // The lookup must PREFER a matching purpose, not filter to one. If the only live challenge is the
+  // wrong purpose there is still a challenge, and saying `no_challenge` would both break the
+  // documented contract above and leak a different shape than `wrong_purpose` does.
+  it('still reports wrong_purpose when the only active challenge is another purpose', async () => {
+    await requestWithCode('vendor_claim', '222222');
+
+    const r = await otpService.verifyCode(testDb, {
+      phone: PHONE,
+      code: '222222',
+      allowedPurposes: ['login'],
+    });
+    expect(r.kind).toBe('wrong_purpose');
+  });
+
+  it('a second request of the SAME purpose still invalidates the first', async () => {
+    await requestWithCode('login', '111111');
+    await requestWithCode('login', '333333');
+
+    const stale = await otpService.verifyCode(testDb, {
+      phone: PHONE,
+      code: '111111',
+      allowedPurposes: ['login'],
+    });
+    expect(stale.kind).not.toBe('verified');
   });
 });

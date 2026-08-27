@@ -23,6 +23,7 @@ const TABLES_TO_TRUNCATE = [
   'vas_beneficiaries',
   'postings',
   'transactions',
+  'vendor_claim_attempts',
   'vendors',
   'one_shot_tokens',
   'bump_requests',

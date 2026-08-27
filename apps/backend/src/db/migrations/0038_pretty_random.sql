@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS "phone_otp_challenges_by_phone_pending";--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "phone_otp_challenges_by_phone_purpose_pending" ON "phone_otp_challenges" USING btree ("phone","purpose") WHERE consumed_at IS NULL;

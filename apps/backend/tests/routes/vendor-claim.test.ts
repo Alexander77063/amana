@@ -1,0 +1,442 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { env } from '../../src/env';
+import { drainBackgroundTasks } from '../../src/lib/background';
+import { resetRateLimitStore } from '../../src/middleware/rate-limit';
+import { otpService } from '../../src/modules/auth/otp.service';
+import { vendorClaimsRepo } from '../../src/modules/vendors/vendor-claims.repo';
+import { vendorOwnershipService } from '../../src/modules/vendors/vendor-ownership.service';
+import { vendorsRepo } from '../../src/modules/vendors/vendors.repo';
+import { createServer } from '../../src/server';
+import { factories } from '../helpers/factories';
+import { testDb, truncateAll } from '../helpers/test-db';
+
+const NOW = new Date('2026-09-01T10:00:00Z');
+const app = createServer();
+
+function post(path: string, body: unknown) {
+  return app.request(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+describe('POST /vendor-claim', () => {
+  beforeEach(async () => {
+    await truncateAll();
+    vi.restoreAllMocks();
+  });
+
+  it('needs no authentication', async () => {
+    const res = await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+    expect(res.status).not.toBe(401);
+  });
+
+  it('is a NON-ORACLE: byte-identical responses for registered and unregistered accounts', async () => {
+    vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+
+    const known = await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+    const unknown = await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '9999999999',
+      phone: '+2348019999999',
+    });
+
+    expect(known.status).toBe(unknown.status);
+    expect(await known.text()).toBe(await unknown.text());
+  });
+
+  it('is a NON-ORACLE at /verify too: no attempt and a wrong code are byte-identical', async () => {
+    // The whole point. `verify` looks the attempt up BEFORE it checks the code, so if the two
+    // outcomes differed on the wire an unauthenticated caller with a junk code could ask "is this
+    // account a promoted registry vendor?" in one request — the same aggregate `/request`'s
+    // uniform 202 exists to hide. Modelled on the `/request` non-oracle test above.
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+    await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({ kind: 'wrong_code' });
+    // Has a pending attempt, wrong code.
+    const wrongCode = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '000000',
+      category: 'food',
+    });
+    // No attempt at all — the service still returns the internal `no_attempt` kind here.
+    const noAttempt = await post('/vendor-claim/verify', {
+      phone: '+2348017654321',
+      code: '000000',
+      category: 'food',
+    });
+
+    expect(wrongCode.status).toBe(401);
+    expect(noAttempt.status).toBe(wrongCode.status);
+    expect(await noAttempt.text()).toBe(await wrongCode.text());
+  });
+
+  it('is a NON-ORACLE at /verify for an EXHAUSTED attempt too, not just a wrong code', async () => {
+    // `too_many_attempts` can only ever come back from `verifyCode`, and `verify` returns
+    // `no_attempt` before `verifyCode` ever runs when there is no attempt row. So the exhausted
+    // answer is reachable ONLY for a promoted `observed` vendor: five junk calls answering
+    // `invalid_code` and a sixth answering something else is the registry-membership bit again,
+    // read straight off the response body — the exact bit the collapse above exists to hide.
+    //
+    // Driven through the REAL otp service (no `verifyCode` mock) so the exhaustion is the
+    // production one, argon2 and all.
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    const phone = '+2348012345678';
+    // Spy WITHOUT a mock implementation: calls through, but records what the service actually got
+    // back, so this test cannot pass by never reaching the exhausted branch at all.
+    const verify = vi.spyOn(otpService, 'verifyCode');
+
+    await post('/vendor-claim/request', { bankCode: '058', accountNumber: '0123456789', phone });
+    // `requestCode` is detached (`runInBackground`) and it is what writes the challenge row.
+    await drainBackgroundTasks();
+
+    const wrongCode: Array<{ status: number; body: string }> = [];
+    for (let i = 0; i < env.OTP_MAX_ATTEMPTS; i++) {
+      // Reset per iteration, not only before the sixth call: the loop must survive
+      // `OTP_MAX_ATTEMPTS` being tuned ABOVE `RATE_LIMIT_OTP_PER_PHONE`, which is exactly the
+      // tuning this finding warns reopens the leak. See the note below the loop.
+      resetRateLimitStore();
+      const res = await post('/vendor-claim/verify', { phone, code: '000000' });
+      wrongCode.push({ status: res.status, body: await res.text() });
+    }
+
+    // The per-phone limiter on this path is `RATE_LIMIT_OTP_PER_PHONE` (5), which today happens to
+    // equal `OTP_MAX_ATTEMPTS` (5) — so on ONE machine the sixth call 429s before the service sees
+    // it. That coincidence is precisely what must not be relied on: the limiter is in-memory and
+    // per-instance, and `auto_start_machines = true`. Resetting the store here stands in for the
+    // second Fly machine, which starts with an empty one. Do not "simplify" this away.
+    resetRateLimitStore();
+    const exhausted = await post('/vendor-claim/verify', { phone, code: '000000' });
+    const noAttempt = await post('/vendor-claim/verify', {
+      phone: '+2348017654321',
+      code: '000000',
+    });
+
+    // The sixth call really did exhaust the challenge rather than merely miss again.
+    expect(await verify.mock.results[env.OTP_MAX_ATTEMPTS]?.value).toEqual({
+      kind: 'too_many_attempts',
+    });
+
+    const exhaustedBody = await exhausted.text();
+    const noAttemptBody = await noAttempt.text();
+    expect(wrongCode[0]?.status).toBe(401);
+    expect(exhausted.status).toBe(wrongCode[0]?.status);
+    expect(noAttempt.status).toBe(wrongCode[0]?.status);
+    expect(exhaustedBody).toBe(wrongCode[0]?.body);
+    expect(noAttemptBody).toBe(wrongCode[0]?.body);
+  });
+
+  it('409s vendor_unavailable when the vendor stops being claimable behind a verified OTP', async () => {
+    // Collapsing this into the 401 was a dead end, not a defence: the claimant's OTP is already
+    // consumed, they read "invalid code", and their retry `/request` early-returns on
+    // `status !== 'observed'` into the uniform 202 — so no second code ever arrives. It is safe to
+    // distinguish because it sits BEHIND the verified OTP, the same gate that protects the
+    // deliberately-retained `409 ownership_unproved`.
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+    await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+    await drainBackgroundTasks();
+
+    // Suspended mid-flow — an ops action, or a second claimant winning the race.
+    expect(await vendorsRepo.setStatus(testDb, v.id, 'suspended')).toBe(true);
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
+      kind: 'verified',
+      challengeId: 'c1',
+      purpose: 'vendor_claim',
+    });
+    const prove = vi.spyOn(vendorOwnershipService, 'proveByPhoneLookup');
+
+    const res = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '123456',
+      category: 'food',
+    });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toEqual({ error: 'vendor_unavailable' });
+    // Decided before the paid Anchor lookup, so it costs nothing to answer honestly.
+    expect(prove).not.toHaveBeenCalled();
+  });
+
+  it('400s a category outside the shared spend vocabulary', async () => {
+    // Free text here would let a vendor decide whether someone else's spending lock applies: the
+    // claimed category REPLACES the app-supplied one before the rule engine compares it.
+    const res = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '123456',
+      category: 'Food',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('re-issues an OTP when the same phone retries after an ownership failure', async () => {
+    // The 409 path consumes the OTP but deliberately leaves the attempt `pending` for the ops
+    // queue. Before this fix the claimant's next `/request` collided with the one-pending index,
+    // got no row, and silently sent no second code — a lockout lasting until the HOURLY sweep.
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    const otp = vi
+      .spyOn(otpService, 'requestCode')
+      .mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+
+    const first = await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+    expect(first.status).toBe(202);
+    // The send is detached (`runInBackground`) so it must be drained before it can be counted.
+    await drainBackgroundTasks();
+    expect(otp).toHaveBeenCalledTimes(1);
+
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
+      kind: 'verified',
+      challengeId: 'c1',
+      purpose: 'vendor_claim',
+    });
+    const proof = vi
+      .spyOn(vendorOwnershipService, 'proveByPhoneLookup')
+      .mockResolvedValue({ proved: false, reason: 'mismatch' });
+    const unproved = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '123456',
+      category: 'food',
+    });
+    expect(unproved.status).toBe(409);
+
+    // Retry from the SAME phone: still the uniform 202, and now a second code actually goes out.
+    const retry = await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+    expect(retry.status).toBe(202);
+    expect(await retry.text()).toBe(await first.text());
+    await drainBackgroundTasks();
+    expect(otp).toHaveBeenCalledTimes(2);
+
+    // And the recovered attempt still completes the claim.
+    proof.mockResolvedValue({ proved: true, proof: 'phone_lookup' });
+    const claimed = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '123456',
+      category: 'food',
+    });
+    expect(claimed.status).toBe(200);
+    const body = (await claimed.json()) as { publicCode: string };
+    expect(body.publicCode).toMatch(/^AMNV-/);
+  });
+
+  it('keeps the land-grab guard: a repeat /request from a DIFFERENT phone is a silent no-op', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    const otp = vi
+      .spyOn(otpService, 'requestCode')
+      .mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+
+    const mine = await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+    await drainBackgroundTasks();
+    expect(otp).toHaveBeenCalledTimes(1);
+
+    const theirs = await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348017654321',
+    });
+    // Indistinguishable response, no second code: whoever opened the attempt has proved nothing
+    // yet, so letting a second caller take the slot is the attack the index exists to stop.
+    expect(theirs.status).toBe(mine.status);
+    expect(await theirs.text()).toBe(await mine.text());
+    await drainBackgroundTasks();
+    expect(otp).toHaveBeenCalledTimes(1);
+
+    const now = new Date();
+    const held = await vendorClaimsRepo.findPendingByPhone(testDb, '+2348012345678', now);
+    expect(held?.vendorId).toBe(v.id);
+    expect(
+      await vendorClaimsRepo.findPendingByPhone(testDb, '+2348017654321', now),
+    ).toBeUndefined();
+  });
+
+  it('400s a malformed phone rather than passing it downstream', async () => {
+    const res = await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: 'not-a-phone',
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns the minted code on a successful verify', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT KITCHEN',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+    await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
+      kind: 'verified',
+      challengeId: 'c1',
+      purpose: 'vendor_claim',
+    });
+    vi.spyOn(vendorOwnershipService, 'proveByPhoneLookup').mockResolvedValue({
+      proved: true,
+      proof: 'phone_lookup',
+    });
+
+    const res = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '123456',
+      category: 'food',
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { publicCode: string; displayName: string };
+    expect(body.publicCode).toMatch(/^AMNV-/);
+    expect(body.displayName).toBe('MAMA PUT KITCHEN');
+  });
+
+  it('401s a wrong code and 409s an unproved account', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+    await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({ kind: 'wrong_code' });
+    const bad = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '000000',
+      category: 'food',
+    });
+    expect(bad.status).toBe(401);
+
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
+      kind: 'verified',
+      challengeId: 'c1',
+      purpose: 'vendor_claim',
+    });
+    vi.spyOn(vendorOwnershipService, 'proveByPhoneLookup').mockResolvedValue({
+      proved: false,
+      reason: 'mismatch',
+    });
+    const unproved = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '123456',
+      category: 'food',
+    });
+    expect(unproved.status).toBe(409);
+  });
+
+  it('503s when the ownership partner is down', async () => {
+    const v = await vendorsRepo.promoteIfAbsent(testDb, {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      displayName: 'MAMA PUT',
+      promotedHouseholdCount: 6,
+      now: NOW,
+    });
+    if (!v) throw new Error('promotion failed');
+    vi.spyOn(otpService, 'requestCode').mockResolvedValue({ challengeId: 'c1', expiresAt: NOW });
+    await post('/vendor-claim/request', {
+      bankCode: '058',
+      accountNumber: '0123456789',
+      phone: '+2348012345678',
+    });
+
+    vi.spyOn(otpService, 'verifyCode').mockResolvedValue({
+      kind: 'verified',
+      challengeId: 'c1',
+      purpose: 'vendor_claim',
+    });
+    vi.spyOn(vendorOwnershipService, 'proveByPhoneLookup').mockResolvedValue({
+      proved: false,
+      reason: 'partner_down',
+    });
+    const res = await post('/vendor-claim/verify', {
+      phone: '+2348012345678',
+      code: '123456',
+      category: 'food',
+    });
+    expect(res.status).toBe(503);
+  });
+});

@@ -1,27 +1,13 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { env } from '../../env';
-
-// Crockford base32 alphabet with the ambiguous glyphs (I, L, O, U) removed — 32 symbols,
-// so a random byte masked with & 31 selects one with no modulo bias.
-const CROCKFORD = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
-const CODE_GROUP_LEN = 5;
-
-function randomCrockford(len: number): string {
-  const bytes = randomBytes(len);
-  let out = '';
-  for (let i = 0; i < len; i++) {
-    out += CROCKFORD.charAt((bytes[i] ?? 0) & 31);
-  }
-  return out;
-}
+import { mintPrefixedCode } from '../../lib/crockford';
 
 /**
- * Mint a human-typable single-use voucher code, e.g. `AMN-7QK2H-9PZ0R`. Two 5-symbol Crockford
- * groups give 32^10 ≈ 1.1e15 of entropy — collisions across a 10k batch are ~4e-8, and the DB
- * `code` UNIQUE constraint is the authoritative dedup at write time (service retries on clash).
+ * Mint a human-typable single-use voucher code, e.g. `AMN-7QK2H-9PZ0R`. The DB `code` UNIQUE
+ * constraint is the authoritative dedup at write time (the service retries on clash).
  */
 export function mintCode(): string {
-  return `AMN-${randomCrockford(CODE_GROUP_LEN)}-${randomCrockford(CODE_GROUP_LEN)}`;
+  return mintPrefixedCode('AMN');
 }
 
 // Domain-separated subkey derived from FIELD_ENCRYPTION_KEY so a QR token can't be forged

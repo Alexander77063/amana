@@ -4,7 +4,7 @@ import { auditLog } from '../../db/schema';
 
 type DbOrTx = PostgresJsDatabase;
 
-export type ActorKind = 'user' | 'system' | 'partner';
+export type ActorKind = 'user' | 'system' | 'partner' | 'ops';
 
 export type AuditEntry = {
   actorKind: ActorKind;

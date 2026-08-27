@@ -253,6 +253,27 @@
       "when": 1787655779372,
       "tag": "0035_broad_speedball",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787694559221,
+      "tag": "0036_illegal_star_brand",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1787699658718,
+      "tag": "0037_burly_la_nuit",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787790586745,
+      "tag": "0038_pretty_random",
+      "breakpoints": true
     }
   ]
 }

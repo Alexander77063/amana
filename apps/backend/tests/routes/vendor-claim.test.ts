@@ -4,6 +4,7 @@ import { drainBackgroundTasks } from '../../src/lib/background';
 import { resetRateLimitStore } from '../../src/middleware/rate-limit';
 import { otpService } from '../../src/modules/auth/otp.service';
 import { vendorClaimsRepo } from '../../src/modules/vendors/vendor-claims.repo';
+import { CURRENT_TERMS_VERSION } from '../../src/modules/vendors/vendor-consent.service';
 import { vendorOwnershipService } from '../../src/modules/vendors/vendor-ownership.service';
 import { vendorsRepo } from '../../src/modules/vendors/vendors.repo';
 import { createServer } from '../../src/server';
@@ -88,6 +89,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348012345678',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '000000',
       category: 'food',
     });
@@ -98,6 +100,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348017654321',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '000000',
       category: 'food',
     });
@@ -143,6 +146,7 @@ describe('POST /vendor-claim', () => {
         code: '000000',
         bankCode: '058',
         accountNumber: '0123456789',
+        acceptedTermsVersion: CURRENT_TERMS_VERSION,
       });
       wrongCode.push({ status: res.status, body: await res.text() });
     }
@@ -158,11 +162,13 @@ describe('POST /vendor-claim', () => {
       code: '000000',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
     const noAttempt = await post('/vendor-claim/verify', {
       phone: '+2348017654321',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '000000',
     });
 
@@ -215,6 +221,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348012345678',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '123456',
       category: 'food',
     });
@@ -231,6 +238,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348012345678',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '123456',
       category: 'Food',
     });
@@ -275,6 +283,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348012345678',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '123456',
       category: 'food',
     });
@@ -301,6 +310,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348012345678',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '123456',
       category: 'food',
     });
@@ -399,6 +409,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348012345678',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '123456',
       category: 'food',
     });
@@ -429,6 +440,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348012345678',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '000000',
       category: 'food',
     });
@@ -447,6 +459,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348012345678',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '123456',
       category: 'food',
     });
@@ -482,6 +495,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348012345678',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '123456',
       category: 'food',
     });
@@ -533,6 +547,7 @@ describe('POST /vendor-claim', () => {
       phone: '+2348012345678',
       bankCode: '058',
       accountNumber: '0123456789',
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
       code: '123456',
       category: 'food',
     });

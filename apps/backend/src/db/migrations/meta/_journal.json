@@ -281,6 +281,13 @@
       "when": 1787796339319,
       "tag": "0039_amusing_prowler",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1787852394902,
+      "tag": "0040_low_the_fury",
+      "breakpoints": true
     }
   ]
 }

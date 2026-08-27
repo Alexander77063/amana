@@ -11,6 +11,7 @@ import { logger } from '../../lib/logger';
 import { auditRepo } from '../audit/audit.repo';
 import { otpService } from '../auth/otp.service';
 import { vendorClaimsRepo } from './vendor-claims.repo';
+import { CURRENT_TERMS_VERSION, vendorConsentService } from './vendor-consent.service';
 import { vendorOwnershipService } from './vendor-ownership.service';
 import { vendorsRepo } from './vendors.repo';
 
@@ -22,6 +23,12 @@ export type ClaimVerifyResult =
   | { kind: 'claimed'; publicCode: string; displayName: string }
   | { kind: 'invalid_code' }
   | { kind: 'too_many_attempts' }
+  /**
+   * The claimant did not accept the current service terms, so there is no lawful basis to claim
+   * (NDPA 2023). Decided BEHIND the verified OTP like every other plain answer here, and kept
+   * distinct because it is the one outcome the caller can actually fix by trying again.
+   */
+  | { kind: 'terms_not_accepted'; requiredVersion: string }
   /**
    * The vendor stopped being claimable between `/request` and here — suspended, already claimed,
    * or the `claim` compare-and-set lost a race. Reached only from BEHIND a verified OTP, so
@@ -104,6 +111,10 @@ export const vendorClaimService = {
       bankCode: string;
       accountNumber: string;
       category: string | null;
+      /** The terms version the claimant was shown and accepted. Required — see the check below. */
+      acceptedTermsVersion?: string;
+      /** Optional, defaults to false. Refusing it must cost the claimant nothing. */
+      consentToLenderIntroduction?: boolean;
       now: Date;
     },
   ): Promise<ClaimVerifyResult> {
@@ -118,6 +129,18 @@ export const vendorClaimService = {
     });
     if (otp.kind === 'too_many_attempts') return { kind: 'too_many_attempts' };
     if (otp.kind !== 'verified') return { kind: 'invalid_code' };
+
+    // Immediately after the OTP and BEFORE anything account-shaped, for three reasons: it is free
+    // where the ownership proof below is a paid Anchor call, so a claim that cannot succeed never
+    // buys one; it is the one outcome here the caller can fix by retrying; and answering it before
+    // the account is examined means it reveals nothing about the account — a caller without terms
+    // learns only that they need terms.
+    if (!vendorConsentService.isCurrentTermsVersion(input.acceptedTermsVersion)) {
+      return { kind: 'terms_not_accepted', requiredVersion: CURRENT_TERMS_VERSION };
+    }
+    // Captured: the narrowing above does not survive into the transaction closure, and a non-null
+    // assertion there would discard the one check that establishes the lawful basis.
+    const acceptedTermsVersion = input.acceptedTermsVersion;
 
     // Past this line the caller has proved they hold the phone, so the answers may be plain.
     const vendor = await vendorsRepo.findByAccount(db, input.bankCode, input.accountNumber);
@@ -178,6 +201,15 @@ export const vendorClaimService = {
       // claim, is what keeps "several pending attempts per vendor" from leaving phantom ops-queue
       // rows behind, and stops `findPendingByPhone` handing a dead attempt to a later `/verify`.
       await vendorClaimsRepo.rejectOtherPendingForVendor(txDb, vendor.id, attempt.id);
+      // In the SAME transaction as the claim. A vendor that is `claimed` with no consent row is a
+      // merchant we are processing without a recorded lawful basis — the exact gap this closes —
+      // so the two must not be able to come apart.
+      await vendorConsentService.recordClaimConsents(txDb, {
+        vendorId: vendor.id,
+        termsVersion: acceptedTermsVersion,
+        lenderIntroduction: input.consentToLenderIntroduction === true,
+        now: input.now,
+      });
       await auditRepo.append(txDb, {
         actorKind: 'system',
         action: 'vendor.claimed',

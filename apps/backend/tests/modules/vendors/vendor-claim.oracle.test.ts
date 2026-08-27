@@ -3,6 +3,7 @@ import type { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { otpService } from '../../../src/modules/auth/otp.service';
 import { vendorClaimService } from '../../../src/modules/vendors/vendor-claim.service';
 import { vendorClaimsRepo } from '../../../src/modules/vendors/vendor-claims.repo';
+import { CURRENT_TERMS_VERSION } from '../../../src/modules/vendors/vendor-consent.service';
 import { vendorOwnershipService } from '../../../src/modules/vendors/vendor-ownership.service';
 import { vendorsRepo } from '../../../src/modules/vendors/vendors.repo';
 import { factories } from '../../helpers/factories';
@@ -97,6 +98,7 @@ describe('vendor claim — the registry-membership oracle (GATE 3)', () => {
       accountNumber: v.accountNumber,
       category: 'food',
       now: NOW,
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
 
     expect(r.kind).toBe('claimed');
@@ -123,6 +125,7 @@ describe('vendor claim — the registry-membership oracle (GATE 3)', () => {
       accountNumber: v.accountNumber,
       category: 'food',
       now: NOW,
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
 
     expect(r.kind).toBe('ownership_unproved');
@@ -148,6 +151,7 @@ describe('vendor claim — the registry-membership oracle (GATE 3)', () => {
       accountNumber: v.accountNumber,
       category: 'food',
       now: NOW,
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
 
     const pending = await vendorClaimsRepo.findPendingByPhone(testDb, phone, NOW);
@@ -175,6 +179,7 @@ describe('vendor claim — the registry-membership oracle (GATE 3)', () => {
       accountNumber: v.accountNumber,
       category: null,
       now: NOW,
+      acceptedTermsVersion: CURRENT_TERMS_VERSION,
     });
 
     expect(r.kind).toBe('invalid_code');

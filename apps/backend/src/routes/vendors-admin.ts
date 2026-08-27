@@ -10,6 +10,7 @@ import { auditRepo } from '../modules/audit/audit.repo';
 import { householdsRepo } from '../modules/identity/households.repo';
 import { phoneFingerprint } from '../modules/vendors/vendor-claim.service';
 import { vendorClaimsRepo } from '../modules/vendors/vendor-claims.repo';
+import { vendorConsentService } from '../modules/vendors/vendor-consent.service';
 import { vendorsRepo } from '../modules/vendors/vendors.repo';
 
 type DbOrTx = PostgresJsDatabase;
@@ -73,6 +74,11 @@ const ApproveBody = z.object({
  * transaction is a record that can survive a rollback, or be lost by one. Nothing is audited that
  * did not change a row: a 404 leaves no trace, because nothing happened.
  */
+/** Only these two purposes exist, and a revocation names exactly one — see `vendor-consents.ts`. */
+const RevokeConsentSchema = z.object({
+  purpose: z.enum(['service_terms', 'lender_introduction']),
+});
+
 export const vendorsAdminRoute = new Hono()
   .use('*', async (c, next) => adminAuth(process.env.ADMIN_API_KEY)(c, next))
 
@@ -203,6 +209,53 @@ export const vendorsAdminRoute = new Hono()
       return true;
     });
     return ok ? c.json({ ok: true }, 200) : c.json({ error: 'not_found' }, 404);
+  })
+
+  /**
+   * Withdraw a consent, or read the log.
+   *
+   * NDPA 2023 requires withdrawal to be **as easy as granting**, and today the only channel a
+   * merchant has is a phone call to ops — there is no merchant-facing session on this rail, and the
+   * claim OTP is spent at claim time. So an operator records it on their behalf, with `source:
+   * 'ops'` marking exactly that provenance. A self-serve path is the right end state and is noted
+   * in the runbook; until it exists, this is the withdrawal mechanism and support must know it.
+   */
+  .get('/vendors/:id/consents', async (c) => {
+    const params = parseParams(c, IdParams);
+    if (params instanceof Response) return params;
+    const [state, history] = await Promise.all([
+      vendorConsentService.currentState(db, params.id),
+      vendorConsentService.history(db, params.id),
+    ]);
+    return c.json({ current: state, history }, 200);
+  })
+
+  .post('/vendors/:id/consents/revoke', async (c) => {
+    const params = parseParams(c, IdParams);
+    if (params instanceof Response) return params;
+    const body = await parseBody(c, RevokeConsentSchema);
+    if (body instanceof Response) return body;
+
+    const vendor = await vendorsRepo.findById(db, params.id);
+    if (!vendor) return c.json({ error: 'not_found' }, 404);
+
+    await db.transaction(async (tx) => {
+      const txDb = tx as DbOrTx;
+      await vendorConsentService.revoke(txDb, {
+        vendorId: params.id,
+        purpose: body.purpose,
+        source: 'ops',
+        now: new Date(),
+      });
+      await auditRepo.append(txDb, {
+        actorKind: 'ops',
+        action: 'vendor.consent_revoked_by_ops',
+        subjectKind: 'vendor',
+        subjectId: params.id,
+        payloadJson: { purpose: body.purpose },
+      });
+    });
+    return c.json({ ok: true }, 200);
   })
 
   .post('/households/:id/enforcement', async (c) => {

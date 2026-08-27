@@ -37,6 +37,18 @@ const VerifySchema = z.object({
    * legitimate spend under an allowlist. Same constraint, same reason, as `retailer-portal.ts`.
    */
   category: z.enum(SPEND_CATEGORY_VALUES).nullable().default(null),
+  /**
+   * The version of the terms + privacy notice the claimant was shown. Required: without it there
+   * is no lawful basis to claim them (NDPA 2023). The client sends back what it displayed, so a
+   * stale app cannot silently consent on the merchant's behalf to text it never rendered.
+   */
+  acceptedTermsVersion: z.string().min(1).max(40).optional(),
+  /**
+   * SEPARATE and optional, defaulting to false. Consent bundled with a different purpose is not
+   * consent under the NDPA, so refusing this must cost the claimant nothing — and it does not:
+   * the claim proceeds either way. See `PRICING.md` §8.1.
+   */
+  consentToLenderIntroduction: z.boolean().optional().default(false),
 });
 
 /**
@@ -67,6 +79,8 @@ export const vendorClaimRoute = new Hono()
       bankCode: body.bankCode,
       accountNumber: body.accountNumber,
       category: body.category,
+      acceptedTermsVersion: body.acceptedTermsVersion,
+      consentToLenderIntroduction: body.consentToLenderIntroduction,
       now: new Date(),
     });
 
@@ -114,6 +128,12 @@ export const vendorClaimRoute = new Hono()
         // 409, not 403: the caller proved they hold the phone. What failed is that NIBSS does not
         // link that phone to this account — a conflict with reality, and the ops queue's job now.
         return c.json({ error: 'ownership_unproved', detail: r.reason }, 409);
+      case 'terms_not_accepted':
+        // 400, not 409: this is a malformed submission the caller can correct, not a conflict with
+        // the world. `requiredVersion` is returned so a client that shipped against older text can
+        // tell it is stale rather than guessing. Safe to be explicit — it sits behind the verified
+        // OTP like every other plain answer on this route.
+        return c.json({ error: 'terms_not_accepted', requiredVersion: r.requiredVersion }, 400);
       case 'partner_down':
         return c.json({ error: 'anchor_unavailable' }, 503);
     }

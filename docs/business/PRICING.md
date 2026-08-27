@@ -1,8 +1,9 @@
 # Amana — Pricing & Monetisation Decision
 
-**Status:** Confirmed against Anchor's pricing schedule (2026-06-30); EMTL & inflow-cap
-treatment settled (2026-07-01) — see §7
-**Date:** 2026-06-28 (revised 2026-06-30, 2026-07-01)
+**Status:** §§1–7 confirmed against Anchor's pricing schedule (2026-06-30); EMTL & inflow-cap
+treatment settled (2026-07-01) — see §7. **§8 (2026-08-27) is strategy, not model**: adjacent
+revenue from operational by-products, none of it priced or validated with a counterparty.
+**Date:** 2026-06-28 (revised 2026-06-30, 2026-07-01; §8 added 2026-08-27)
 **Owner:** Alex
 **Supersedes:** the implicit subscription assumption in earlier planning docs
 
@@ -247,6 +248,88 @@ free/month (₦3.6M/yr subsidy).*
    it taxes the priority-acquisition persona and breaks §1, so it was rejected.)* *Implementation:*
    track absorbed inflow fees per wallet per calendar month; once ≥ ₦6,000, add the incremental
    0.5% to the top-up debit.
+
+---
+
+## 8. Operational by-products — adjacent revenue *(added 2026-08-27)*
+
+> **Status: STRATEGY, NOT MODEL.** Nothing below is priced, quoted or validated with a
+> counterparty. Sections 1–5 distinguish *confirmed* from *assumed* with some care; this section is
+> neither. It exists so the assets are written down before someone monetises the wrong one.
+
+Revenue today is entirely transaction-bound: ₦100 per spend (₦50 of it margin), VTU commission,
+marketplace bps. That scales with usage and nothing else. Operating the wallet also **accumulates
+things that were not the point of building it**, and those are worth naming.
+
+### 8.1 The consent boundary — read this before anything else
+
+`vendors.status` is already the line, and it was built for enforcement rather than for commerce:
+
+| Status | What it means | What may be done with it |
+|---|---|---|
+| `observed` | Promoted by the registry sweep at ≥ `VENDOR_REGISTRY_MIN_HOUSEHOLDS` (5) **distinct** households. The merchant **has never been asked** and does not know they are in it. | **Internal only** — rule engine, category consensus, shadow logging. Not sold, not exposed, not referred. |
+| `claimed` | The merchant proved phone control (OTP), was NIBSS-matched to the account, and volunteered their identity. | A counterparty with a relationship. May be **offered** things. |
+| `suspended` | Ops revoked enforcement. | As `observed`. |
+
+**The claim rail is what converts observation into consent**, and that is its commercial
+significance as much as its product one. An `observed` merchant's cash-flow signal is inferred from
+*other people's* spending; monetising it is a data sale over someone's head. A `claimed` merchant
+opted in and can be offered a service. Same data, entirely different proposition — and the schema
+already encodes which is which.
+
+**Do not blur this line to widen a funnel.** If a partner wants coverage that only `observed`
+delivers, the answer is to grow claims, not to reclassify.
+
+### 8.2 The by-products, ranked
+
+| # | Asset | Who plausibly pays | The constraint |
+|---|---|---|---|
+| 1 | **Merchant cash-flow graph** — per account: how many distinct households pay it, how regularly, in which category, over what period | Lenders / working-capital / BNPL, as an **origination and underwriting** channel | `claimed` only. Referral, not a data feed. |
+| 2 | **Merchant category codes** — a Nigerian MCC equivalent derived from real NIP behaviour (`CONSENSUS_MIN_HOUSEHOLDS` 8 at `CONSENSUS_RATIO` 0.6) | Anyone doing spend analytics on transfer rails | Aggregate only; safest of the four |
+| 3 | **Verified-payee identity** — account → NIBSS-verified name + category + confidence | Fintechs fighting transfer fraud ("you are paying MAMA PUT KITCHEN") | **Conflicts with PRE-LAUNCH GATE 3 — see 8.3** |
+| 4 | **Merchant self-analytics** — a claimed merchant's own inbound-payment view | The merchant | Least fraught of all: their data, sold back to them |
+
+**Why #1 is the real one.** Nigerian bureaus hold salary earners; card rails hold formal retail.
+Nobody holds the woman selling food who is paid by transfer forty times a week — no POS terminal, no
+bureau file, frequently no registered entity. Amana observes exactly that population as a by-product
+of doing its actual job, and payment *regularity across distinct payers* is a better thin-file
+signal than most things a lender can currently buy. The product asset is the relationship the claim
+rail creates; the data is what makes the introduction worth something.
+
+### 8.3 By-product #3 is the oracle we closed — decide it deliberately
+
+Selling query access to "is this account a known vendor" **is** the aggregate
+[PRE-LAUNCH GATE 3](../runbook/vendor-claim.md) was closed to protect. That gate's whole subject is
+that an arriving answer tells the asker "at least five Amana households pay this account and nobody
+has claimed it".
+
+A contracted B2B API is genuinely different from an anonymous probe — named counterparty, per-query
+attribution, rate limits, a contract with teeth. But it is a **difference of degree**, and the
+failure mode is drift: shipping it as a feature and discovering later that the privacy property was
+traded away by accident. If this is pursued:
+
+1. Decide it explicitly, at this document's level, not in a ticket.
+2. Record the decision **next to Gate 3 in `vendor-claim.md`**, so the two are read together.
+3. Restrict to `claimed` merchants — who have consented to being findable — which incidentally
+   removes most of the leak, since a claimed vendor is no longer a private aggregate.
+
+### 8.4 Ruled out
+
+**Household-level spend data, in any form, aggregated or not.** Nigeria's NDPA 2023 is the legal
+floor; the product reason is stronger. Parents hand Amana their children's spending on the promise
+that it is *controlled*, not *observed by strangers*. Selling it — even anonymised, even in
+aggregate — trades the one thing the product is named after. `amana` means something held in trust.
+
+### 8.5 Before any of this is pursued
+
+- **None of it is a launch dependency.** The wallet's economics stand on §§1–5. This is upside, and
+  chasing it early would cost focus that GTM needs for margin density (§6).
+- **Volume gates everything.** #1 and #2 need a registry with enough claimed merchants to be worth
+  querying — a coverage question, not a pricing one, and unanswerable until the rail has live
+  traffic.
+- **Get a lender to say a number.** #1's value is entirely "what is a qualified, cash-flow-verified
+  merchant introduction worth", and that is one conversation away from being knowable. Until someone
+  says it, everything above is a hypothesis.
 
 ---
 

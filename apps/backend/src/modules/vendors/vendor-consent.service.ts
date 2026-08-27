@@ -10,6 +10,12 @@ type DbOrTx = PostgresJsDatabase;
 /**
  * The version of the service terms + privacy notice a claimant is shown.
  *
+ * **The text lives at `docs/legal/vendor-claim-terms/<version>.md`**, and
+ * `tests/modules/vendors/vendor-terms-text.test.ts` fails if the document for this version is
+ * missing. That binding exists because this constant shipped before any text did — the rail
+ * enforced acceptance of a version that pointed at nothing, which is a lawful basis on paper and
+ * none in fact.
+ *
  * A code constant rather than an env var, deliberately: the version is a fact about the text that
  * shipped, not a deployment setting. If it were configurable, two environments could record consent
  * against "v1" meaning two different documents — which is precisely the ambiguity the version exists

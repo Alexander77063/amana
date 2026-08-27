@@ -329,7 +329,13 @@ aggregate — trades the one thing the product is named after. `amana` means som
   traffic.
 - **Get a lender to say a number.** #1's value is entirely "what is a qualified, cash-flow-verified
   merchant introduction worth", and that is one conversation away from being knowable. Until someone
-  says it, everything above is a hypothesis.
+  says it, everything above is a hypothesis. Prep, the five questions to ask, and what must **not**
+  be claimed: [`lender-discovery-brief.md`](./lender-discovery-brief.md).
+- **The claim flow collects no consent** — no terms, no privacy notice, no agreement to onward
+  introduction (verified 2026-08-27). Under NDPA 2023 that is the missing lawful basis for by-product
+  #1, and "they claimed their account" is not consent to be referred to a lender. Closing it is cheap
+  **now** — no client implements the claim flow and `@amana/api-client` has no method for it — and
+  expensive once merchants have claimed under terms that never mentioned it.
 
 ---
 

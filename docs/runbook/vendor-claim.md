@@ -438,28 +438,37 @@ the response body.
 
 ## Deferred follow-ups
 
-### PRE-LAUNCH GATE 1: cross-purpose OTP cancellation
+### ~~PRE-LAUNCH GATE 1~~: cross-purpose OTP cancellation — **CLOSED 2026-08-27**
 
-`otpService.requestCode` calls `otpChallengesRepo.invalidateActiveForPhone` (
-`otp-challenges.repo.ts`), which invalidates **every** unconsumed OTP challenge for a phone
-— regardless of purpose — before minting a new one. `otpChallengesRepo.findActiveByPhone`
-has the same gap: it looks a challenge up by phone alone, with no purpose filter either.
+Closed in the same PR that ships the rail, deliberately: there is no feature flag on
+`/vendor-claim/*`, so merging the rail *is* launching it, and a gate that only a runbook enforces
+is not a gate.
 
-The purpose binding shipped ahead of this sub-plan (`allowedPurposes` in `verifyCode`)
-stops a `vendor_claim` OTP from *completing* a `login`, and vice versa. It does **not** stop
-a claim *request* from *cancelling* an in-flight login OTP. Concretely: anyone who knows a
-promoted vendor's account number — printed on shop POS stickers, not secret — can submit
-`{phone: <victim's phone>, bankCode, accountNumber}` to `/vendor-claim/request` and silently
-invalidate whatever login OTP the victim currently has pending, without needing to know or
-guess it.
+**What the hole was.** `otpService.requestCode` called `invalidateActiveForPhone`, which consumed
+**every** unconsumed challenge for a phone regardless of purpose. The purpose binding (
+`allowedPurposes` in `verifyCode`) stops a `vendor_claim` OTP *completing* a `login`; it did
+nothing about a claim request *cancelling* one. So anyone who knew a promoted vendor's account
+number — printed on shop POS stickers, not secret — could POST
+`{phone: <victim's phone>, bankCode, accountNumber}` to the unauthenticated `/vendor-claim/request`
+and silently destroy whatever login OTP that victim was waiting on. Rate limits bound the volume of
+that, never a single targeted cancellation.
 
-**This must be closed before the claim rail goes live**, not deferred indefinitely. The
-complete fix touches both functions named above: `invalidateActiveForPhone` needs a
-`purpose` parameter so it only cancels challenges of the same purpose, and
-`findActiveByPhone` needs the same scoping so `verifyCode` can't accidentally pick up a
-challenge from a different purpose either. Currently this is bounded only by the per-phone
-and per-IP rate limiters on `/vendor-claim/request` (above) — a real mitigation against
-volume, not against a single targeted cancellation.
+**What closing it actually required — three changes, not the two this section used to predict:**
+
+| Change | Why |
+|---|---|
+| `invalidateActiveForPhone(db, phone, **purpose**, now)` | Only supersede challenges of the same purpose. The parameter is **required**, not optional, so a future caller cannot reopen the hole by omitting it. |
+| `findActiveByPhone(db, phone, now, **preferPurposes**)` | Scoping the invalidate is what makes two live challenges for one phone possible at all — so an unordered `limit 1` could now hand `verifyCode` a `vendor_claim` row while the user submits a correct `login` code. Orders by "purpose the caller accepts" first, newest second. |
+| **Migration `0038`** — unique index `(phone)` → `(phone, purpose)` | The one this section missed. `phone_otp_challenges_by_phone_pending` allowed only ONE unconsumed challenge per phone, so scoping the invalidate alone would have converted the cancellation bug into a unique-violation 500 on `/vendor-claim/request`. The index is *widened*, so no existing row can violate it. |
+
+**`findActiveByPhone` prefers, it does not filter.** When the only live challenge is another
+purpose, it is still returned, so `verifyCode` answers `wrong_purpose` exactly as before and the
+wire shape documented above is unchanged. Filtering would have answered `no_challenge` instead.
+
+Covered by `otpService cross-purpose isolation` in `tests/modules/auth/otp.service.test.ts`: a
+claim request leaves a pending login verifiable and vice versa, the right challenge is selected
+when both are live, a lone wrong-purpose challenge still reports `wrong_purpose`, and a repeat
+request of the *same* purpose still supersedes its predecessor.
 
 ### PRE-LAUNCH GATE 2: the attacker-arrives-first race
 

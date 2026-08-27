@@ -57,7 +57,9 @@ export const otpService = {
 
     return db.transaction(async (tx) => {
       const txDb = tx as DbOrTx;
-      await otpChallengesRepo.invalidateActiveForPhone(txDb, input.phone, now);
+      // Scoped to THIS purpose: a new code supersedes its own predecessor and nothing else, so
+      // requesting a vendor claim cannot cancel a login the same phone is waiting on.
+      await otpChallengesRepo.invalidateActiveForPhone(txDb, input.phone, input.purpose, now);
       const ch = await otpChallengesRepo.insert(txDb, {
         phone: input.phone,
         codeHash,
@@ -75,7 +77,15 @@ export const otpService = {
 
   async verifyCode(db: DbOrTx, input: VerifyCodeInput): Promise<VerifyCodeResult> {
     const now = new Date();
-    const ch = await otpChallengesRepo.findActiveByPhone(db, input.phone, now);
+    // Pass the allowed set so a live challenge of another purpose can't shadow the one the caller
+    // actually means. It is a preference, not a filter — a lone wrong-purpose challenge still comes
+    // back, so the `wrong_purpose` answer below stays reachable.
+    const ch = await otpChallengesRepo.findActiveByPhone(
+      db,
+      input.phone,
+      now,
+      input.allowedPurposes,
+    );
     if (!ch) return { kind: 'no_challenge' as const };
     // Checked before claimAttempt, deliberately: a purpose mismatch is a caller/flow error, not a
     // brute-force guess, so it must not burn one of the user's limited attempt slots. Doing so

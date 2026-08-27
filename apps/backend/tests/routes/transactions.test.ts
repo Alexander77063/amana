@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { kobo } from '../../src/lib/kobo';
 import { householdsRepo } from '../../src/modules/identity/households.repo';
 import { usersRepo } from '../../src/modules/identity/users.repo';
+import { ruleSetService } from '../../src/modules/rules/rule-set.service';
 import { ledgerService } from '../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../src/modules/wallet/sub-wallets.repo';
@@ -159,6 +160,76 @@ describe('POST /transactions/intent + evaluate', () => {
     });
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'missing_bearer' });
+  });
+
+  describe('category is a closed vocabulary — a blocklist must not be dodgeable by spelling', () => {
+    async function postIntent(category: unknown) {
+      const { masterId, subWalletId, agentUser, principalId } = await seedFundedSubWallet();
+      await ruleSetService.publishNewVersion(testDb, {
+        subWalletId,
+        createdByUserId: principalId,
+        rules: [
+          { kind: 'category', priority: 10, config: { mode: 'blocklist', categories: ['food'] } },
+        ],
+      });
+      const app = createServer();
+      const headers = await bearerHeaders(agentUser);
+      const res = await app.request('/transactions/intent', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          masterWalletId: masterId,
+          subWalletId,
+          amountKobo: '5000',
+          idempotencyKey: factories.idempotencyKey(),
+          vendorBankCode: '058',
+          vendorAccountNumber: '0123456789',
+          vendorResolvedName: 'M',
+          category,
+          agentNote: null,
+        }),
+      });
+      return { res, app, headers };
+    }
+
+    // The bypass itself, not merely the validation. `evaluators/category.ts` compares with
+    // `includes()` — exact match, no fold — so before this fix `'Food'` matched nothing and a
+    // blocklist on `food` simply did not fire. The principal saw a rule they believed was on.
+    it.each(['Food', 'FOOD', 'food ', ' food'])(
+      'refuses %j at the door rather than letting it slip past a blocklist on "food"',
+      async (category) => {
+        const { res } = await postIntent(category);
+        expect(res.status).toBe(400);
+      },
+    );
+
+    it('still refuses a category that is simply not in the vocabulary', async () => {
+      const { res } = await postIntent('groceries');
+      expect(res.status).toBe(400);
+    });
+
+    // The other half: the fix must not break the spend it is protecting. An exact-vocabulary
+    // category still reaches the evaluator and is still blocked there, by the rule rather than
+    // by the schema — a 400 here would mean the block moved to the wrong layer.
+    it('accepts the exact vocabulary, and the RULE is what blocks it', async () => {
+      const { res, app, headers } = await postIntent('food');
+      expect(res.status).toBe(201);
+      const intent = (await res.json()) as { transactionId: string };
+      const evalRes = await app.request(`/transactions/${intent.transactionId}/evaluate`, {
+        method: 'POST',
+        headers,
+      });
+      // 202, not 200: a blocked spend becomes a bump request awaiting the principal. The status
+      // is not the assertion — the decision is. `allow` here would mean the category never
+      // reached the evaluator.
+      const body = (await evalRes.json()) as { kind: string };
+      expect(body.kind).not.toBe('allow');
+    });
+
+    it('still accepts null — a spend with no category is not the same as a bad one', async () => {
+      const { res } = await postIntent(null);
+      expect(res.status).toBe(201);
+    });
   });
 });
 

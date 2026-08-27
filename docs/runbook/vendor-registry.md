@@ -462,18 +462,24 @@ replaced*.
 
 `fly.toml` and `fly.staging.toml` set `force_https = true`. That is **a 301 that travels in
 cleartext**, which the attacker simply does not send. It is not HSTS and it is not a
-substitute for it. Grepping this repo for `strict-transport` or `hsts` returns nothing
-outside plan documents: **there is no HSTS anywhere in this codebase**, and no app-wide
-security-header middleware to hang it on — the only security headers that exist are
-`vendor-page.ts`'s, scoped to its own router.
+substitute for it.
+
+> **Updated 2026-08-27.** The paragraph that stood here said grepping this repo for
+> `strict-transport` or `hsts` returned nothing, and that there was no app-wide security-header
+> middleware to hang it on. Both were true when written and are now false: item 1 below is built.
+> `middleware/security-headers.ts` serves the header on every response and is mounted first in
+> `createServer()`. Items 2 and 3 are untouched, so **the gate is still closed.**
 
 ### The three items
 
-1. **`Strict-Transport-Security: max-age=63072000; includeSubDomains; preload` served
-   app-wide** — on every response from the API, not only on `/v`. This is an **engineering
-   change to `server.ts`**, not an ops config flip: there is no app-wide header middleware
-   today to add it to. (The sub-plan called the landing page's only external dependency "a
-   DNS record… an ops step in Task 7's runbook, not an engineering one". That is true of DNS
+1. ✅ **BUILT 2026-08-27** — `Strict-Transport-Security: max-age=63072000; includeSubDomains;
+   preload` served app-wide, on every response from the API rather than only on `/v`.
+   `middleware/security-headers.ts`, mounted first in `createServer()`; covered by
+   `tests/middleware/security-headers.test.ts`, which pins the 404, the 500 and the 401 as well as
+   the happy path, since those are what a mistyped sticker actually produces. **Not yet live** —
+   it ships on the next deploy, which is blocked on the Anchor keys, so confirm it on the real
+   host before submitting item 2. (The sub-plan called the landing page's only external dependency
+   "a DNS record… an ops step in Task 7's runbook, not an engineering one". That was true of DNS
    and false of the gate as a whole.)
 2. **`amana.ng` submitted to the HSTS preload list *and accepted*.** Not merely submitted —
    the domain has to actually appear in the shipped browser lists.

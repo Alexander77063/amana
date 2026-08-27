@@ -1,4 +1,5 @@
 export * from './identity';
+export * from './user-consents';
 export * from './wallet';
 export * from './transactions';
 export * from './postings';

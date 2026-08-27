@@ -37,7 +37,7 @@ describe('otpChallengesRepo', () => {
       purpose: 'login',
       expiresAt: new Date(Date.now() + 60_000),
     });
-    await otpChallengesRepo.invalidateActiveForPhone(testDb, '+2348012345678', new Date());
+    await otpChallengesRepo.invalidateActiveForPhone(testDb, '+2348012345678', 'login', new Date());
     const ch2 = await otpChallengesRepo.insert(testDb, {
       phone: '+2348012345678',
       codeHash: 'h2',

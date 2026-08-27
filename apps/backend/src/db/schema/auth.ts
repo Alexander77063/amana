@@ -15,8 +15,18 @@ export const phoneOtpChallenges = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({
-    byPhonePending: uniqueIndex('phone_otp_challenges_by_phone_pending')
-      .on(t.phone)
+    // One pending challenge per (phone, PURPOSE) — not per phone.
+    //
+    // Scoped on purpose deliberately (PRE-LAUNCH GATE 1, docs/runbook/vendor-claim.md). While this
+    // was keyed on `phone` alone, a phone could hold only one live challenge, so minting a
+    // `vendor_claim` code necessarily destroyed any pending `login` code. `/vendor-claim/request`
+    // is unauthenticated and a promoted vendor's account number is printed on shop stickers rather
+    // than secret, which made that a remote, targeted way to cancel any user's login OTP.
+    //
+    // Per-purpose uniqueness still holds, so a repeat request of the SAME purpose continues to
+    // supersede its predecessor — the property `otpService.requestCode` relies on.
+    byPhonePurposePending: uniqueIndex('phone_otp_challenges_by_phone_purpose_pending')
+      .on(t.phone, t.purpose)
       .where(sql`consumed_at IS NULL`),
   }),
 );

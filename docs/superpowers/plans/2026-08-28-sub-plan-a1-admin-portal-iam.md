@@ -191,7 +191,8 @@ highest-risk surface and should land on an IAM that has been exercised.
 
 ### Still open, and blocking
 
-- **The Workspace does not exist yet.** `amana-ng.com` needs to be owned and verified, then a Google
+- **The Workspace does not exist yet.** Step-by-step setup, including the two things that bite if
+  skipped, is in [`runbook/google-workspace-setup.md`](../../runbook/google-workspace-setup.md). `amana-ng.com` needs to be owned and verified, then a Google
   Workspace tenant, an OAuth app, and the redirect URI, before Task 1 can be tested against anything
   real. Task 1 can be *built* against a stub, but not verified. `amana-ng.com` is already on §6's
   critical path, so this is a shared dependency rather than a new one.

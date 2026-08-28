@@ -22,7 +22,7 @@ vi.mock('../state/agent.store', () => {
 import { NQRScanScreen } from './NQRScanScreen';
 
 const CODE = 'AMNV-7QK2H-9PZ0R';
-const URL = `https://pay.amana.ng/v/${CODE}`;
+const URL = `https://pay.amana-ng.com/v/${CODE}`;
 
 const RESOLVED = {
   bankCode: '058',

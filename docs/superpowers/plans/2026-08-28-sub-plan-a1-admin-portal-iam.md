@@ -35,26 +35,26 @@ Four consequences, worst first:
 | JIT elevation | **In v1**, for money operations | Even an OWNER holds no standing money power; it is requested per session, with expiry and a logged reason |
 | App | **A new Next.js app**, not an extension of the retailer portal | Different audience, different auth, different blast radius. A bug exposing staff tooling to retailers would be severe. |
 | Hosting | **Fly, `jnb`, beside the API — fronted by Cloudflare Access** | Same origin means session cookies just work. **No preview deployments**: Vercel's best feature is a liability for staff tooling, where every branch would get a public URL. Cloudflare Access with Google as IdP means the portal is unreachable without a Workspace login *before* app code runs — two independent gates. |
-| Staff identity domain | **Google Workspace on `amana.ng`** — portal refuses any email outside it | Changed 2026-08-28 from `elitesolutionshub.com`. Staff identity outlives any relationship between the two companies, and `amana.ng` is **already required** for the HSTS preload gate, so this adds no new domain dependency. |
-| First owner | **`david@amana.ng`** | Changed with the domain. It **cannot** be `david@elitesolutionshub.com`: the portal refuses any address outside the Workspace domain, so an Elite address would need a permanent cross-domain exception carved into the bootstrap owner — the worst place in the system to put one. |
+| Staff identity domain | **Google Workspace on `amana-ng.com`** — portal refuses any email outside it | Changed 2026-08-28 from `elitesolutionshub.com`. Staff identity outlives any relationship between the two companies, and `amana-ng.com` is **already required** for the HSTS preload gate, so this adds no new domain dependency. |
+| First owner | **`david@amana-ng.com`** | Changed with the domain. It **cannot** be `david@elitesolutionshub.com`: the portal refuses any address outside the Workspace domain, so an Elite address would need a permanent cross-domain exception carved into the bootstrap owner — the worst place in the system to put one. |
 
-## The `amana.ng` interaction — a synergy and a pre-flight item
+## The `amana-ng.com` interaction — a synergy and a pre-flight item
 
-Putting the Workspace and the portal on `amana.ng` connects this sub-plan to
+Putting the Workspace and the portal on `amana-ng.com` connects this sub-plan to
 [`go-live-checklist.md`](../../runbook/go-live-checklist.md) §6 in two ways.
 
-**The synergy.** §6 already commits `amana.ng` to the HSTS preload list with `includeSubDomains`.
-An admin portal at `admin.amana.ng` therefore inherits **HTTPS-only enforcement in shipped browsers,
+**The synergy.** §6 already commits `amana-ng.com` to the HSTS preload list with `includeSubDomains`.
+An admin portal at `admin.amana-ng.com` therefore inherits **HTTPS-only enforcement in shipped browsers,
 before a staff member's first visit** — the exact protection the vendor landing page needed preload
 for, applied to the surface that can suspend businesses. Free, and worth having deliberately rather
 than by luck.
 
-**The pre-flight item.** §6's existing warning is to confirm no `amana.ng` subdomain needs plain
+**The pre-flight item.** §6's existing warning is to confirm no `amana-ng.com` subdomain needs plain
 HTTP before submitting for preload. This sub-plan **adds a subdomain** to that check. Google
 Workspace itself is unaffected — mail runs on Google's own hostnames, and MX/TXT records are not
-touched by HSTS — but `admin.amana.ng` must be HTTPS-only from day one, which it will be.
+touched by HSTS — but `admin.amana-ng.com` must be HTTPS-only from day one, which it will be.
 
-**Dependency:** `amana.ng` must be owned and verifiable before the Workspace can be created. It is
+**Dependency:** `amana-ng.com` must be owned and verifiable before the Workspace can be created. It is
 already on the critical path for §6, so this does not add one.
 
 ## The role matrix
@@ -183,17 +183,17 @@ highest-risk surface and should land on an IAM that has been exercised.
 
 ## Open questions — answered 2026-08-28
 
-- ~~Workspace domain~~ → **`amana.ng`** (changed 2026-08-28 from `elitesolutionshub.com`), and the portal **refuses any email outside it**.
-- ~~First owner~~ → **`david@amana.ng`**. The `elitesolutionshub.com` address was confirmed free of the typo, then superseded by the domain change — see Decisions for why it cannot be kept.
+- ~~Workspace domain~~ → **`amana-ng.com`** (changed 2026-08-28 from `elitesolutionshub.com`), and the portal **refuses any email outside it**.
+- ~~First owner~~ → **`david@amana-ng.com`**. The `elitesolutionshub.com` address was confirmed free of the typo, then superseded by the domain change — see Decisions for why it cannot be kept.
 - ~~Hosting~~ → Fly `jnb` + Cloudflare Access. See Decisions.
 - ~~Support and BVN/NIN~~ → **never**. Resolved by the Task 6 redesign: support sees a verification
   result, not an identity.
 
 ### Still open, and blocking
 
-- **The Workspace does not exist yet.** `amana.ng` needs to be owned and verified, then a Google
+- **The Workspace does not exist yet.** `amana-ng.com` needs to be owned and verified, then a Google
   Workspace tenant, an OAuth app, and the redirect URI, before Task 1 can be tested against anything
-  real. Task 1 can be *built* against a stub, but not verified. `amana.ng` is already on §6's
+  real. Task 1 can be *built* against a stub, but not verified. `amana-ng.com` is already on §6's
   critical path, so this is a shared dependency rather than a new one.
 - **Call recording (below) needs a platform decision** that is not Amana's to make in code.
 

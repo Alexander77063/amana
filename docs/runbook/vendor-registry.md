@@ -211,7 +211,7 @@ authoritative dedup at write time.
 
 **Two payload forms both scan, and only one of them is what the API emits.** The claim rail
 returns the bare code (`vendor-claim.service.ts` → `{ kind: 'claimed', publicCode,
-displayName }`); nothing in the backend ever builds a URL. The `https://pay.amana.ng/v/<code>`
+displayName }`); nothing in the backend ever builds a URL. The `https://pay.amana-ng.com/v/<code>`
 form is a **printing convention** — what goes on the sticker so an ordinary camera app has
 somewhere to land. The only place that hostname appears in shipped code is the agent
 scanner's `CODE_URL_RE` (`apps/agent/src/lib/vendor-code.ts`). Nothing in the system can
@@ -223,8 +223,8 @@ mis-scanned QR in the market. Anything unrecognised falls through to the NQR bra
 decoder returns a clean `BAD_INPUT` for garbage.
 
 **The host regex is anchored, and it must stay anchored.** `CODE_URL_RE` is
-`^https?://pay\.amana\.ng/v/([^/?#\s]{1,64})/?(?:[?#].*)?$` — a substring or `includes` check
-would read `pay.amana.ng.evil.com`, `evil.com/pay.amana.ng/v/…` and `pay.amana.ng@evil.com`
+`^https?://pay\.amana-ng\.com/v/([^/?#\s]{1,64})/?(?:[?#].*)?$` — a substring or `includes` check
+would read `pay.amana-ng.com.evil.com`, `evil.com/pay.amana-ng.com/v/…` and `pay.amana-ng.com@evil.com`
 as ours, and the entire job of that branch is deciding which of our endpoints to trust a
 stranger's QR with. All three lookalikes are pinned in
 `apps/agent/src/lib/vendor-code.test.ts`.
@@ -452,7 +452,7 @@ fixed with a deploy.
 
 Every previous Amana client was a native app pinned to an `https://` base URL. This page is
 the first surface a human reaches **by typing a hostname**. A shopkeeper prints
-`pay.amana.ng/v/AMNV-XXXXX-XXXXX` in a window, and a person who types that — as printed,
+`pay.amana-ng.com/v/AMNV-XXXXX-XXXXX` in a window, and a person who types that — as printed,
 without a scheme — gets an HTTP first hop. On market Wi-Fi an on-path attacker owns that hop
 and serves their own page: same layout, same "Verified on Amana" badge, a **different account
 ending**. The single job this page has is letting a payer confirm they are paying the right
@@ -481,23 +481,23 @@ substitute for it.
    host before submitting item 2. (The sub-plan called the landing page's only external dependency
    "a DNS record… an ops step in Task 7's runbook, not an engineering one". That was true of DNS
    and false of the gate as a whole.)
-2. **`amana.ng` submitted to the HSTS preload list *and accepted*.** Not merely submitted —
+2. **`amana-ng.com` submitted to the HSTS preload list *and accepted*.** Not merely submitted —
    the domain has to actually appear in the shipped browser lists.
-3. **The `pay.amana.ng` DNS record** — a CNAME to the Fly app, plus a Fly certificate for
+3. **The `pay.amana-ng.com` DNS record** — a CNAME to the Fly app, plus a Fly certificate for
    that hostname.
 
 **Preload is the load-bearing item, and the reason DNS alone is not the gate.** A
 `Strict-Transport-Security` header can only protect a hostname the browser has *already
 visited over HTTPS*. It cannot protect the first-ever hit to a hostname — which is precisely
 and exclusively what a printed sticker creates, every single time someone reads one. A payer
-who has never opened `pay.amana.ng` before is the normal case here, not the edge case. Only
+who has never opened `pay.amana-ng.com` before is the normal case here, not the edge case. Only
 preload covers that first hit.
 
 ### Before you submit the preload entry
 
-`includeSubDomains` on `amana.ng` commits **every** subdomain of `amana.ng` to HTTPS-only in
+`includeSubDomains` on `amana-ng.com` commits **every** subdomain of `amana-ng.com` to HTTPS-only in
 every shipped browser, and removal from the preload list propagates on browser-release
-timescales — months, not a deploy. Confirm first that no `amana.ng` subdomain (marketing, a
+timescales — months, not a deploy. Confirm first that no `amana-ng.com` subdomain (marketing, a
 status page, a partner callback, anything an ops runbook curls) needs plain HTTP, now or in
 the foreseeable rollout. That irreversibility is why this is a gate with a pre-flight rather
 than a checklist tick.
@@ -510,7 +510,7 @@ public page is reachable on the API hostname. So SP-V3 is shippable and testable
 is blocked is **printing**, and only printing.
 
 Nothing in the codebase can enforce this. The API emits a bare code and never a URL, so the
-sticker's `pay.amana.ng/v/…` wrapper is added by whoever prepares the print run. This section
+sticker's `pay.amana-ng.com/v/…` wrapper is added by whoever prepares the print run. This section
 is the control.
 
 ## Follow-ups — what shipped since, and what is still deferred

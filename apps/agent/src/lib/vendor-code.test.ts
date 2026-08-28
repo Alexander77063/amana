@@ -5,8 +5,8 @@ import { describeScanFailure, parseScannedPayload } from './vendor-code';
 const CODE = 'AMNV-7QK2H-9PZ0R';
 
 describe('parseScannedPayload', () => {
-  it('reads an Amana code from a pay.amana.ng URL', () => {
-    expect(parseScannedPayload(`https://pay.amana.ng/v/${CODE}`)).toEqual({
+  it('reads an Amana code from a pay.amana-ng.com URL', () => {
+    expect(parseScannedPayload(`https://pay.amana-ng.com/v/${CODE}`)).toEqual({
       kind: 'vendor_code',
       code: CODE,
     });
@@ -17,28 +17,28 @@ describe('parseScannedPayload', () => {
   });
 
   it('accepts http as well as https', () => {
-    expect(parseScannedPayload(`http://pay.amana.ng/v/${CODE}`)).toEqual({
+    expect(parseScannedPayload(`http://pay.amana-ng.com/v/${CODE}`)).toEqual({
       kind: 'vendor_code',
       code: CODE,
     });
   });
 
   it('matches the host case-insensitively, because hostnames are', () => {
-    expect(parseScannedPayload(`https://PAY.AMANA.NG/v/${CODE}`)).toEqual({
+    expect(parseScannedPayload(`https://PAY.AMANA-NG.COM/v/${CODE}`)).toEqual({
       kind: 'vendor_code',
       code: CODE,
     });
   });
 
   it('tolerates a trailing slash and a query string', () => {
-    expect(parseScannedPayload(`https://pay.amana.ng/v/${CODE}/?utm=poster`)).toEqual({
+    expect(parseScannedPayload(`https://pay.amana-ng.com/v/${CODE}/?utm=poster`)).toEqual({
       kind: 'vendor_code',
       code: CODE,
     });
   });
 
   it('tolerates a fragment', () => {
-    expect(parseScannedPayload(`https://pay.amana.ng/v/${CODE}#x`)).toEqual({
+    expect(parseScannedPayload(`https://pay.amana-ng.com/v/${CODE}#x`)).toEqual({
       kind: 'vendor_code',
       code: CODE,
     });
@@ -54,7 +54,7 @@ describe('parseScannedPayload', () => {
     // The api-client contract says the code goes through "VERBATIM — no trim, no upper-casing,
     // no Crockford fold", because `normalizeCrockford` on the server is the single place that
     // folds. A second fold here is a fold that can drift.
-    const r = parseScannedPayload('https://pay.amana.ng/v/amnv-7qk2h-9pz0r');
+    const r = parseScannedPayload('https://pay.amana-ng.com/v/amnv-7qk2h-9pz0r');
     expect(r).toEqual({ kind: 'vendor_code', code: 'amnv-7qk2h-9pz0r' });
   });
 
@@ -70,7 +70,7 @@ describe('parseScannedPayload', () => {
     // `[0-9A-Za-z]{5}` for exactly that reason. A client alphabet that excluded them would send
     // a genuine Amana URL down the NQR branch and surface a TLV parse error to the payer.
     const glyphy = 'AMNV-OIL7U-9PZ0R';
-    expect(parseScannedPayload(`https://pay.amana.ng/v/${glyphy}`)).toEqual({
+    expect(parseScannedPayload(`https://pay.amana-ng.com/v/${glyphy}`)).toEqual({
       kind: 'vendor_code',
       code: glyphy,
     });
@@ -80,23 +80,23 @@ describe('parseScannedPayload', () => {
   // ---- the discrimination must actually discriminate ----
 
   it('does NOT treat a lookalike host as an Amana code', () => {
-    expect(parseScannedPayload(`https://pay.amana.ng.evil.com/v/${CODE}`).kind).toBe('nqr');
+    expect(parseScannedPayload(`https://pay.amana-ng.com.evil.com/v/${CODE}`).kind).toBe('nqr');
   });
 
   it('does NOT treat our host appearing in a path as an Amana code', () => {
-    expect(parseScannedPayload(`https://evil.com/pay.amana.ng/v/${CODE}`).kind).toBe('nqr');
+    expect(parseScannedPayload(`https://evil.com/pay.amana-ng.com/v/${CODE}`).kind).toBe('nqr');
   });
 
   it('does NOT match a userinfo-prefixed authority', () => {
-    expect(parseScannedPayload(`https://pay.amana.ng@evil.com/v/${CODE}`).kind).toBe('nqr');
+    expect(parseScannedPayload(`https://pay.amana-ng.com@evil.com/v/${CODE}`).kind).toBe('nqr');
   });
 
   it('does NOT match a different path prefix on our host', () => {
-    expect(parseScannedPayload(`https://pay.amana.ng/vendor/${CODE}`).kind).toBe('nqr');
+    expect(parseScannedPayload(`https://pay.amana-ng.com/vendor/${CODE}`).kind).toBe('nqr');
   });
 
   it('does NOT match extra path segments after the code', () => {
-    expect(parseScannedPayload(`https://pay.amana.ng/v/${CODE}/pay`).kind).toBe('nqr');
+    expect(parseScannedPayload(`https://pay.amana-ng.com/v/${CODE}/pay`).kind).toBe('nqr');
   });
 
   it('falls through to nqr for a NIBSS TLV payload', () => {

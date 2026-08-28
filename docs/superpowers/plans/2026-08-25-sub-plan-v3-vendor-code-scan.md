@@ -23,11 +23,11 @@
 
 ## Resolved during planning: the landing page ships here, not later
 
-Spec §14 leaves open whether `pay.amana.ng/v/<code>` ships with V3. **It has to**, and the reasoning is worth recording because the open question implied otherwise.
+Spec §14 leaves open whether `pay.amana-ng.com/v/<code>` ships with V3. **It has to**, and the reasoning is worth recording because the open question implied otherwise.
 
 The payload is a URL. A vendor prints it and puts it in their window, where most people who scan it will be using an ordinary camera app rather than Amana. Shipping the code without the page means every one of those scans lands on a DNS failure — a broken link in a shop window, attached to a payments brand, which is worse than not shipping the code at all. The alternatives were to make the payload a bare `AMNV-…` string (unscannable by anything but our own app, which throws away the growth loop that justified a URL in the first place) or to delay the whole sub-plan on a web deployment.
 
-Neither is necessary: the page is one read-only handler returning self-contained HTML, and the **existing Hono app on Fly can serve it** (Task 3). No new service, no new build pipeline, no new deploy target. The only external dependency is a DNS record pointing `pay.amana.ng` at the existing app, which is an ops step in Task 7's runbook, not an engineering one — and until it exists the code still works, just on the API hostname.
+Neither is necessary: the page is one read-only handler returning self-contained HTML, and the **existing Hono app on Fly can serve it** (Task 3). No new service, no new build pipeline, no new deploy target. The only external dependency is a DNS record pointing `pay.amana-ng.com` at the existing app, which is an ops step in Task 7's runbook, not an engineering one — and until it exists the code still works, just on the API hostname.
 
 ---
 
@@ -586,7 +586,7 @@ describe('GET /v/:code', () => {
     const html = await (await app.request(`/v/${CODE}`)).text();
     expect(html).not.toMatch(/<script\s+src=/i);
     expect(html).not.toMatch(/<link[^>]+stylesheet/i);
-    expect(html).not.toMatch(/https?:\/\/(?!pay\.amana\.ng)/i);
+    expect(html).not.toMatch(/https?:\/\/(?!pay\.amana-ng\.com)/i);
   });
 });
 ```
@@ -875,8 +875,8 @@ import { describe, expect, it } from 'vitest';
 import { parseScannedPayload } from './vendor-code';
 
 describe('parseScannedPayload', () => {
-  it('reads an Amana code from a pay.amana.ng URL', () => {
-    expect(parseScannedPayload('https://pay.amana.ng/v/AMNV-7QK2H-9PZ0R')).toEqual({
+  it('reads an Amana code from a pay.amana-ng.com URL', () => {
+    expect(parseScannedPayload('https://pay.amana-ng.com/v/AMNV-7QK2H-9PZ0R')).toEqual({
       kind: 'vendor_code', code: 'AMNV-7QK2H-9PZ0R',
     });
   });
@@ -894,13 +894,13 @@ describe('parseScannedPayload', () => {
   });
 
   it('tolerates a trailing slash and query string', () => {
-    expect(parseScannedPayload('https://pay.amana.ng/v/AMNV-7QK2H-9PZ0R/?utm=poster')).toEqual({
+    expect(parseScannedPayload('https://pay.amana-ng.com/v/AMNV-7QK2H-9PZ0R/?utm=poster')).toEqual({
       kind: 'vendor_code', code: 'AMNV-7QK2H-9PZ0R',
     });
   });
 
   it('does NOT treat a lookalike host as an Amana code', () => {
-    const evil = 'https://pay.amana.ng.evil.com/v/AMNV-7QK2H-9PZ0R';
+    const evil = 'https://pay.amana-ng.com.evil.com/v/AMNV-7QK2H-9PZ0R';
     expect(parseScannedPayload(evil).kind).toBe('nqr');
   });
 
@@ -933,11 +933,11 @@ export type ScannedPayload =
 
 const CODE_RE = /^AMNV-[0-9A-HJKMNP-TV-Z]{5}-[0-9A-HJKMNP-TV-Z]{5}$/;
 /**
- * Anchored to the exact host. A substring check would accept `pay.amana.ng.evil.com`, letting an
+ * Anchored to the exact host. A substring check would accept `pay.amana-ng.com.evil.com`, letting an
  * attacker's QR be read as one of ours — and the whole point of the branch is deciding which of
  * our endpoints to trust the payload with.
  */
-const URL_RE = /^https?:\/\/pay\.amana\.ng\/v\/([0-9A-Za-z-]+)\/?(?:[?#].*)?$/;
+const URL_RE = /^https?:\/\/pay\.amana-ng\.com\/v\/([0-9A-Za-z-]+)\/?(?:[?#].*)?$/;
 
 /**
  * Decide what a scanned QR actually is.
@@ -1023,7 +1023,7 @@ describe('scan routing', () => {
       else nqrDecode(s.payload);
     };
 
-    route('https://pay.amana.ng/v/AMNV-7QK2H-9PZ0R');
+    route('https://pay.amana-ng.com/v/AMNV-7QK2H-9PZ0R');
     route('26200008NG.NIBSS0103058');
 
     expect(vendorCode).toHaveBeenCalledWith('AMNV-7QK2H-9PZ0R');
@@ -1131,10 +1131,10 @@ git commit -m "feat(apps): verified badge and registry category pre-fill on conf
 
 Extend `docs/runbook/vendor-registry.md` with a "The Amana Vendor Code" section covering:
 
-- The payload format, and that a bare code and a `pay.amana.ng` URL both scan.
+- The payload format, and that a bare code and a `pay.amana-ng.com` URL both scan.
 - Why the host regex is anchored — a lookalike domain must not be read as ours.
 - The page's endpoints and their status codes (200 / 400 / 404 / 410).
-- **The DNS step:** `pay.amana.ng` must CNAME to the Fly app. Until it does, printed codes still resolve in-app but the public page is only reachable on the API hostname — so **codes must not be printed for distribution before the record exists.** State that as a gate, not a note.
+- **The DNS step:** `pay.amana-ng.com` must CNAME to the Fly app. Until it does, printed codes still resolve in-app but the public page is only reachable on the API hostname — so **codes must not be printed for distribution before the record exists.** State that as a gate, not a note.
 - How to suspend a compromised code (`POST /vendors-admin/vendors/:id/suspend`) and that this makes both the app path and the public page return 410 immediately.
 
 - [ ] **Step 2: Update the two business docs**
@@ -1145,7 +1145,7 @@ Per CLAUDE.md: diff each section against the code before editing it, and do not 
 
 - [ ] **Step 3: Add the go-live gate**
 
-Add the `pay.amana.ng` DNS record to `docs/runbook/go-live-checklist.md` as a pre-distribution gate for vendor codes.
+Add the `pay.amana-ng.com` DNS record to `docs/runbook/go-live-checklist.md` as a pre-distribution gate for vendor codes.
 
 - [ ] **Step 4: Validate and run everything**
 
@@ -1164,7 +1164,7 @@ Expected: all clean.
 
 ```bash
 git add docs
-git commit -m "docs: the Amana Vendor Code, the public page, and the pay.amana.ng gate"
+git commit -m "docs: the Amana Vendor Code, the public page, and the pay.amana-ng.com gate"
 ```
 
 ---

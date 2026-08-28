@@ -1,7 +1,7 @@
 # Staff onboarding — email templates
 
 Fill in `{{NAME}}`, `{{EMAIL}}` and `{{ROLE}}`; send. Two emails, deliberately, in this order. Staff
-addresses are on the **`amana.ng`** Workspace — the portal refuses any address outside it, so an
+addresses are on the **`amana-ng.com`** Workspace — the portal refuses any address outside it, so an
 account on any other domain cannot be granted access no matter who asks.
 
 ---

@@ -17,7 +17,7 @@ const BARE_CODE_RE = /^AMNV-[0-9A-Za-z]{5}-[0-9A-Za-z]{5}$/i;
 
 /**
  * Anchored to the exact authority. A substring or `includes` check would accept
- * `pay.amana.ng.evil.com`, `evil.com/pay.amana.ng/v/…` and `pay.amana.ng@evil.com`, letting a
+ * `pay.amana-ng.com.evil.com`, `evil.com/pay.amana-ng.com/v/…` and `pay.amana-ng.com@evil.com`, letting a
  * stranger's QR be read as one of ours — and the whole point of this branch is deciding which of
  * our endpoints to trust a payload with.
  *
@@ -26,7 +26,7 @@ const BARE_CODE_RE = /^AMNV-[0-9A-Za-z]{5}-[0-9A-Za-z]{5}$/i;
  * with the code ladder's 404 copy beats answering it with a QR-decoder error. The lookup is a
  * database read before it is anything else, so a bogus code costs a 404, never a paid enquiry.
  */
-const CODE_URL_RE = /^https?:\/\/pay\.amana\.ng\/v\/([^/?#\s]{1,64})\/?(?:[?#].*)?$/i;
+const CODE_URL_RE = /^https?:\/\/pay\.amana-ng\.com\/v\/([^/?#\s]{1,64})\/?(?:[?#].*)?$/i;
 
 /**
  * Decide what a scanned QR actually is.

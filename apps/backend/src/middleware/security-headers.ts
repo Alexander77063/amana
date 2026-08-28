@@ -7,7 +7,7 @@ import type { MiddlewareHandler } from 'hono';
  * (docs/runbook/go-live-checklist.md §6) and the value is load-bearing rather than a preference:
  * the HSTS preload list refuses a `max-age` under one year and refuses a policy without
  * `includeSubDomains` or `preload`. An env knob here would let a deploy silently fall out of
- * preload eligibility long after `amana.ng` was accepted — and de-listing propagates on
+ * preload eligibility long after `amana-ng.com` was accepted — and de-listing propagates on
  * browser-release timescales, so that is not a mistake you take back quickly.
  *
  * Exported so a test asserts the served value against the same constant the middleware serves.

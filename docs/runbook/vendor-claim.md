@@ -15,7 +15,7 @@ a payer looking a code up; this document still covers only a vendor earning one.
 
 **Before any code is printed for a shop window**, read
 [`vendor-registry.md` → "PRE-DISTRIBUTION GATE"](./vendor-registry.md): HSTS, HSTS preload
-and the `pay.amana.ng` DNS record must all be in place first, and none of them is enforced by
+and the `pay.amana-ng.com` DNS record must all be in place first, and none of them is enforced by
 code.
 
 ## The claim flow

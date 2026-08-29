@@ -227,11 +227,19 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       ANCHOR_WEBHOOK_SECRET: parsed.data.ANCHOR_WEBHOOK_SECRET,
       TERMII_API_KEY: parsed.data.TERMII_API_KEY,
       ADMIN_API_KEY: parsed.data.ADMIN_API_KEY,
-      // Without the Workspace OAuth app nobody can sign in to the admin portal, which is the
-      // only way the ops surfaces are reached once Task 4 removes the shared key.
-      GOOGLE_OAUTH_CLIENT_ID: parsed.data.GOOGLE_OAUTH_CLIENT_ID,
-      GOOGLE_OAUTH_CLIENT_SECRET: parsed.data.GOOGLE_OAUTH_CLIENT_SECRET,
     };
+    // GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET are deliberately NOT here yet.
+    //
+    // They will belong here the moment Task 4 deletes `ADMIN_API_KEY`, because from then on a
+    // missing OAuth app means no ops access at all, and refusing to boot is the honest response.
+    // Today it means nothing: the 13 ops endpoints still authenticate with the shared key, so an
+    // absent Workspace degrades no capability that currently works.
+    //
+    // The distinction matters because this app has never booted in production, and every
+    // additional boot-required secret is another thing that must exist before it can. Adding two
+    // that depend on a Google Workspace tenant which does not exist yet would extend the critical
+    // path to first boot for a feature nothing yet depends on. Move them in with the Task 4
+    // cutover, in the same change that removes the fallback they replace.
     const missing = Object.entries(required)
       .filter(([, v]) => !v)
       .map(([k]) => k);

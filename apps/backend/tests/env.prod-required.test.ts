@@ -53,21 +53,23 @@ describe('env: production-required secrets', () => {
     ).toThrow(/ADMIN_API_KEY/);
   });
 
-  it('throws in production when the Workspace OAuth client is missing', () => {
-    // Without it the admin portal cannot sign anybody in, so the whole staff surface — the claim
-    // queue, retailer KYB — is unreachable. Better to refuse the boot than to ship a portal that
-    // 500s at the door.
-    const { GOOGLE_OAUTH_CLIENT_ID: _omit, ...rest } = prodSecrets;
-    expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).toThrow(
-      /GOOGLE_OAUTH_CLIENT_ID/,
-    );
-  });
-
-  it('throws in production when GOOGLE_OAUTH_CLIENT_SECRET is missing', () => {
-    const { GOOGLE_OAUTH_CLIENT_SECRET: _omit, ...rest } = prodSecrets;
-    expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).toThrow(
-      /GOOGLE_OAUTH_CLIENT_SECRET/,
-    );
+  it('does NOT yet require the Workspace OAuth client in production — Task 4 adds that', () => {
+    // Deliberate, and the deliberation is the point of the test.
+    //
+    // A boot-required secret is a precondition for the app existing at all, and `amana-api` has
+    // never booted in production. Until Task 4 deletes `ADMIN_API_KEY`, the 13 ops endpoints
+    // still authenticate with the shared key, so a missing Workspace degrades nothing that works
+    // — it would just be two more secrets standing between this app and its first boot.
+    //
+    // When Task 4 removes that fallback, a missing OAuth app means no ops access at all, and this
+    // test should be inverted in the same change. If you are reading it because you deleted
+    // `ADMIN_API_KEY`, that is the change: move both into `required` and flip this to `toThrow`.
+    const {
+      GOOGLE_OAUTH_CLIENT_ID: _id,
+      GOOGLE_OAUTH_CLIENT_SECRET: _secret,
+      ...rest
+    } = prodSecrets;
+    expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).not.toThrow();
   });
 
   it('refuses a bootstrap owner outside the Workspace domain, in every environment', () => {

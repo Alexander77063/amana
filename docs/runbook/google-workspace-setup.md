@@ -121,8 +121,15 @@ so restarts and multiple instances are harmless.
 
 **`ADMIN_BOOTSTRAP_OWNER_EMAIL` must be on `ADMIN_WORKSPACE_DOMAIN`, and the boot enforces it.** An
 owner outside the domain is one the portal will refuse forever — a system that looks configured and
-admits nobody — so `env.ts` refuses to start rather than let that ship. `GOOGLE_OAUTH_CLIENT_ID` and
-`GOOGLE_OAUTH_CLIENT_SECRET` are likewise boot-required in production, next to `ANCHOR_API_KEY`.
+admits nobody — so `env.ts` refuses to start rather than let that ship.
+
+`GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are **not** boot-required yet, on purpose.
+Until Task 4 deletes `ADMIN_API_KEY` the ops endpoints still authenticate with the shared key, so a
+missing Workspace degrades nothing that currently works — and `amana-api` has still not had a
+successful production boot, so every extra boot-required secret is one more thing that must exist
+before it can. **Task 4 moves both into the required set**, in the same change that removes the
+fallback they replace; from then on a missing OAuth app means no ops access at all, and refusing to
+boot is the correct behaviour.
 
 The two timings have defaults and rarely need setting: `ADMIN_SESSION_TTL_SECONDS` (default 8 hours,
 absolute — a staff session does not slide) and `ADMIN_LOGIN_TTL_SECONDS` (default 10 minutes — how

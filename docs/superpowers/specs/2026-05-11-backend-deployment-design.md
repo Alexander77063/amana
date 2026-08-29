@@ -196,7 +196,7 @@ Steps to run once before the first automated deploy.
 
 ## 9. Out of scope
 
-- Custom domain (`api.amana.ng`) — add when going live with real users
+- Custom domain (`api.amana-ng.com`) — add when going live with real users
 - Supabase transaction pooler — add when connection count becomes a bottleneck
 - Fly Postgres (not used — Supabase chosen for PostGIS and managed ops)
 - Staging environment — add before inviting beta users

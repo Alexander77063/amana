@@ -234,7 +234,7 @@ HomeScreen → "Pay" button  OR  PayTab
         ├── "Scan QR" → NQRScanScreen        ← ONE camera, two payload kinds
         │     → camera scans QR → parseScannedPayload() branches on SHAPE
         │           ├── [Amana Vendor Code — bare AMNV-XXXXX-XXXXX, or a
-        │           │    pay.amana.ng/v/<code> URL on the anchored host]
+        │           │    pay.amana-ng.com/v/<code> URL on the anchored host]
         │           │     → GET /vendors/code/:code?subWalletId=…
         │           │     → result carries vendorId + category
         │           │     → ConfirmScreen (Verified badge; category pre-filled)
@@ -605,7 +605,7 @@ it is also the moment it stops being client-supplied.
 
 ```
 PAYER (agent)                         ANYONE (no app, no account)
-  └── camera → NQRScanScreen           └── types pay.amana.ng/v/AMNV-XXXXX-XXXXX
+  └── camera → NQRScanScreen           └── types pay.amana-ng.com/v/AMNV-XXXXX-XXXXX
         reads NQR *and* AMNV codes           └── GET /v/:code   ← unauthenticated HTML,
         └── GET /vendors/code/:code               the first Amana surface reached
               (authenticated;                     by typing a hostname
@@ -615,8 +615,8 @@ PAYER (agent)                         ANYONE (no app, no account)
                         — rules apply as ever
 ```
 
-**⚠️ No code may be PRINTED until three things hold** — app-wide HSTS (built, PR #48), `amana.ng`
-**accepted** into browser preload lists, and the `pay.amana.ng` record. `force_https` is a 301 that
+**⚠️ No code may be PRINTED until three things hold** — app-wide HSTS (built, PR #48), `amana-ng.com`
+**accepted** into browser preload lists, and the `pay.amana-ng.com` record. `force_https` is a 301 that
 travels in cleartext; an on-path attacker on market Wi-Fi replaces it and serves the same page with
 a different account ending, defeating the page's only job. Preload is what covers the *first* hit to
 a hostname, which is exactly and only what a printed sticker creates. See

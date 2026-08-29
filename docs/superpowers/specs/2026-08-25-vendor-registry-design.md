@@ -108,7 +108,7 @@ The whole arc is designed here so the data model is coherent, but it ships in th
 |---|---|---|---|
 | **SP-V1** — Passive registry + shadow | Observation write at settlement, promotion cron, `vendors` table, category resolution, shadow logging | Backend only | Measures how wrong self-attested categories are. Zero user-visible change |
 | **SP-V2** — Claim rail + issuance | Vendor claim via SMS/web, ownership proof, code minting, per-household enforcement flip | Backend + a small public web surface | First real category enforcement; the vendor relationship begins |
-| **SP-V3** — Code display + scan | `kind: 'vendor'` resolution, agent scan path, `pay.amana.ng/v/<code>` landing page | Backend + both Expo apps + web | The in-shop experience; the growth loop |
+| **SP-V3** — Code display + scan | `kind: 'vendor'` resolution, agent scan path, `pay.amana-ng.com/v/<code>` landing page | Backend + both Expo apps + web | The in-shop experience; the growth loop |
 
 ### Data flow, end to end
 
@@ -349,7 +349,7 @@ Every guarded transition is an atomic compare-and-set in the repo, never read-th
 ### 8.1 Payload: a URL, not TLV
 
 ```
-https://pay.amana.ng/v/AMNV-7QK2H-9PZ0R
+https://pay.amana-ng.com/v/AMNV-7QK2H-9PZ0R
 ```
 
 **Why a URL and not an NQR-shaped TLV:**
@@ -494,5 +494,5 @@ These are operational, not architectural — none of them block implementation p
 2. **Threshold values.** 5 households to list, 8 to categorise, 60% agreement. Starting guesses; tune once observation data exists — all three are env vars.
 3. **The sensitive-category list.** `VENDOR_SENSITIVE_CATEGORIES` ships with a default that should be reviewed against the real category taxonomy before SP-V1 lands.
 4. **Whether observed consensus ever becomes enforceable.** Deliberately deferred to the shadow data (D-V7).
-5. ~~**Whether the `pay.amana.ng/v/<code>` landing page ships with SP-V3 or later.**~~ **Resolved during SP-V3 planning: it ships with SP-V3.** The payload is a URL, so deferring the page would put a dead link in every shop window that prints a code — worse than shipping no code at all. It needs no new infrastructure: one read-only handler returning self-contained HTML from the existing Hono app. The only external dependency is a DNS record, which SP-V3 makes a pre-distribution gate. See `docs/superpowers/plans/2026-08-25-sub-plan-v3-vendor-code-scan.md`.
+5. ~~**Whether the `pay.amana-ng.com/v/<code>` landing page ships with SP-V3 or later.**~~ **Resolved during SP-V3 planning: it ships with SP-V3.** The payload is a URL, so deferring the page would put a dead link in every shop window that prints a code — worse than shipping no code at all. It needs no new infrastructure: one read-only handler returning self-contained HTML from the existing Hono app. The only external dependency is a DNS record, which SP-V3 makes a pre-distribution gate. See `docs/superpowers/plans/2026-08-25-sub-plan-v3-vendor-code-scan.md`.
 6. **Revisit the randomised promotion threshold** if a public vendor directory, a real-time vendor feed, or cheaper household creation ever ships (§10.2).

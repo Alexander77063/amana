@@ -123,10 +123,33 @@ via the Anchor dashboard / a real inbound test transfer to the NUBAN, and/or ove
 destination with env vars: `SANDBOX_VENDOR_BANK_CODE`, `SANDBOX_VENDOR_ACCOUNT`,
 `SANDBOX_VENDOR_NAME`, `SANDBOX_SPEND_KOBO`.
 
+## ⚠️ Domain correction, 2026-08-28 — read before acting on §6
+
+Every domain reference in this repository said **`amana.ng`**. That domain was **never acquired**.
+The only domain owned is **`amana-ng.com`**, and all 64 references across 15 files were rewritten on
+2026-08-28.
+
+Two of them were not documentation:
+
+- **`apps/agent/src/lib/vendor-code.ts`** anchored its scan regex to `pay.amana.ng` — a deliberate
+  security control, written that way to reject `pay.amana.ng.evil.com` and `pay.amana.ng@evil.com`.
+  Against the real domain it would have rejected **every genuine sticker**, and SP-V3's scan path
+  would have failed on its first real use.
+- **`middleware/security-headers.ts`** named the wrong domain in the comment explaining what preload
+  protects.
+
+**Why this was nearly expensive.** §6's costliest item is preload-list acceptance — a submission with
+a long wait, where de-listing propagates on browser-release timescales. Submitting `amana.ng` would
+have been a slow, hard-to-reverse mistake for a domain we do not control. And a vendor code printed
+with `pay.amana.ng` on it **cannot be recalled**, which is the exact failure §6 exists to prevent.
+
+Caught only because the admin-portal sub-plan needed a Workspace domain and the answer did not match
+what the repo assumed. **Verify the domain is owned before submitting anything to the preload list.**
+
 ## 6. Vendor-code pre-distribution gate ⚠️ (HSTS + preload + DNS — all three)
 
 **Scope: this gate blocks PRINTING vendor codes, not launch.** The rest of Amana can go live
-with none of it done. What it blocks is putting `pay.amana.ng/v/AMNV-XXXXX-XXXXX` on a sticker
+with none of it done. What it blocks is putting `pay.amana-ng.com/v/AMNV-XXXXX-XXXXX` on a sticker
 in a shop window — because a printed sticker cannot be recalled, and the cost of getting this
 wrong rises the moment the first one is in a window rather than at go-live.
 
@@ -151,10 +174,10 @@ the repo, so submitting before item 1 is deployed and verified wastes the wait.
       curl -sI https://amana-api.fly.dev/health | grep -i strict-transport-security
       # expect: strict-transport-security: max-age=63072000; includeSubDomains; preload
       ```
-- [ ] **2. `amana.ng` submitted to the HSTS preload list AND accepted** into shipped browser lists.
+- [ ] **2. `amana-ng.com` submitted to the HSTS preload list AND accepted** into shipped browser lists.
       Ops plus a wait, and **the long pole** — start it the moment 1b passes. Submission is not
       acceptance; the domain has to actually appear in shipped lists.
-- [ ] **3. `pay.amana.ng` DNS record** — CNAME to the Fly app, plus a Fly cert for the hostname.
+- [ ] **3. `pay.amana-ng.com` DNS record** — CNAME to the Fly app, plus a Fly cert for the hostname.
 
 **Verifying item 1 once deployed** — the preload scanner reads the live HTTPS response, not the
 repo:
@@ -177,7 +200,7 @@ protect a hostname the browser has already visited over HTTPS. It cannot protect
 *first-ever* hit to a hostname — which is exactly and only what a printed sticker creates,
 every time someone reads one. Preload is what covers that first hit.
 
-**Pre-flight before submitting item 2:** `includeSubDomains` commits every `amana.ng`
+**Pre-flight before submitting item 2:** `includeSubDomains` commits every `amana-ng.com`
 subdomain to HTTPS-only in shipped browsers, and de-listing propagates on browser-release
 timescales. Confirm no subdomain needs plain HTTP first.
 
@@ -186,7 +209,7 @@ public hostname, the agent scanner accepts the bare `AMNV-…` form, and the pag
 on the API hostname. Only printing is blocked.
 
 Nothing in code can enforce this. The API returns a bare `publicCode` and never a URL, so the
-`pay.amana.ng/v/…` wrapper is added by whoever prepares the print run — this checklist item is
+`pay.amana-ng.com/v/…` wrapper is added by whoever prepares the print run — this checklist item is
 the only control.
 
 ## 7. Cosmetic cleanups

@@ -13,7 +13,7 @@ const HEADER = 'strict-transport-security';
  * "Every response, not just `/v`" is the requirement, and the interesting half of it is the
  * responses nobody writes a happy-path test for: 404s, thrown errors, and 401s. A header set only
  * on the success path would pass a casual check of `/v/:code` and still leave the first hit to
- * `pay.amana.ng` unprotected whenever it landed on anything else.
+ * `pay.amana-ng.com` unprotected whenever it landed on anything else.
  */
 describe('securityHeaders', () => {
   function appWith(register: (app: Hono) => void): Hono {

@@ -41,7 +41,7 @@ vi.mock('../state/agent.store', () => {
 import { NQRScanScreen } from './NQRScanScreen';
 
 const CODE = 'AMNV-7QK2H-9PZ0R';
-const URL = `https://pay.amana.ng/v/${CODE}`;
+const URL = `https://pay.amana-ng.com/v/${CODE}`;
 const TLV = '26200008NG.NIBSS0103058';
 
 const RESOLVED = {
@@ -109,7 +109,7 @@ describe('NQRScanScreen — one camera, two payload kinds', () => {
   it('sends the scanned code VERBATIM — the server owns the fold', async () => {
     vendorCode.mockResolvedValue(RESOLVED);
     const { root } = render(<NQRScanScreen {...props()} />);
-    await scan(root, 'https://pay.amana.ng/v/amnv-7qk2h-9pz0r');
+    await scan(root, 'https://pay.amana-ng.com/v/amnv-7qk2h-9pz0r');
 
     expect(vendorCode).toHaveBeenCalledWith('amnv-7qk2h-9pz0r', 'sw1');
   });

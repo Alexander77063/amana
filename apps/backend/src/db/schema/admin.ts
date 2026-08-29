@@ -1,5 +1,14 @@
 import { sql } from 'drizzle-orm';
-import { pgEnum, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigserial,
+  boolean,
+  index,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from 'drizzle-orm/pg-core';
 
 export const adminUserStatusEnum = pgEnum('admin_user_status', ['active', 'suspended']);
 
@@ -42,6 +51,64 @@ export const adminUsers = pgTable('admin_users', {
   lastSignedInAt: timestamp('last_signed_in_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * The five fixed roles (sub-plan A1's role matrix). Fixed, not a granular permission matrix, so
+ * that "who can do what" stays auditable by reading one table — and because a role can be added
+ * later, whereas a granular matrix cannot be un-shipped.
+ */
+export const adminRoleEnum = pgEnum('admin_role', ['owner', 'admin', 'ops', 'support', 'auditor']);
+
+/** Who caused a grant to exist: configuration (the bootstrap) or another admin. */
+export const adminGrantSourceEnum = pgEnum('admin_grant_source', ['config', 'admin']);
+
+/**
+ * An append-only log of role grant EVENTS, not a set of roles per admin.
+ *
+ * Directly modelled on `vendor_consents`, and for the same reason: the question an incident review
+ * asks is "what could this person do **at the time they did it**", and a mutable set only knows
+ * the present. A revocation is a new row; nothing is ever UPDATEd or DELETEd.
+ * `adminRoleGrantsRepo.currentRoles` folds the log, and the log is the evidence.
+ */
+export const adminRoleGrants = pgTable(
+  'admin_role_grants',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    /**
+     * Strict append order, and the ONLY thing the fold sorts on.
+     *
+     * `recorded_at` cannot do this job, and `vendor_consents` proved it: a grant and its
+     * revocation can legitimately share a timestamp when both are written in one transaction with
+     * a single `now`. Tie-breaking then falls to a random `gen_random_uuid()`, which decides who
+     * holds a role by chance — that table passed its tests once and failed on the next run. A
+     * sequence is monotonic by construction and needs no clock.
+     */
+    seq: bigserial('seq', { mode: 'number' }).notNull(),
+    adminUserId: uuid('admin_user_id')
+      .notNull()
+      .references(() => adminUsers.id, { onDelete: 'cascade' }),
+    role: adminRoleEnum('role').notNull(),
+    /** true = granted, false = revoked. Both are rows; neither overwrites the other. */
+    granted: boolean('granted').notNull(),
+    /**
+     * Who granted or revoked it. **Nullable, and null means configuration** — the bootstrap
+     * account's own roles have no granter, exactly as `admin_users.provisioningSource = 'config'`
+     * marks the row that no admin created. Every other grant must name a person, and
+     * `restrict` on delete keeps that name attached for as long as the grant is on record.
+     */
+    grantedByAdminUserId: uuid('granted_by_admin_user_id').references(() => adminUsers.id, {
+      onDelete: 'restrict',
+    }),
+    source: adminGrantSourceEnum('source').notNull(),
+    /** Free text from the granting admin. Not required, but recorded when given. */
+    reason: text('reason'),
+    recordedAt: timestamp('recorded_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // The read is always "latest row for this admin and role", so index the pair.
+    byAdminRole: index('admin_role_grants_by_admin_role').on(t.adminUserId, t.role),
+  }),
+);
 
 /**
  * One in-flight OIDC sign-in attempt: the `state` we sent to Google, the `nonce` we expect back

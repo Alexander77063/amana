@@ -50,6 +50,7 @@ const TABLES_TO_TRUNCATE = [
   'vendor_stickers',
   'admin_sessions',
   'admin_auth_requests',
+  'admin_role_grants',
   'admin_users',
 ] as const;
 

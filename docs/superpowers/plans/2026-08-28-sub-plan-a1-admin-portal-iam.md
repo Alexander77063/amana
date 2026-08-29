@@ -1,8 +1,10 @@
 # Sub-plan A1 — Admin portal & IAM — Implementation Plan
 
-**Status:** Planned 2026-08-28. **Task 1 built 2026-08-29** — admin identity, Google Workspace OIDC
-(verified against a stub; see the caveat under Task 1), server-side sessions, the seeded first
-owner, and the `audit_log` attribution column. Tasks 2–7 not started.
+**Status:** Planned 2026-08-28. **Tasks 1 and 2 built 2026-08-29** — admin identity, Google Workspace
+OIDC (verified against a stub; see the caveat under Task 1), server-side sessions, the seeded first
+owner, the `audit_log` attribution column, and the role model with its invariants. Tasks 3–7 not
+started. Two changes to this plan were made during Task 2 and are recorded in the decision tables
+below rather than absorbed silently.
 **Decisions locked with Alex before planning** (see "Decisions" below) — do not re-litigate them
 mid-build; raise a change instead.
 
@@ -39,6 +41,16 @@ Four consequences, worst first:
 | Hosting | **Fly, `jnb`, beside the API — fronted by Cloudflare Access** | Same origin means session cookies just work. **No preview deployments**: Vercel's best feature is a liability for staff tooling, where every branch would get a public URL. Cloudflare Access with Google as IdP means the portal is unreachable without a Workspace login *before* app code runs — two independent gates. |
 | Staff identity domain | **Google Workspace on `amana-ng.com`** — portal refuses any email outside it | Changed 2026-08-28 from `elitesolutionshub.com`. Staff identity outlives any relationship between the two companies, and `amana-ng.com` is **already required** for the HSTS preload gate, so this adds no new domain dependency. |
 | First owner | **`david@amana-ng.com`** | Changed with the domain. It **cannot** be `david@elitesolutionshub.com`: the portal refuses any address outside the Workspace domain, so an Elite address would need a permanent cross-domain exception carved into the bootstrap owner — the worst place in the system to put one. |
+
+### Decided during Task 2 (2026-08-29) — including two changes to the plan itself
+
+| Decision | Choice | Why |
+|---|---|---|
+| **PLAN CHANGE — when the 13 ops routes start writing `actorUserId`** | **Task 4, not Task 2** | Task 2 lists "every existing ops route starts writing `actorUserId`", but those routes authenticate with a shared key that carries no identity. Wiring attribution in before the cutover would make it **silently optional** — an operator who preferred not to be named would simply omit the session cookie, and the audit log would read as authoritative while having holes an insider chooses. That is worse than the current honest null, because nothing distinguishes the two. Attribution is only enforceable where identity is mandatory, and that is the same change: Task 4 swaps the middleware, adds the permission check, threads the actor through, and deletes the key — touching those call sites once instead of twice. |
+| **PLAN CHANGE — retailer ops actions had no audit at all** | **Events added in Task 2, actor filled in at Task 4** | Discovered while scoping the above: `routes/retailers.ts` and `retailer-onboarding.service.ts` wrote **no `audit_log` row whatsoever**. Approving a retailer admits a business to the marketplace and suspending one cuts off its income, and neither left any trace that it had happened, by anyone. That is a strictly worse problem than missing attribution, and it is independent of identity — recording *what* happened needs no actor — so the events land now and Task 4 fills in *who*. |
+| Bootstrap deadlock: who grants the first role? | **Config seeds BOTH `owner` and `admin` onto `david@amana-ng.com`, with a tested exit ceremony** | Confirmed with Alex 2026-08-29. `owner` cannot grant roles and only `admin` can, so one seeded owner would mean a system that admits nobody, forever, with no path out. Both grants carry a **null granter**, which is what marks them as config-made — the exact parallel to `provisioningSource: 'config'`. It is a break-glass account, which this plan already lists under `owner`. What makes that acceptable is the exit: the account onboards a real admin, who then revokes *its* `admin` grant, restoring segregation of duties — and invariant 1 stops the break-glass account undoing that alone. The seed only ever grants a role that has **never** been granted, so the next deploy cannot hand back what the ceremony took away. |
+| Enforcing segregation of duties on grants | **No account may hold both `admin` and `owner`** (except the config bootstrap, until it is stood down) | Invariant 3 says neither role can become the other *alone*. Blocking self-edit is not enough on its own: one admin could simply build the merged account out of a colleague — or a second account they control. Checking the **target's** resulting roles closes that directly. It does not close an admin granting `admin` to a second account they control; that is Task 3's maker-checker, and this invariant must not be read as covering it. |
+| Permissions vs. roles at the edge | **Routes check named permissions (`iam.write`), never role names** | A route that asks "is this person an `ops`?" hard-codes the matrix into every call site, and the matrix then cannot change without touching all of them. `/admin/me` returns permissions as well as roles for the same reason: the portal renders from capabilities rather than keeping a second copy of the matrix that would drift and that nobody tests. |
 
 ### Decided during Task 1 (2026-08-29), not at planning time
 
@@ -148,11 +160,31 @@ actual claim shapes. Do that as the first step of Task 2, following
 the shared secret until Task 4 cuts them over and deletes it. There is deliberately **no fallback**
 between the two mechanisms.
 
-### Task 2 — Roles, the invariants, and attribution
+### Task 2 — Roles, the invariants, and attribution ✅ built 2026-08-29
 `admin_role_grants` (append-only, like `vendor_consents` — a revocation is a row, ordered by
 `bigserial seq`, never by timestamp). Permission checks in the service layer. Self-edit blocked.
-**Every existing ops route starts writing `actorUserId`.**
-*Ships:* the audit log can finally say who.
+~~**Every existing ops route starts writing `actorUserId`.**~~ → **moved to Task 4**, see the plan
+change recorded above: attribution is only enforceable where identity is mandatory, and making it
+optional first would have been worse than the honest null it replaced.
+*Ships:* roles exist, nobody can grant themselves one, and every IAM action names its operator.
+
+**What landed**
+
+| Area | Files |
+|---|---|
+| Schema | `db/schema/admin.ts` (`admin_role_grants`, `admin_role`, `admin_grant_source`); migration `0046` |
+| IAM | `modules/admin/admin-iam.service.ts` (role matrix, permissions, the invariants), `admin-role-grants.repo.ts` (the fold) |
+| HTTP | `routes/admin/iam.ts` (list, onboard, grant, revoke, grant history); `/admin/me` now returns real roles **and** permissions |
+| Bootstrap | `ensureBootstrapOwner` seeds `owner` + `admin`, idempotently and without resurrecting a revoked role |
+| Audit | `admin.onboarded`, `admin.role_granted`, `admin.role_revoked`, and the four new `retailer.*` events |
+
+**What Task 2 does NOT deliver, despite being easy to assume it does:**
+
+- The 13 ops routes still record a null operator. Task 4.
+- One admin can still grant `admin` to a second account they control. Invariant 1 blocks *self*-edit
+  only; the two-person rule is Task 3's maker-checker.
+- `money.operate` is a permission `owner` holds, but no money surface reads it yet. Task 7 puts it
+  behind JIT elevation, so holding `owner` is permission to *request* power, not to have it.
 
 ### Task 3 — Maker-checker
 `admin_approvals`: a proposed action, its payload, its maker, its checker, its outcome. Applied

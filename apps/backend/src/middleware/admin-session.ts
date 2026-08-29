@@ -44,18 +44,25 @@ export const adminSession =
   };
 
 /** Shape returned by `/admin/me`. Kept next to the middleware that produces the actor. */
-export function adminSelf(adminUser: AdminUserRow): {
+export function adminSelf(
+  adminUser: AdminUserRow,
+  roles: readonly string[],
+  permissions: readonly string[],
+): {
   id: string;
   email: string;
   displayName: string | null;
   roles: string[];
+  permissions: string[];
 } {
   return {
     id: adminUser.id,
     email: adminUser.email,
     displayName: adminUser.displayName,
-    // Always empty in Task 1. Present in the payload from the start so the portal is written
-    // against the real shape, and so nobody infers "no roles field" as "no restrictions".
-    roles: [],
+    roles: [...roles],
+    // Permissions as well as roles, because the portal should render from capabilities rather
+    // than re-implement the role matrix in the client — two copies of that mapping would drift,
+    // and the client's copy would be the one nobody tested.
+    permissions: [...permissions],
   };
 }

@@ -418,6 +418,85 @@ export const auditEvents = {
     };
   },
 
+  /**
+   * A new member of staff was given an admin record. They hold no roles yet, so this event is
+   * "someone can now sign in", not "someone can now do something".
+   */
+  adminOnboarded(input: {
+    actorAdminUserId: string;
+    newAdminUserId: string;
+    email: string;
+    at: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'ops',
+      actorAdminUserId: input.actorAdminUserId,
+      action: 'admin.onboarded',
+      subjectKind: 'admin_user',
+      subjectId: input.newAdminUserId,
+      payloadJson: { email: input.email, at: input.at.toISOString() },
+    };
+  },
+
+  /**
+   * A role was granted or revoked.
+   *
+   * The most dangerous action in the system, and the reason the audit column exists: a role grant
+   * converts into every permission that role carries, so "who gave this person access, and when"
+   * has to be answerable years later. The subject is the admin whose access changed, not the one
+   * who changed it — the actor column already records that.
+   */
+  adminRoleChanged(input: {
+    actorAdminUserId: string;
+    targetAdminUserId: string;
+    role: string;
+    granted: boolean;
+    reason: string | null;
+    at: Date;
+  }): AuditEntry {
+    return {
+      actorKind: 'ops',
+      actorAdminUserId: input.actorAdminUserId,
+      action: input.granted ? 'admin.role_granted' : 'admin.role_revoked',
+      subjectKind: 'admin_user',
+      subjectId: input.targetAdminUserId,
+      payloadJson: {
+        role: input.role,
+        granted: input.granted,
+        reason: input.reason,
+        at: input.at.toISOString(),
+      },
+    };
+  },
+
+  /**
+   * A retailer's onboarding state was changed by an operator.
+   *
+   * These events did not exist until sub-plan A1 Task 2. Approving a retailer admits a business
+   * to the marketplace and suspending one cuts off its income, and neither left any trace at all —
+   * a worse problem than the missing attribution A1 was written to fix, and one that could be
+   * fixed immediately because recording WHAT happened does not require knowing who did it.
+   *
+   * `actorAdminUserId` is null while these routes still authenticate with the shared
+   * `ADMIN_API_KEY`, which is not an identity. Task 4 swaps that for a session and fills it in.
+   */
+  retailerOnboardingChanged(input: {
+    retailerId: string;
+    action: 'applied' | 'kyb_submitted' | 'approved' | 'suspended';
+    actorAdminUserId?: string | null;
+    at: Date;
+    details?: Record<string, unknown>;
+  }): AuditEntry {
+    return {
+      actorKind: 'ops',
+      actorAdminUserId: input.actorAdminUserId ?? null,
+      action: `retailer.${input.action}`,
+      subjectKind: 'retailer',
+      subjectId: input.retailerId,
+      payloadJson: { ...(input.details ?? {}), at: input.at.toISOString() },
+    };
+  },
+
   adminSignedOut(input: { adminUserId: string; at: Date }): AuditEntry {
     return {
       actorKind: 'ops',

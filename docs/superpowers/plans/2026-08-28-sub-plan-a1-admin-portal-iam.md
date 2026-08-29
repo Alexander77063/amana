@@ -1,9 +1,11 @@
 # Sub-plan A1 — Admin portal & IAM — Implementation Plan
 
-**Status:** Planned 2026-08-28. **Tasks 1 and 2 built 2026-08-29** — admin identity, Google Workspace
-OIDC (verified against a stub; see the caveat under Task 1), server-side sessions, the seeded first
-owner, the `audit_log` attribution column, and the role model with its invariants. Tasks 3–7 not
-started. Two changes to this plan were made during Task 2 and are recorded in the decision tables
+**Status:** Planned 2026-08-28. **Tasks 1, 2 and 3 built 2026-08-29** — admin identity, Google
+Workspace OIDC (verified against a stub; see the caveat under Task 1), server-side sessions, the
+seeded first owner, the `audit_log` attribution column, the role model with its invariants, and
+maker-checker on role grants. Tasks 4–7 not started, and **Task 4 is now the critical path**: three
+separate deferrals all wait on it (see "Everything that needs an actor" under Task 3).
+Three changes to this plan were made during Tasks 2 and 3; all are recorded in the decision tables
 below rather than absorbed silently.
 **Decisions locked with Alex before planning** (see "Decisions" below) — do not re-litigate them
 mid-build; raise a change instead.
@@ -186,11 +188,43 @@ optional first would have been worse than the honest null it replaced.
 - `money.operate` is a permission `owner` holds, but no money surface reads it yet. Task 7 puts it
   behind JIT elevation, so holding `owner` is permission to *request* power, not to have it.
 
-### Task 3 — Maker-checker
+### Task 3 — Maker-checker ✅ built 2026-08-29
 `admin_approvals`: a proposed action, its payload, its maker, its checker, its outcome. Applied
-first to **role grants** (the most dangerous action), then to vendor suspend / approve-claim /
-consent revoke.
-*Ships:* no single admin can hand out power or destroy a business alone.
+first to **role grants** (the most dangerous action), ~~then to vendor suspend / approve-claim /
+consent revoke~~ — those wait for **Task 4**, because they run on key-authenticated routes where
+there is no maker to record. See "everything that needs an actor" below.
+*Ships:* no single admin can hand out power alone.
+
+| Area | Files |
+|---|---|
+| Schema | `admin_approvals` + kind/status enums; migration `0047` |
+| Service | `modules/admin/admin-approval.service.ts` (generic — knows nothing about roles) |
+| Orchestration | `admin-iam.service`: `grantRole` proposes, `approveRoleGrant` decides and applies |
+| HTTP | `/admin/iam/approvals` list / approve / reject / cancel; the grant route now returns **202** + an `approvalId` |
+| Cron | `admin-approval-sweep.job.ts`, hourly, writes the `expired` transition |
+
+### Decided during Task 3 (2026-08-29)
+
+| Decision | Choice | Why |
+|---|---|---|
+| **PLAN CHANGE — is revocation maker-checked?** | **No. Revocations take effect immediately** | The plan says maker-checker covers "destructive actions AND role grants", and revocation reads as destructive — so this needs saying out loud. Requiring a quorum to *remove* access means a compromised or departing account keeps its powers until a second admin happens to be available. The gate belongs on the direction that **creates** power; taking it away must always be possible alone. This is the fail-safe direction. |
+| The bootstrap deadlock, again | **The config-seeded account may complete its own grant, anchored on `provisioningSource === 'config'`** | Maker-checker would otherwise deadlock the Task 2 exit ceremony: the bootstrap account is the only admin, so its proposal to create the first real admin could never find a second approver. **Not** gated on "is the only admin" — that is a count, and therefore attackable: revocation is immediate, so a rogue admin could revoke every peer to re-enter single-admin mode and then grant at will. `provisioningSource` is an immutable property of one row that no admin action can confer. The exemption **self-extinguishes**: after the ceremony that account holds `owner` only, which has no `iam.write`. There is a test for the rogue-admin path specifically. |
+| Is the exemption visible? | **Yes — it writes a full proposal row with maker == checker** | A reader should be able to *see* that the exception was used, not infer it from an absent approval. The audit trail has the same shape as a two-person grant. |
+| When are proposals re-validated? | **At propose time AND at approve time** | Days pass between the two. The target may have been suspended, or acquired the mutually exclusive role by another route. A proposal is a request, never a pre-authorised write. Proposing also validates, so an impossible request fails immediately instead of sitting in an inbox for a week. |
+| Expiry | **A cron sweep writes the `expired` status**, hourly | The house pattern (`bump-ttl-sweep`), and the alternative is worse: a `pending` row that has silently stopped working is one an operator keeps clicking approve on with nothing explaining why nothing happens. |
+
+### Everything that needs an actor is blocked behind Task 4
+
+Three separate pieces of work now wait on the same thing, which is worth stating once rather than
+as three deferrals:
+
+1. The 13 ops routes writing `actorUserId` (Task 2).
+2. Maker-checker on vendor suspend / approve-claim / consent revoke (Task 3).
+3. Filling in the operator on the new `retailer.*` audit events (Task 2).
+
+All three need those routes to carry a signed-in admin instead of a shared secret — which is
+exactly what Task 4 does. **Task 4 is now the critical path for the rest of this sub-plan**, and it
+is also the step this plan's own self-review calls the riskiest. Worth doing next.
 
 ### Task 4 — Cut the 13 endpoints over
 `vendors-admin.ts` and `retailers.ts` move from `adminAuth` to `adminSession` + a permission check.

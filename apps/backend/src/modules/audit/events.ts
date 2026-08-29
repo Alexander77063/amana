@@ -497,6 +497,31 @@ export const auditEvents = {
     };
   },
 
+  /**
+   * A maker-checker proposal moved. Both halves of a two-person control have to be on the record
+   * separately: "who asked" and "who agreed" are different questions, and an event that only
+   * recorded the outcome would collapse them.
+   *
+   * `actorAdminUserId` is null only for `expired`, which nobody performs — the cron sweep does it.
+   */
+  adminApprovalChanged(input: {
+    approvalId: string;
+    actorAdminUserId: string | null;
+    event: 'proposed' | 'approved' | 'rejected' | 'cancelled' | 'expired';
+    kind: string;
+    payload: Record<string, unknown>;
+    at: Date;
+  }): AuditEntry {
+    return {
+      actorKind: input.event === 'expired' ? 'system' : 'ops',
+      actorAdminUserId: input.actorAdminUserId,
+      action: `admin.approval_${input.event}`,
+      subjectKind: 'admin_approval',
+      subjectId: input.approvalId,
+      payloadJson: { kind: input.kind, ...input.payload, at: input.at.toISOString() },
+    };
+  },
+
   adminSignedOut(input: { adminUserId: string; at: Date }): AuditEntry {
     return {
       actorKind: 'ops',

@@ -116,14 +116,22 @@ describe('adminIamService', () => {
       // An admin may not create a colleague who holds BOTH access-granting and money power,
       // because that account is the merger the segregation exists to prevent.
       const actor = await adminWith('boss@amana-ng.com', ['admin']);
+      const checker = await adminWith('checker@amana-ng.com', ['admin']);
       const target = await adminWith('both@amana-ng.com', []);
 
-      await adminIamService.grantRole(testDb, {
+      // Grants go through maker-checker since Task 3, so this takes two people to land.
+      const first = await adminIamService.grantRole(testDb, {
         actorAdminUserId: actor.id,
         targetAdminUserId: target.id,
         role: 'admin',
       });
+      await adminIamService.approveRoleGrant(testDb, {
+        approvalId: first.id,
+        checkerAdminUserId: checker.id,
+      });
 
+      // Refused at PROPOSAL time — an impossible request should not sit in an inbox for a week
+      // before failing.
       await expect(
         adminIamService.grantRole(testDb, {
           actorAdminUserId: actor.id,
@@ -216,13 +224,20 @@ describe('adminIamService', () => {
   describe('the happy path, and what it records', () => {
     it('grants a role and attributes it to the admin who granted it', async () => {
       const actor = await adminWith('boss@amana-ng.com', ['admin']);
+      const checker = await adminWith('checker@amana-ng.com', ['admin']);
       const target = await adminWith('newhire@amana-ng.com', []);
 
-      await adminIamService.grantRole(testDb, {
+      const proposal = await adminIamService.grantRole(testDb, {
         actorAdminUserId: actor.id,
         targetAdminUserId: target.id,
         role: 'ops',
         reason: 'joined the ops team',
+      });
+      // The grant is attributed to the MAKER, not the checker: the maker asked for it, the
+      // checker agreed to it, and the approval row records the second half.
+      await adminIamService.approveRoleGrant(testDb, {
+        approvalId: proposal.id,
+        checkerAdminUserId: checker.id,
       });
 
       expect(await adminIamService.rolesFor(testDb, target.id)).toEqual(['ops']);

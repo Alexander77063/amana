@@ -160,6 +160,14 @@ const EnvSchema = z
     // How long a half-finished sign-in stays claimable. Ten minutes is Google's own guidance for
     // an authorization code's usable life; a longer window is just a wider replay target.
     ADMIN_LOGIN_TTL_SECONDS: z.coerce.number().int().positive().default(600),
+    // How long a maker-checker proposal stays open. Seven days: long enough that a colleague's week
+    // off does not force a re-proposal, short enough that a forgotten request to make somebody an
+    // owner cannot be approved months later by someone who has lost the context for it.
+    ADMIN_APPROVAL_TTL_SECONDS: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(60 * 60 * 24 * 7),
     // The Workspace OAuth app. Optional so dev and test boot without Google credentials — the
     // provider is inert until a sign-in is attempted — but required in production, where a portal
     // that cannot sign anyone in is a portal nobody can use.

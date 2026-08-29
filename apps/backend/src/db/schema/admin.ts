@@ -3,6 +3,7 @@ import {
   bigserial,
   boolean,
   index,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -107,6 +108,61 @@ export const adminRoleGrants = pgTable(
   (t) => ({
     // The read is always "latest row for this admin and role", so index the pair.
     byAdminRole: index('admin_role_grants_by_admin_role').on(t.adminUserId, t.role),
+  }),
+);
+
+/**
+ * What kind of action is being proposed. One value today; the table is generic on purpose,
+ * because the ops actions (vendor suspend, approve-claim, consent revoke) join it once Task 4
+ * gives those routes an identity to record as the maker.
+ */
+export const adminApprovalKindEnum = pgEnum('admin_approval_kind', ['role_grant']);
+
+export const adminApprovalStatusEnum = pgEnum('admin_approval_status', [
+  'pending',
+  'approved',
+  'rejected',
+  'cancelled',
+  /** Written by the cron sweep, never inferred at read time. */
+  'expired',
+]);
+
+/**
+ * Maker-checker: a proposed action, who proposed it, who decided it, and what was decided.
+ *
+ * Applied to role grants first because a grant is the most dangerous action in the product — it
+ * converts into every permission the role carries. Note the asymmetry with revocation, which is
+ * NOT gated: requiring two people to REMOVE access would leave a compromised account live until a
+ * second admin was available. The gate belongs on the direction that creates power.
+ */
+export const adminApprovals = pgTable(
+  'admin_approvals',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    kind: adminApprovalKindEnum('kind').notNull(),
+    status: adminApprovalStatusEnum('status').notNull().default('pending'),
+    /** The action's parameters. Re-validated at apply time — a proposal is a request, not a write. */
+    payloadJson: jsonb('payload_json').notNull(),
+    makerAdminUserId: uuid('maker_admin_user_id')
+      .notNull()
+      .references(() => adminUsers.id, { onDelete: 'restrict' }),
+    /**
+     * Null until decided. Equal to the maker ONLY for the config-seeded bootstrap account, whose
+     * exemption exists so the first grant is possible at all — and it is written rather than
+     * omitted so a reader can see the exception was used instead of inferring it.
+     */
+    checkerAdminUserId: uuid('checker_admin_user_id').references(() => adminUsers.id, {
+      onDelete: 'restrict',
+    }),
+    reason: text('reason'),
+    decisionReason: text('decision_reason'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    // The inbox read is "what is still waiting", and the sweep reads the same shape.
+    byStatus: index('admin_approvals_by_status').on(t.status, t.expiresAt),
   }),
 );
 

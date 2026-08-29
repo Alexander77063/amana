@@ -1,8 +1,9 @@
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { env } from '../../env';
-import { ForbiddenError, NotFoundError } from '../../lib/errors';
+import { ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
+import { type AdminApprovalRow, adminApprovalService } from './admin-approval.service';
 import { normaliseEmail } from './admin-identity.service';
 import { type AdminRole, adminRoleGrantsRepo } from './admin-role-grants.repo';
 import { type AdminUserRow, adminUsersRepo } from './admin-users.repo';
@@ -144,55 +145,172 @@ export const adminIamService = {
     return created;
   },
 
-  async grantRole(db: DbOrTx, input: RoleChangeInput, now: Date = new Date()): Promise<void> {
-    await changeRole(db, input, true, now);
+  /**
+   * PROPOSE a role grant. It does not take effect until a different admin approves it.
+   *
+   * Returns the proposal, whose `status` tells the caller what happened: `pending` in the normal
+   * case, or `approved` when the config-seeded bootstrap account used its exemption and the grant
+   * has already been applied.
+   */
+  async grantRole(
+    db: DbOrTx,
+    input: RoleChangeInput,
+    now: Date = new Date(),
+  ): Promise<AdminApprovalRow> {
+    await adminIamService.requirePermission(db, input.actorAdminUserId, 'iam.write');
+    // Checked at proposal time as well as at apply time so an impossible request is refused
+    // immediately rather than sitting in someone's inbox for a week before failing.
+    await assertGrantable(db, input);
+
+    // The bootstrap exemption. Anchored on `provisioningSource === 'config'` — an immutable
+    // property of one row that NO admin action can confer — and deliberately not on "is the only
+    // admin", which is a count and therefore attackable: a rogue admin could revoke every peer
+    // (revocation being immediate) to re-enter single-admin mode and then grant at will.
+    //
+    // It exists because without it the Task 2 exit ceremony deadlocks: the bootstrap account is
+    // the only admin, so its proposal to create the first real admin could never find a second
+    // approver. It self-extinguishes — once stood down, the account holds `owner` only, which has
+    // no `iam.write`, so `requirePermission` above already refuses it.
+    const actor = await adminUsersRepo.findById(db, input.actorAdminUserId);
+    const selfApprove = actor?.provisioningSource === 'config';
+
+    const proposal = await adminApprovalService.propose(
+      db,
+      {
+        kind: 'role_grant',
+        makerAdminUserId: input.actorAdminUserId,
+        payload: { targetAdminUserId: input.targetAdminUserId, role: input.role },
+        reason: input.reason ?? null,
+        selfApprove,
+      },
+      now,
+    );
+
+    if (selfApprove) {
+      await applyRoleGrant(db, input.actorAdminUserId, input, now);
+    }
+    return proposal;
   },
 
+  /**
+   * Approve someone else's proposed grant, and apply it.
+   *
+   * The checker must be able to grant roles themselves — two people is only a control if both
+   * could have done it alone — and must not be the maker.
+   */
+  async approveRoleGrant(
+    db: DbOrTx,
+    input: { approvalId: string; checkerAdminUserId: string; reason?: string | null },
+    now: Date = new Date(),
+  ): Promise<void> {
+    await adminIamService.requirePermission(db, input.checkerAdminUserId, 'iam.write');
+
+    const proposal = await adminApprovalService.findById(db, input.approvalId);
+    if (!proposal) throw new NotFoundError('approval_not_found');
+    if (proposal.kind !== 'role_grant') throw new ConflictError('wrong_approval_kind');
+
+    const payload = proposal.payloadJson as { targetAdminUserId: string; role: AdminRole };
+    const change: RoleChangeInput = {
+      actorAdminUserId: proposal.makerAdminUserId,
+      targetAdminUserId: payload.targetAdminUserId,
+      role: payload.role,
+      // Carried from the proposal onto the grant row. The maker's justification is the answer to
+      // "why does this person have this role", and it belongs on the grant that is read later,
+      // not only on an approval nobody will think to look up.
+      reason: proposal.reason,
+    };
+
+    // RE-VALIDATE against the world as it is now, not as it was when this was proposed. Days can
+    // pass: the target may have been suspended, or acquired the mutually exclusive role by
+    // another route. A proposal is a request, never a pre-authorised write.
+    await assertGrantable(db, change);
+
+    // Claim the proposal first. The conditional UPDATE inside means two checkers racing cannot
+    // both win, so the grant is applied exactly once.
+    await adminApprovalService.approve(db, input, now);
+    await applyRoleGrant(db, proposal.makerAdminUserId, change, now);
+  },
+
+  /**
+   * Revoke a role. Takes effect IMMEDIATELY — deliberately not maker-checked.
+   *
+   * The plan says maker-checker covers "destructive actions and role grants", and revocation
+   * reads as destructive. It is not gated, because requiring a quorum to REMOVE access means a
+   * compromised or departing account keeps its powers until a second admin is available. The gate
+   * belongs on the direction that creates power; taking it away must always be possible alone.
+   */
   async revokeRole(db: DbOrTx, input: RoleChangeInput, now: Date = new Date()): Promise<void> {
-    await changeRole(db, input, false, now);
+    await adminIamService.requirePermission(db, input.actorAdminUserId, 'iam.write');
+    if (input.actorAdminUserId === input.targetAdminUserId) {
+      throw new ForbiddenError('cannot_change_own_roles');
+    }
+    const target = await adminUsersRepo.findById(db, input.targetAdminUserId);
+    if (!target) throw new NotFoundError('admin_not_found');
+
+    await applyRoleChange(db, input.actorAdminUserId, input, false, now);
   },
 };
 
-async function changeRole(
-  db: DbOrTx,
-  input: RoleChangeInput,
-  granted: boolean,
-  now: Date,
-): Promise<void> {
-  // Order matters: permission first, so someone with no business here learns nothing about who
-  // exists from the difference between a 403 and a 404.
-  await adminIamService.requirePermission(db, input.actorAdminUserId, 'iam.write');
-
+/**
+ * Everything that must be true for a grant to be legal, checked against the CURRENT world.
+ *
+ * Called twice on purpose — once when proposing, so an impossible request fails immediately
+ * instead of waiting a week in an inbox, and again when approving, because the days in between
+ * are real and the target may have been suspended or acquired the exclusive role since.
+ */
+async function assertGrantable(db: DbOrTx, input: RoleChangeInput): Promise<void> {
   // Invariant 1. This is what stops `admin` becoming every other role: without it, the role that
   // hands out access hands itself money power, and the matrix collapses to a single role.
-  //
-  // Note what it does NOT stop — an admin granting `admin` to a second account they control.
-  // That is Task 3's maker-checker, and this invariant should not be read as closing it.
   if (input.actorAdminUserId === input.targetAdminUserId) {
     throw new ForbiddenError('cannot_change_own_roles');
   }
 
   const target = await adminUsersRepo.findById(db, input.targetAdminUserId);
   if (!target) throw new NotFoundError('admin_not_found');
+  // Granting a role to a suspended account would quietly arm it for whenever it is reinstated.
+  if (target.status !== 'active') throw new ForbiddenError('target_not_active');
 
-  if (granted) {
-    // Invariant 3, enforced on the target rather than the actor: no account may end up holding
-    // both the role that grants access and the role that moves money. Otherwise one admin could
-    // simply build that account out of a colleague — or a second account of their own — and the
-    // segregation would exist only on paper.
-    const [a, b] = MUTUALLY_EXCLUSIVE;
-    const other = input.role === a ? b : input.role === b ? a : null;
-    if (other) {
-      const held = await adminRoleGrantsRepo.currentRoles(db, target.id);
-      if (held.includes(other)) throw new ForbiddenError('segregation_of_duties');
-    }
+  // Invariant 3, enforced on the TARGET rather than the actor: no account may end up holding both
+  // the role that grants access and the role that moves money. Checking only the actor would let
+  // one admin build that merged account out of a colleague — or a second account of their own —
+  // and the segregation would exist only on paper.
+  const [a, b] = MUTUALLY_EXCLUSIVE;
+  const other = input.role === a ? b : input.role === b ? a : null;
+  if (other) {
+    const held = await adminRoleGrantsRepo.currentRoles(db, target.id);
+    if (held.includes(other)) throw new ForbiddenError('segregation_of_duties');
   }
+}
 
+/** Apply an approved grant. Callers have already established that it is legal. */
+async function applyRoleGrant(
+  db: DbOrTx,
+  granterAdminUserId: string,
+  input: RoleChangeInput,
+  now: Date,
+): Promise<void> {
+  await applyRoleChange(db, granterAdminUserId, input, true, now);
+}
+
+/**
+ * Write the grant row and its audit event.
+ *
+ * `granterAdminUserId` is the MAKER, not the checker: the maker asked for it and is the person
+ * the grant is attributed to, while the checker's agreement is recorded on the approval. Both are
+ * answerable, for different things.
+ */
+async function applyRoleChange(
+  db: DbOrTx,
+  granterAdminUserId: string,
+  input: RoleChangeInput,
+  granted: boolean,
+  now: Date,
+): Promise<void> {
   await adminRoleGrantsRepo.append(db, {
-    adminUserId: target.id,
+    adminUserId: input.targetAdminUserId,
     role: input.role,
     granted,
-    grantedByAdminUserId: input.actorAdminUserId,
+    grantedByAdminUserId: granterAdminUserId,
     source: 'admin',
     reason: input.reason ?? null,
   });
@@ -200,8 +318,8 @@ async function changeRole(
   await auditRepo.append(
     db,
     auditEvents.adminRoleChanged({
-      actorAdminUserId: input.actorAdminUserId,
-      targetAdminUserId: target.id,
+      actorAdminUserId: granterAdminUserId,
+      targetAdminUserId: input.targetAdminUserId,
       role: input.role,
       granted,
       reason: input.reason ?? null,

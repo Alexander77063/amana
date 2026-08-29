@@ -183,16 +183,29 @@ curl -X POST https://admin.amana-ng.com/admin/iam/admins \
   -b "$COOKIE" -H 'content-type: application/json' \
   -d '{"email":"ada@amana-ng.com"}'
 
-# 2. As david@, make them an admin.
+# 2. As david@, make them an admin. Returns 202 with an approvalId.
+#    Role grants need TWO admins (maker-checker, Task 3) — but david@ is the config-seeded
+#    bootstrap account, so this one comes back `"status":"approved"` and has already applied.
+#    Without that exemption this step could never complete: there is no second admin yet.
 curl -X POST https://admin.amana-ng.com/admin/iam/admins/<their-id>/roles \
   -b "$COOKIE" -H 'content-type: application/json' \
   -d '{"role":"admin","reason":"first real admin"}'
 
-# 3. As ADA — not david@ — revoke david@'s admin role.
+# 3. As ADA — not david@ — revoke david@'s admin role. Takes effect immediately: revocations
+#    are deliberately NOT maker-checked, because needing a quorum to remove access is how a
+#    compromised account stays live.
 curl -X POST https://admin.amana-ng.com/admin/iam/admins/<davids-id>/roles/revoke \
   -b "$ADA_COOKIE" -H 'content-type: application/json' \
   -d '{"role":"admin","reason":"bootstrap complete; restoring segregation of duties"}'
 ```
+
+**From here on, every role grant takes two people.** Ada proposes (`202` + an `approvalId`), a
+second admin approves it at `POST /admin/iam/approvals/<id>/approve`, and pending requests are
+listed at `GET /admin/iam/approvals`. A proposal nobody decides expires after seven days
+(`ADMIN_APPROVAL_TTL_SECONDS`), swept hourly by the cron worker.
+
+So onboard your **second** admin before you need one in a hurry: after the ceremony above, ada is
+the only account that can grant anything, and she cannot approve her own proposals.
 
 Step 3 **must** be performed by the other person. Nobody can change their own roles (invariant 1),
 so david@ cannot stand himself down — which is the point: it takes two people to end the exception,

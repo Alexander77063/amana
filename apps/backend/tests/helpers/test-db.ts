@@ -48,6 +48,9 @@ const TABLES_TO_TRUNCATE = [
   'idempotency_keys',
   'audit_log',
   'vendor_stickers',
+  'admin_sessions',
+  'admin_auth_requests',
+  'admin_users',
 ] as const;
 
 export async function truncateAll(): Promise<void> {

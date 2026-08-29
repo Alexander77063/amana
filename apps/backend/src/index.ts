@@ -1,11 +1,21 @@
 import { serve } from '@hono/node-server';
-import { closeDb } from './db/client';
+import { closeDb, db } from './db/client';
 import { env } from './env';
 import { logger } from './lib/logger';
 import { initSentry } from './lib/sentry';
+import { adminIdentityService } from './modules/admin/admin-identity.service';
 import { createServer } from './server';
 
 initSentry();
+
+// Seed the first admin owner from configuration (sub-plan A1, invariant 6: the first owner is
+// seeded from config, NEVER minted by an endpoint). Deliberately here and not behind any route —
+// there must exist no HTTP path that creates an owner, or that path is the attack. Idempotent, so
+// every restart and every instance re-runs it harmlessly; failing it must not stop the API
+// serving customers, so it is logged rather than thrown.
+adminIdentityService.ensureBootstrapOwner(db).catch((e: unknown) => {
+  logger.error({ err: (e as Error).message }, 'admin bootstrap owner seed failed');
+});
 
 const app = createServer();
 

@@ -1,6 +1,8 @@
 # Sub-plan A1 — Admin portal & IAM — Implementation Plan
 
-**Status:** Planned 2026-08-28. Not started.
+**Status:** Planned 2026-08-28. **Task 1 built 2026-08-29** — admin identity, Google Workspace OIDC
+(verified against a stub; see the caveat under Task 1), server-side sessions, the seeded first
+owner, and the `audit_log` attribution column. Tasks 2–7 not started.
 **Decisions locked with Alex before planning** (see "Decisions" below) — do not re-litigate them
 mid-build; raise a change instead.
 
@@ -37,6 +39,15 @@ Four consequences, worst first:
 | Hosting | **Fly, `jnb`, beside the API — fronted by Cloudflare Access** | Same origin means session cookies just work. **No preview deployments**: Vercel's best feature is a liability for staff tooling, where every branch would get a public URL. Cloudflare Access with Google as IdP means the portal is unreachable without a Workspace login *before* app code runs — two independent gates. |
 | Staff identity domain | **Google Workspace on `amana-ng.com`** — portal refuses any email outside it | Changed 2026-08-28 from `elitesolutionshub.com`. Staff identity outlives any relationship between the two companies, and `amana-ng.com` is **already required** for the HSTS preload gate, so this adds no new domain dependency. |
 | First owner | **`david@amana-ng.com`** | Changed with the domain. It **cannot** be `david@elitesolutionshub.com`: the portal refuses any address outside the Workspace domain, so an Elite address would need a permanent cross-domain exception carved into the bootstrap owner — the worst place in the system to put one. |
+
+### Decided during Task 1 (2026-08-29), not at planning time
+
+| Decision | Choice | Why it could not be deferred |
+|---|---|---|
+| Are staff rows in `users`? | **No — `admin_users` is a standalone table, and `audit_log` gains a second nullable actor column `actor_admin_user_id`** (migration `0044`), with a CHECK that at most one actor kind is named (`0045`) | Forced by invariant 7. `audit_log.actorUserId` is a FK to `users.id`, so a standalone admin id written there fails the constraint outright. The alternative — giving every staff member a `users` row — founders on the actual column shape: `users.nin` is **NOT NULL** and `users.phone` is NOT NULL UNIQUE, so onboarding an admin would mean **fabricating a National Identity Number per employee**, in the same encrypted column that holds real customers'. Deciding this in Task 2 instead would have meant either that fabrication or an ALTER on an append-only table after it had accumulated rows. |
+| Does signing in create an admin? | **No. An unprovisioned Workspace member is refused (`not_provisioned`)** | Invariant 4 in practice. Every colleague can reach Google's consent screen, so auto-provisioning would turn "works at Amana" into "has an admin record". In Task 1 exactly one person can sign in — the seeded owner — and Task 2's onboarding is what admits anyone else. |
+| Session token storage | **Opaque 32-byte token, stored as a plain SHA-256 digest** — not argon2 like `auth_sessions.refreshTokenHash` | Lookup, not laziness. A refresh token arrives with a user id, so the row can be found first and a salted hash verified second. A session cookie arrives alone, so the digest **is** the lookup key, which a salted hash cannot be. The token is 256 bits of CSPRNG, so there is no dictionary for a slow KDF to defend against. |
+| Which denials are audited | **Only those after Google has verified an identity** | `/admin/auth/callback` is unauthenticated. Auditing pre-identity refusals (unknown state, failed exchange) would let an anonymous caller write unbounded rows into an append-only table. Those are bounded by the route's per-IP rate limiter instead. |
 
 ## The `amana-ng.com` interaction — a synergy and a pre-flight item
 
@@ -108,10 +119,33 @@ apps/admin-portal/             new Next.js app (port 3400)
 **Order matters.** Every task after 1 depends on attribution existing; every task after 2 depends on
 permissions existing. Do not reorder to get a UI sooner.
 
-### Task 1 — Admin identity and SSO
+### Task 1 — Admin identity and SSO ✅ built 2026-08-29
 Google Workspace OIDC, `admin_users` (email, google subject, status), server-side sessions.
 Seeded first owner from config. **No roles yet** — everyone who signs in can do nothing.
 *Ships:* an admin can prove who they are. Nothing else changes.
+
+**What landed**
+
+| Area | Files |
+|---|---|
+| Schema | `db/schema/admin.ts` (`admin_users`, `admin_auth_requests`, `admin_sessions`), `db/schema/audit.ts` (`actor_admin_user_id`); migrations `0042`–`0045` |
+| Identity | `modules/admin/admin-identity.service.ts` + three repos |
+| OIDC | `modules/admin/oidc/types.ts` (the seam), `oidc/google-oidc.provider.ts` (the real one) |
+| HTTP | `routes/admin/auth.ts` (`/start`, `/callback`, `/logout`), `/admin/me`, `middleware/admin-session.ts` |
+| Boot | `src/index.ts` seeds the owner; `env.ts` adds six vars and two boot checks |
+
+**Verified against a stub, NOT against Google.** The `amana-ng.com` Workspace tenant does not exist
+yet, so no real ID token has ever been through this code. The provider seam exists precisely so the
+task could be built and tested first — every rule the service enforces (verified email, `hd` claim,
+provisioning, suspension, subject binding, state single-use) is covered by tests, and
+`google-oidc.provider.ts` is exercised against ID tokens signed with a throwaway key pair. What
+remains unproven is the live handshake: real credentials, the registered redirect URI, and Google's
+actual claim shapes. Do that as the first step of Task 2, following
+[`google-workspace-setup.md`](../../runbook/google-workspace-setup.md).
+
+**`adminAuth` / `ADMIN_API_KEY` are untouched**, as planned — the 13 ops endpoints still sit behind
+the shared secret until Task 4 cuts them over and deletes it. There is deliberately **no fallback**
+between the two mechanisms.
 
 ### Task 2 — Roles, the invariants, and attribution
 `admin_role_grants` (append-only, like `vendor_consents` — a revocation is a row, ordered by
@@ -196,6 +230,13 @@ highest-risk surface and should land on an IAM that has been exercised.
   Workspace tenant, an OAuth app, and the redirect URI, before Task 1 can be tested against anything
   real. Task 1 can be *built* against a stub, but not verified. `amana-ng.com` is already on §6's
   critical path, so this is a shared dependency rather than a new one.
+
+  **Status 2026-08-29:** `amana-ng.com` **is** owned (confirmed by Alex). Task 1 is built and
+  green against the stub; the tenant, the OAuth app and the first live sign-in are still to do,
+  and they are now the only thing standing between this code and a working staff login. Task 1
+  also settled the runbook's open question about the redirect URI: it is
+  `https://admin.amana-ng.com/admin/auth/callback` — a **backend** path, because the code exchange
+  never touches the portal.
 - **Call recording (below) needs a platform decision** that is not Amana's to make in code.
 
 ## Call recording — flagged, not planned here

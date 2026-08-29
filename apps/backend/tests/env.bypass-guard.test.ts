@@ -36,6 +36,8 @@ describe('env: RATE_LIMIT_ENABLED production guard', () => {
     ANCHOR_WEBHOOK_SECRET: 'whsec-test',
     TERMII_API_KEY: 'termii-test-key',
     ADMIN_API_KEY: 'z'.repeat(32),
+    GOOGLE_OAUTH_CLIENT_ID: 'amana-admin.apps.googleusercontent.com',
+    GOOGLE_OAUTH_CLIENT_SECRET: 'google-client-secret',
   };
 
   it('throws when RATE_LIMIT_ENABLED is false in production', () => {

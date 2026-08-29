@@ -9,6 +9,11 @@ export type ActorKind = 'user' | 'system' | 'partner' | 'ops';
 export type AuditEntry = {
   actorKind: ActorKind;
   actorUserId?: string | null;
+  /**
+   * The staff member responsible, for `actorKind: 'ops'` events. Mutually exclusive with
+   * `actorUserId` — the database enforces it (`audit_log_single_actor`, migration 0045).
+   */
+  actorAdminUserId?: string | null;
   action: string;
   subjectKind: string;
   subjectId: string;
@@ -24,6 +29,7 @@ export const auditRepo = {
       .values({
         actorKind: entry.actorKind,
         actorUserId: entry.actorUserId ?? null,
+        actorAdminUserId: entry.actorAdminUserId ?? null,
         action: entry.action,
         subjectKind: entry.subjectKind,
         subjectId: entry.subjectId,

@@ -16,6 +16,8 @@ const prodSecrets = {
   ANCHOR_WEBHOOK_SECRET: 'whsec-test',
   TERMII_API_KEY: 'termii-test-key',
   ADMIN_API_KEY: 'z'.repeat(32),
+  GOOGLE_OAUTH_CLIENT_ID: 'amana-admin.apps.googleusercontent.com',
+  GOOGLE_OAUTH_CLIENT_SECRET: 'google-client-secret',
 };
 
 describe('env: production-required secrets', () => {
@@ -49,6 +51,49 @@ describe('env: production-required secrets', () => {
     expect(() =>
       loadEnv({ ...base, ...prodSecrets, ADMIN_API_KEY: 'short', NODE_ENV: 'production' }),
     ).toThrow(/ADMIN_API_KEY/);
+  });
+
+  it('throws in production when the Workspace OAuth client is missing', () => {
+    // Without it the admin portal cannot sign anybody in, so the whole staff surface — the claim
+    // queue, retailer KYB — is unreachable. Better to refuse the boot than to ship a portal that
+    // 500s at the door.
+    const { GOOGLE_OAUTH_CLIENT_ID: _omit, ...rest } = prodSecrets;
+    expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).toThrow(
+      /GOOGLE_OAUTH_CLIENT_ID/,
+    );
+  });
+
+  it('throws in production when GOOGLE_OAUTH_CLIENT_SECRET is missing', () => {
+    const { GOOGLE_OAUTH_CLIENT_SECRET: _omit, ...rest } = prodSecrets;
+    expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).toThrow(
+      /GOOGLE_OAUTH_CLIENT_SECRET/,
+    );
+  });
+
+  it('refuses a bootstrap owner outside the Workspace domain, in every environment', () => {
+    // The portal refuses any address outside `ADMIN_WORKSPACE_DOMAIN`, so an owner configured
+    // outside it is an owner who can never sign in — a system that looks configured and admits
+    // nobody. That is a misconfiguration worth failing the boot for, not a runtime surprise, and
+    // it is wrong in development too, so it is checked in the schema rather than the prod block.
+    expect(() =>
+      loadEnv({
+        ...base,
+        NODE_ENV: 'development',
+        ADMIN_WORKSPACE_DOMAIN: 'amana-ng.com',
+        ADMIN_BOOTSTRAP_OWNER_EMAIL: 'david@elitesolutionshub.com',
+      }),
+    ).toThrow(/ADMIN_BOOTSTRAP_OWNER_EMAIL/);
+  });
+
+  it('accepts a bootstrap owner inside the Workspace domain', () => {
+    expect(() =>
+      loadEnv({
+        ...base,
+        NODE_ENV: 'development',
+        ADMIN_WORKSPACE_DOMAIN: 'amana-ng.com',
+        ADMIN_BOOTSTRAP_OWNER_EMAIL: 'David@Amana-NG.com',
+      }),
+    ).not.toThrow();
   });
 
   it('lists every missing required secret in one error', () => {

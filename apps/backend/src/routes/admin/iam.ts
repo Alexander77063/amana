@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { db } from '../../db/client';
 import { parseBody, parseParams } from '../../lib/validate';
 import { type AdminActorVariables, adminSession } from '../../middleware/admin-session';
-import { adminApprovalService } from '../../modules/admin/admin-approval.service';
 import { adminIamService } from '../../modules/admin/admin-iam.service';
 import { adminRoleGrantsRepo } from '../../modules/admin/admin-role-grants.repo';
 
@@ -17,10 +16,6 @@ const RoleBody = z.object({
 
 const OnboardBody = z.object({
   email: z.string().email(),
-});
-
-const DecisionBody = z.object({
-  reason: z.string().max(500).optional(),
 });
 
 // UUIDs are validated here so a malformed id returns 400 rather than a Postgres 500.
@@ -107,70 +102,6 @@ export const adminIamRoute = new Hono<{ Variables: AdminActorVariables }>()
     // one case where `status` comes back `approved` is the config-seeded bootstrap account's
     // exemption, which exists so the very first grant is possible at all.
     return c.json({ approvalId: proposal.id, status: proposal.status }, 202);
-  })
-
-  .get('/approvals', async (c) => {
-    const actor = c.get('adminActor');
-    await adminIamService.requirePermission(db, actor.adminUserId, 'iam.read');
-    const pending = await adminApprovalService.listPending(db);
-    return c.json({
-      approvals: pending.map((a) => ({
-        id: a.id,
-        kind: a.kind,
-        status: a.status,
-        payload: a.payloadJson,
-        makerAdminUserId: a.makerAdminUserId,
-        reason: a.reason,
-        expiresAt: a.expiresAt.toISOString(),
-        createdAt: a.createdAt.toISOString(),
-      })),
-    });
-  })
-
-  .post('/approvals/:id/approve', async (c) => {
-    const actor = c.get('adminActor');
-    const params = parseParams(c, IdParams);
-    if (params instanceof Response) return params;
-    const body = await parseBody(c, DecisionBody);
-    if (body instanceof Response) return body;
-
-    await adminIamService.approveRoleGrant(db, {
-      approvalId: params.id,
-      checkerAdminUserId: actor.adminUserId,
-      reason: body.reason ?? null,
-    });
-    return c.body(null, 204);
-  })
-
-  .post('/approvals/:id/reject', async (c) => {
-    const actor = c.get('adminActor');
-    const params = parseParams(c, IdParams);
-    if (params instanceof Response) return params;
-    const body = await parseBody(c, DecisionBody);
-    if (body instanceof Response) return body;
-
-    await adminIamService.requirePermission(db, actor.adminUserId, 'iam.write');
-    await adminApprovalService.reject(db, {
-      approvalId: params.id,
-      checkerAdminUserId: actor.adminUserId,
-      reason: body.reason ?? null,
-    });
-    return c.body(null, 204);
-  })
-
-  .post('/approvals/:id/cancel', async (c) => {
-    const actor = c.get('adminActor');
-    const params = parseParams(c, IdParams);
-    if (params instanceof Response) return params;
-
-    // No permission check beyond the session: cancelling is withdrawing your OWN request, and the
-    // service refuses anyone who is not the maker. An admin who has since lost `iam.write` should
-    // still be able to take back a proposal they made.
-    await adminApprovalService.cancel(db, {
-      approvalId: params.id,
-      makerAdminUserId: actor.adminUserId,
-    });
-    return c.body(null, 204);
   })
 
   .post('/admins/:id/roles/revoke', async (c) => {

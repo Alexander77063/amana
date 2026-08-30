@@ -116,7 +116,20 @@ export const adminRoleGrants = pgTable(
  * because the ops actions (vendor suspend, approve-claim, consent revoke) join it once Task 4
  * gives those routes an identity to record as the maker.
  */
-export const adminApprovalKindEnum = pgEnum('admin_approval_kind', ['role_grant']);
+export const adminApprovalKindEnum = pgEnum('admin_approval_kind', [
+  'role_grant',
+  /**
+   * `POST /vendors-admin/vendors/:id/approve-claim` — mints a public code and assigns a business
+   * identity on an operator's say-so, i.e. hands ownership of a bank account to a named person.
+   * The most powerful action on the vendor rail, and the only ops action that is gated.
+   *
+   * `suspend` and `consents/revoke` are deliberately NOT here. Same principle as revocation in
+   * Task 3: gate the direction that CREATES power, never the one that removes it. Suspend is the
+   * anti-fraud kill switch, and consent revocation is the merchant's NDPA withdrawal channel,
+   * which must stay as easy as granting.
+   */
+  'vendor_approve_claim',
+]);
 
 export const adminApprovalStatusEnum = pgEnum('admin_approval_status', [
   'pending',
@@ -130,10 +143,11 @@ export const adminApprovalStatusEnum = pgEnum('admin_approval_status', [
 /**
  * Maker-checker: a proposed action, who proposed it, who decided it, and what was decided.
  *
- * Applied to role grants first because a grant is the most dangerous action in the product — it
- * converts into every permission the role carries. Note the asymmetry with revocation, which is
- * NOT gated: requiring two people to REMOVE access would leave a compromised account live until a
- * second admin was available. The gate belongs on the direction that creates power.
+ * Covers role grants and vendor claim approvals — the two actions that CREATE power, one over the
+ * system and one over a bank account. Note the asymmetry with every removal: revoking a role,
+ * suspending a vendor and revoking a merchant's consent are all ungated, because requiring two
+ * people to remove something leaves the dangerous state in place while a second admin is found.
+ * The gate belongs on the direction that creates power.
  */
 export const adminApprovals = pgTable(
   'admin_approvals',

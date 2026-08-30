@@ -106,9 +106,21 @@ describe('/vendors-admin', () => {
     });
     if (!attempt) throw new Error('open attempt failed');
 
-    const res = await adminPost(`/vendors-admin/vendors/${v.id}/approve-claim`, {
+    // Since Task 4B this is a PROPOSAL: assigning a business identity takes two admins, so a
+    // second `ops` operator has to approve it before anything is claimed.
+    const proposed = await adminPost(`/vendors-admin/vendors/${v.id}/approve-claim`, {
       phone,
       category: 'food',
+    });
+    expect(proposed.status).toBe(202);
+    const { approvalId } = (await proposed.json()) as { approvalId: string };
+    expect((await vendorsRepo.findById(testDb, v.id))?.status).toBe('observed');
+
+    const second = await signedInAdmin('ops2@amana-ng.com', ['ops']);
+    const res = await app.request(`/admin/approvals/${approvalId}/approve`, {
+      method: 'POST',
+      headers: { cookie: second.cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({}),
     });
     expect(res.status).toBe(200);
     const body = (await res.json()) as { publicCode: string; displayName: string };

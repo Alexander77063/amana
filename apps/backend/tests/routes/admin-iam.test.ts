@@ -104,12 +104,15 @@ describe('admin IAM routes', () => {
     expect(await adminIamService.rolesFor(testDb, id)).toEqual([]);
 
     const second = await signInAs('checker@amana-ng.com');
-    const approved = await second.app.request(`/admin/iam/approvals/${approvalId}/approve`, {
+    const approved = await second.app.request(`/admin/approvals/${approvalId}/approve`, {
       method: 'POST',
       headers: { cookie: second.cookie, 'content-type': 'application/json' },
       body: JSON.stringify({}),
     });
-    expect(approved.status).toBe(204);
+    // 200 with an outcome body since Task 4B: the inbox is shared with vendor claim approvals,
+    // which have to hand the checker back the public code they must read to the merchant.
+    expect(approved.status).toBe(200);
+    expect((await approved.json()).kind).toBe('role_grant');
     expect(await adminIamService.rolesFor(testDb, id)).toEqual(['ops']);
   });
 
@@ -125,7 +128,7 @@ describe('admin IAM routes', () => {
     });
     const { approvalId } = await proposed.json();
 
-    const res = await app.request(`/admin/iam/approvals/${approvalId}/approve`, {
+    const res = await app.request(`/admin/approvals/${approvalId}/approve`, {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({}),
@@ -145,7 +148,7 @@ describe('admin IAM routes', () => {
       body: JSON.stringify({ role: 'ops' }),
     });
 
-    const res = await app.request('/admin/iam/approvals', { headers: { cookie } });
+    const res = await app.request('/admin/approvals', { headers: { cookie } });
     expect(res.status).toBe(200);
     const { approvals } = await res.json();
     expect(approvals).toHaveLength(1);
@@ -164,13 +167,13 @@ describe('admin IAM routes', () => {
     });
     const { approvalId } = await proposed.json();
 
-    const res = await app.request(`/admin/iam/approvals/${approvalId}/cancel`, {
+    const res = await app.request(`/admin/approvals/${approvalId}/cancel`, {
       method: 'POST',
       headers: { cookie },
     });
     expect(res.status).toBe(204);
 
-    const list = await (await app.request('/admin/iam/approvals', { headers: { cookie } })).json();
+    const list = await (await app.request('/admin/approvals', { headers: { cookie } })).json();
     expect(list.approvals).toHaveLength(0);
   });
 

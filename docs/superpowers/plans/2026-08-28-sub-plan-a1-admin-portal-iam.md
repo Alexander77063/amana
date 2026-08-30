@@ -1,6 +1,7 @@
 # Sub-plan A1 — Admin portal & IAM — Implementation Plan
 
-**Status:** Planned 2026-08-28. **Tasks 1, 2, 3 and 4A built 2026-08-29** — admin identity, Google
+**Status:** Planned 2026-08-28. **Tasks 1-4 complete** — 1, 2, 3 and 4A merged to `main`
+2026-08-30 (PRs #59-#62); 4B built 2026-08-30. **Tasks 1, 2, 3 and 4A built 2026-08-29** — admin identity, Google
 Workspace OIDC (verified against a stub; see the caveat under Task 1), server-side sessions, the
 seeded first owner, the `audit_log` attribution column, the role model with its invariants,
 maker-checker on role grants, and **the cutover: the shared `ADMIN_API_KEY` is deleted and all 13
@@ -215,16 +216,26 @@ there is no maker to record. See "everything that needs an actor" below.
 | When are proposals re-validated? | **At propose time AND at approve time** | Days pass between the two. The target may have been suspended, or acquired the mutually exclusive role by another route. A proposal is a request, never a pre-authorised write. Proposing also validates, so an impossible request fails immediately instead of sitting in an inbox for a week. |
 | Expiry | **A cron sweep writes the `expired` status**, hourly | The house pattern (`bump-ttl-sweep`), and the alternative is worse: a `pending` row that has silently stopped working is one an operator keeps clicking approve on with nothing explaining why nothing happens. |
 
-### Everything that needs an actor was blocked behind Task 4 — two of three now closed
+### Decided during Task 4B (2026-08-30) — a fourth change to this plan
+
+| Decision | Choice | Why |
+|---|---|---|
+| **PLAN CHANGE — which ops actions are maker-checked** | **`approve-claim` only.** `suspend` and `consents/revoke` stay immediate | The plan lists all three. Two of them are the wrong direction to gate, by the same principle Task 3 settled for role revocation: **gate the direction that CREATES power, never the one that removes it.** `approve-claim` mints a public code and assigns a business identity — it hands ownership of a bank account to a named person — so it is gated. `suspend` is the anti-fraud kill switch: a quorum to stop a fraudulent vendor means the fraud runs on while a second operator is found, and the people harmed meanwhile are customers. `consents/revoke` is the merchant's **only** withdrawal channel (there is no merchant-facing session on this rail), and NDPA 2023 requires withdrawal to be *as easy as granting* — a two-person gate would make it strictly harder and leave a phoned-in withdrawal pending. That requirement was already written into the endpoint's own doc comment before this task. |
+| A future vendor **un-suspend** | **Should be maker-checked when it is built** | It does not exist today, which is why nothing gates it. It restores a vendor's standing, so it is the create-power direction and belongs behind two people — that is where "no single admin can revive a business alone" lives, rather than on the suspension itself. |
+| Does the bootstrap self-approve exemption cover vendor claims? | **No — role grants only** | The exemption exists to break the IAM bootstrap deadlock, where the config-seeded account is the only admin who could grant the first role. No such deadlock exists on the vendor rail, so extending it would let the break-glass account assign a business identity alone and buy nothing. There is a test asserting the seeded account still only gets a `pending` proposal. |
+| Where the approvals inbox lives | **Moved to `/admin/approvals`** (was `/admin/iam/approvals`) | It is one queue over several domains now. Filing it under IAM would mislead the first person who finds a vendor claim in it. Approving dispatches on `kind` via `admin-approval-dispatch.service`, which keeps `admin-approval.service` generic — it records that somebody proposed and somebody else agreed, and must never learn what a vendor is. |
+
+### Everything that needs an actor was blocked behind Task 4 — ALL THREE now closed
 
 Three separate pieces of work waited on the same thing:
 
 1. ~~The 13 ops routes writing `actorUserId`~~ — **closed by Task 4A.**
-2. Maker-checker on vendor suspend / approve-claim / consent revoke — **Task 4B, the last one.**
+2. ~~Maker-checker on the ops actions~~ — **closed by Task 4B**, scoped to `approve-claim` alone.
 3. ~~Filling in the operator on the new `retailer.*` audit events~~ — **closed by Task 4A.**
 
 All three needed those routes to carry a signed-in admin instead of a shared secret, which is what
-Task 4A did.
+Task 4A did. **Task 4 is complete.** Remaining: Task 5 (portal UI), 6 (support verification),
+7 (JIT elevation).
 
 ### Task 4 — Cut the 13 endpoints over ✅ built 2026-08-29 (part A)
 `vendors-admin.ts` and `retailers.ts` move from `adminAuth` to `adminSession` + a permission check.
@@ -239,8 +250,9 @@ maker-checker work should not go with it.
 - **Part A (built):** the middleware swap, per-endpoint permissions, attribution on all nine audit
   events, and deleting the key. Closes two of the three deferrals — the ops routes now write
   `actorUserId`, and the `retailer.*` events name their operator.
-- **Part B (next):** maker-checker on vendor suspend / approve-claim / consent revoke, closing the
-  third deferral.
+- **Part B (built 2026-08-30):** maker-checker on **`approve-claim` only** — see the decision
+  below for why suspend and consent-revoke are deliberately left immediate. Closes the third
+  deferral.
 
 **The test that proves it** is `tests/routes/admin-cutover.test.ts`, and it is deliberately about
 the OLD mechanism: it presents a correctly configured `x-admin-api-key` to all thirteen endpoints

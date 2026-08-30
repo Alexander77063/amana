@@ -5,7 +5,8 @@ import { anchorAdapterSingleton } from '../integrations/anchor';
 import { AnchorHttpError } from '../integrations/anchor/client';
 import { NotFoundError } from '../lib/errors';
 import { parseBody, parseParams, parseQuery } from '../lib/validate';
-import { adminAuth } from '../middleware/admin-auth';
+import { type AdminActorVariables, adminSession } from '../middleware/admin-session';
+import { adminIamService } from '../modules/admin/admin-iam.service';
 import { retailerOnboardingService } from '../modules/marketplace/retailer-onboarding.service';
 import { retailersRepo } from '../modules/marketplace/retailers.repo';
 
@@ -30,31 +31,38 @@ const ListQuerySchema = z.object({
 /**
  * Ops-only retailer onboarding surface. Retailer-facing auth (and the portal UI) is SP4b.
  *
- * `ADMIN_API_KEY` is read from `process.env` per request — the same contract as the Anchor
- * webhook secret in `routes/webhooks.ts` — so tests can set it between calls. Its shape is
- * still validated (and boot-enforced in production) by `env.ts`.
+ * **The shared `x-admin-api-key` is gone** (sub-plan A1 Task 4). Every route requires a signed-in
+ * member of staff holding `retailer.read` or `retailer.write`, with no fallback to the old key.
+ * Approving a retailer admits a business to the marketplace and suspending one cuts off its
+ * income; both now name the operator who did it.
  *
- * These routes touch retailer onboarding state ONLY. A shared ops key is not an identity, so
+ * These routes touch retailer onboarding state ONLY. Staff authority is not account ownership, so
  * it must never reach a wallet, ledger, or transaction path, where authorization is by user
  * identity vs. ownership.
  */
-export const retailersRoute = new Hono()
-  .use('*', async (c, next) => adminAuth(process.env.ADMIN_API_KEY)(c, next))
+export const retailersRoute = new Hono<{ Variables: AdminActorVariables }>()
+  .use('*', adminSession())
 
   .post('/', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'retailer.write');
     const body = await parseBody(c, ApplySchema);
     if (body instanceof Response) return body;
-    const retailer = await retailerOnboardingService.apply(db, body);
+    const retailer = await retailerOnboardingService.apply(db, body, actor.adminUserId);
     return c.json(retailer, 201);
   })
 
   .get('/', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'retailer.read');
     const query = parseQuery(c, ListQuerySchema);
     if (query instanceof Response) return query;
     return c.json(await retailersRepo.listByOnboardingStatus(db, query.status));
   })
 
   .get('/:id', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'retailer.read');
     const params = parseParams(c, IdParamSchema);
     if (params instanceof Response) return params;
     const retailer = await retailersRepo.findById(db, params.id);
@@ -63,6 +71,8 @@ export const retailersRoute = new Hono()
   })
 
   .post('/:id/kyb', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'retailer.write');
     const params = parseParams(c, IdParamSchema);
     if (params instanceof Response) return params;
     const body = await parseBody(c, KybSchema);
@@ -73,6 +83,7 @@ export const retailersRoute = new Hono()
         params.id,
         body,
         anchorAdapterSingleton,
+        actor.adminUserId,
       );
       return c.json(retailer);
     } catch (e) {
@@ -84,13 +95,17 @@ export const retailersRoute = new Hono()
   })
 
   .post('/:id/approve', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'retailer.write');
     const params = parseParams(c, IdParamSchema);
     if (params instanceof Response) return params;
-    return c.json(await retailerOnboardingService.approve(db, params.id));
+    return c.json(await retailerOnboardingService.approve(db, params.id, actor.adminUserId));
   })
 
   .post('/:id/suspend', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'retailer.write');
     const params = parseParams(c, IdParamSchema);
     if (params instanceof Response) return params;
-    return c.json(await retailerOnboardingService.suspend(db, params.id));
+    return c.json(await retailerOnboardingService.suspend(db, params.id, actor.adminUserId));
   });

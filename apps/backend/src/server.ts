@@ -213,7 +213,10 @@ function attachCors(app: Hono): void {
     cors({
       origin: (origin) => (allowed.includes(origin) ? origin : null),
       allowMethods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-      allowHeaders: ['Content-Type', 'Authorization', 'x-admin-api-key'],
+      // `x-admin-api-key` was here until sub-plan A1 Task 4 deleted the shared ops secret.
+      // Staff now authenticate with a session cookie, which is sent by the browser rather than
+      // set by script, so it needs no entry in this list.
+      allowHeaders: ['Content-Type', 'Authorization'],
       credentials: false,
       maxAge: 600,
     }),

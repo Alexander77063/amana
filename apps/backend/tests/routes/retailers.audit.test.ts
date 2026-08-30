@@ -5,16 +5,17 @@
 // marketplace and suspending one cuts off its income, and neither left any trace that it had
 // happened, by anyone, ever.
 //
-// That is a strictly worse problem than the missing attribution this sub-plan set out to fix, and
-// it is independent of identity: the event can be recorded now, and Task 4 fills in WHO once these
-// routes carry a signed-in admin instead of a shared key.
+// That was a strictly worse problem than the missing attribution this sub-plan set out to fix.
+// Task 2 added the events; Task 4 cut these routes over to staff sessions, so they now name the
+// operator as well as the action.
 import { beforeEach, describe, expect, it } from 'vitest';
 import { auditRepo } from '../../src/modules/audit/audit.repo';
 import { createServer } from '../../src/server';
+import { signedInAdmin } from '../helpers/admin-session';
 import { testDb, truncateAll } from '../helpers/test-db';
 
-const ADMIN_KEY = 'test-admin-key-0000000000000000000';
-const HEADERS = { 'x-admin-api-key': ADMIN_KEY, 'content-type': 'application/json' };
+let HEADERS: Record<string, string>;
+let opsAdminUserId: string;
 
 const applyBody = {
   businessName: 'Ada Salon',
@@ -26,7 +27,9 @@ const app = createServer();
 
 beforeEach(async () => {
   await truncateAll();
-  process.env.ADMIN_API_KEY = ADMIN_KEY;
+  const { cookie, adminUserId } = await signedInAdmin('ops@amana-ng.com', ['ops']);
+  HEADERS = { cookie, 'content-type': 'application/json' };
+  opsAdminUserId = adminUserId;
 });
 
 async function applyRetailer(): Promise<string> {
@@ -67,18 +70,19 @@ describe('retailer ops actions are audited', () => {
     expect(rows[0]?.subjectId).toBe(id);
   });
 
-  it('leaves the operator unnamed for now, and says so honestly', async () => {
-    // These routes still authenticate with the shared `ADMIN_API_KEY`, which is not an identity.
-    // Both actor columns are therefore null and `actorKind` is 'ops' — the trail records that an
-    // operator did it and cannot say which one. Task 4 swaps the middleware and fills this in.
+  it('NAMES the operator — the gap this sub-plan existed to close', async () => {
+    // This test previously asserted the opposite, with a note saying "if this fails because
+    // actorAdminUserId is now populated, that is Task 4 landing". Task 4 landed.
     //
-    // If this test fails because `actorAdminUserId` is now populated, that is Task 4 landing:
-    // update it to assert the actor instead of deleting it.
+    // Suspending a retailer cuts off a business's income. Until now the trail could say only that
+    // an operator did it. It can now say which one, and `actorUserId` stays null because staff are
+    // not customers — the two actor kinds remain distinguishable.
     const id = await applyRetailer();
     await app.request(`/retailers/${id}/approve`, { method: 'POST', headers: HEADERS });
 
     const rows = await auditRepo.listByAction(testDb, 'retailer.approved');
+    expect(rows[0]?.actorAdminUserId).toBe(opsAdminUserId);
     expect(rows[0]?.actorUserId).toBeNull();
-    expect(rows[0]?.actorAdminUserId).toBeNull();
+    expect(rows[0]?.actorKind).toBe('ops');
   });
 });

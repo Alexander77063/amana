@@ -4,28 +4,34 @@ import { auditRepo } from '../../src/modules/audit/audit.repo';
 import { vendorClaimsRepo } from '../../src/modules/vendors/vendor-claims.repo';
 import { vendorsRepo } from '../../src/modules/vendors/vendors.repo';
 import { createServer } from '../../src/server';
+import { signedInAdmin } from '../helpers/admin-session';
 import { factories } from '../helpers/factories';
 import { testDb, truncateAll } from '../helpers/test-db';
 import { makeHousehold } from '../helpers/vendor-seed';
 
 const NOW = new Date('2026-09-01T10:00:00Z');
-const KEY = 'test-admin-key-that-is-at-least-32-chars';
 const app = createServer();
 
-function adminPost(path: string, body: unknown, key: string | null = KEY) {
+// The signed-in `ops` operator these routes now require. Set in `beforeEach`, because the session
+// lives in Postgres and `truncateAll` clears it along with everything else.
+let opsCookie: string;
+
+function adminPost(path: string, body: unknown, cookie: string | null = null) {
+  const header = cookie ?? opsCookie;
   return app.request(path, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      ...(key ? { 'x-admin-api-key': key } : {}),
+      ...(header ? { cookie: header } : {}),
     },
     body: JSON.stringify(body),
   });
 }
 
-function adminGet(path: string, key: string | null = KEY) {
+function adminGet(path: string, cookie: string | null = null) {
+  const header = cookie ?? opsCookie;
   return app.request(path, {
-    headers: { ...(key ? { 'x-admin-api-key': key } : {}) },
+    headers: { ...(header ? { cookie: header } : {}) },
   });
 }
 
@@ -33,22 +39,23 @@ describe('/vendors-admin', () => {
   beforeEach(async () => {
     await truncateAll();
     vi.restoreAllMocks();
-    process.env.ADMIN_API_KEY = KEY;
+    // Sub-plan A1 Task 4: these routes no longer take a shared secret. Every request below is made
+    // by a named member of staff holding `ops`, and the audit rows they produce say who.
+    ({ cookie: opsCookie } = await signedInAdmin('ops@amana-ng.com', ['ops']));
   });
 
-  it('401s without the admin key', async () => {
-    const res = await adminPost('/vendors-admin/vendors/x/suspend', {}, null);
+  it('401s without a staff session', async () => {
+    const res = await app.request('/vendors-admin/vendors/x/suspend', { method: 'POST' });
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: 'admin_unauthorized' });
   });
 
-  it('401s when ADMIN_API_KEY is unset — an unconfigured admin surface must fail closed', async () => {
-    process.env.ADMIN_API_KEY = undefined;
-    // biome-ignore lint/performance/noDelete: must be absent, not the string "undefined"
-    delete process.env.ADMIN_API_KEY;
-    const res = await adminPost('/vendors-admin/vendors/x/suspend', {});
-    expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'admin_unauthorized' });
+  it('403s a signed-in admin who does not hold ops', async () => {
+    // Authentication is not authorization: being staff is not the same as being allowed near the
+    // vendor registry. The old shared key could not express this distinction at all.
+    const { cookie } = await signedInAdmin('iam@amana-ng.com', ['admin']);
+    const res = await adminPost('/vendors-admin/vendors/x/suspend', {}, cookie);
+    expect(res.status).toBe(403);
   });
 
   it('sets an ops category that outranks a claimed one', async () => {

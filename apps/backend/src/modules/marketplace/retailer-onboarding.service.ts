@@ -36,13 +36,18 @@ const MANUALLY_APPROVABLE: readonly RetailerOnboardingStatus[] = ['applied', 'ky
  * CAS exists only to produce a precise 404/409, not to enforce the guard.
  */
 export const retailerOnboardingService = {
-  async apply(db: DbOrTx, input: ApplyInput): Promise<RetailerRow> {
+  async apply(
+    db: DbOrTx,
+    input: ApplyInput,
+    actorAdminUserId: string | null = null,
+  ): Promise<RetailerRow> {
     const retailer = await retailersRepo.insert(db, { ...input, onboardingStatus: 'applied' });
     await auditRepo.append(
       db,
       auditEvents.retailerOnboardingChanged({
         retailerId: retailer.id,
         action: 'applied',
+        actorAdminUserId,
         at: new Date(),
         details: { businessName: retailer.businessName },
       }),
@@ -63,6 +68,7 @@ export const retailerOnboardingService = {
     retailerId: string,
     input: SubmitKybInput,
     anchor: BusinessKybClient,
+    actorAdminUserId: string | null = null,
   ): Promise<RetailerRow> {
     const retailer = await retailersRepo.findById(db, retailerId);
     if (!retailer) throw new NotFoundError(`retailer ${retailerId} not found`);
@@ -101,6 +107,7 @@ export const retailerOnboardingService = {
       auditEvents.retailerOnboardingChanged({
         retailerId,
         action: 'kyb_submitted',
+        actorAdminUserId,
         at: new Date(),
         details: { anchorBusinessCustomerId: biz.id },
       }),
@@ -148,7 +155,11 @@ export const retailerOnboardingService = {
    * out-of-band). Deliberately NOT reachable from `suspended`: un-suspending is a separate
    * decision that must go back through KYB.
    */
-  async approve(db: DbOrTx, retailerId: string): Promise<RetailerRow> {
+  async approve(
+    db: DbOrTx,
+    retailerId: string,
+    actorAdminUserId: string | null = null,
+  ): Promise<RetailerRow> {
     const retailer = await retailersRepo.findById(db, retailerId);
     if (!retailer) throw new NotFoundError(`retailer ${retailerId} not found`);
     const updated = await retailersRepo.transitionOnboardingStatus(
@@ -174,6 +185,7 @@ export const retailerOnboardingService = {
       auditEvents.retailerOnboardingChanged({
         retailerId,
         action: 'approved',
+        actorAdminUserId,
         at: new Date(),
         details: { fromStatus: retailer.onboardingStatus },
       }),
@@ -182,7 +194,11 @@ export const retailerOnboardingService = {
   },
 
   /** Kill switch — legal from any status, including `approved` and `suspended` (no-op). */
-  async suspend(db: DbOrTx, retailerId: string): Promise<RetailerRow> {
+  async suspend(
+    db: DbOrTx,
+    retailerId: string,
+    actorAdminUserId: string | null = null,
+  ): Promise<RetailerRow> {
     const before = await retailersRepo.findById(db, retailerId);
     const updated = await retailersRepo.updateOnboardingStatus(db, retailerId, 'suspended');
     if (!updated) throw new NotFoundError(`retailer ${retailerId} not found`);
@@ -191,6 +207,7 @@ export const retailerOnboardingService = {
       auditEvents.retailerOnboardingChanged({
         retailerId,
         action: 'suspended',
+        actorAdminUserId,
         at: new Date(),
         details: { fromStatus: before?.onboardingStatus ?? null },
       }),

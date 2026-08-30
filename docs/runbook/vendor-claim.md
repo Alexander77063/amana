@@ -1,5 +1,21 @@
 # Vendor claim (SP-V2: claim rail — self-service + ops)
 
+> **Auth changed (sub-plan A1 Task 4).** These flows used to send a shared `x-admin-api-key`. That
+> secret is **deleted** — one static credential held by everyone, naming nobody, which the audit log
+> could only record as "an operator". Sign in at `/admin/auth/start` with your `amana-ng.com`
+> Workspace account instead and send the session cookie:
+>
+> ```bash
+> # -b/-c persist the session cookie across calls
+> curl -sS -c admin.jar -L https://admin.amana-ng.com/admin/auth/start   # complete Google sign-in
+> curl -sS -b admin.jar https://admin.amana-ng.com/vendors-admin/claim-queue
+> ```
+>
+> You need the `ops` role. A signed-in colleague without it gets 403, not 401 — being staff is not
+> the same as being allowed near this surface. Every write below now records **which operator** made
+> it.
+
+
 A shopkeeper whose bank account the passive registry (SP-V1) has already promoted proves
 ownership of it and gets a human-typable code to display in-shop. Read
 [`vendor-registry.md`](./vendor-registry.md) first — this rail only ever operates on a
@@ -200,7 +216,7 @@ attempt's `createdAt` — the 409 itself leaves no audit-log trace (see below).
 ## Working the ops queue
 
 ```bash
-curl "$API/vendors-admin/claim-queue" -H "x-admin-api-key: $ADMIN_API_KEY"
+curl "$API/vendors-admin/claim-queue" -b admin.jar
 # -> 200 { "attempts": [ { id, vendorId, phone, status, ownershipProof, expiresAt, verifiedAt, createdAt }, ... ] }
 ```
 
@@ -229,7 +245,7 @@ rows, newest first. Two things to know before treating this as a worklist:
 
 ```bash
 curl -X POST "$API/vendors-admin/vendors/<vendor-uuid>/approve-claim" \
-  -H "x-admin-api-key: $ADMIN_API_KEY" \
+  -b admin.jar \
   -H 'content-type: application/json' \
   -d '{"phone":"+2348012345678","category":"food"}'
 # -> 200 {"publicCode": "AMNV-...-...", "displayName": "..."}
@@ -306,19 +322,19 @@ SP-V2 adds a route so this no longer requires direct SQL:
 ```bash
 # Turn it ON for one household — this household enforces regardless of the global default.
 curl -X POST "$API/vendors-admin/households/<household-uuid>/enforcement" \
-  -H "x-admin-api-key: $ADMIN_API_KEY" \
+  -b admin.jar \
   -H 'content-type: application/json' \
   -d '{"enforced": true}'
 
 # Turn it OFF for one household — sticky opt-out, survives a future global flip to ON.
 curl -X POST "$API/vendors-admin/households/<household-uuid>/enforcement" \
-  -H "x-admin-api-key: $ADMIN_API_KEY" \
+  -b admin.jar \
   -H 'content-type: application/json' \
   -d '{"enforced": false}'
 
 # Return to the global default (VENDOR_CATEGORY_ENFORCE_DEFAULT) — NOT the same as false.
 curl -X POST "$API/vendors-admin/households/<household-uuid>/enforcement" \
-  -H "x-admin-api-key: $ADMIN_API_KEY" \
+  -b admin.jar \
   -H 'content-type: application/json' \
   -d '{"enforced": null}'
 ```
@@ -334,7 +350,7 @@ An unknown household id returns `404 {"error": "not_found"}`.
 
 ```bash
 curl -X POST "$API/vendors-admin/vendors/<vendor-uuid>/suspend" \
-  -H "x-admin-api-key: $ADMIN_API_KEY"
+  -b admin.jar
 # -> 200 {"ok": true}
 ```
 

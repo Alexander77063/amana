@@ -1,5 +1,21 @@
 # Retailer onboarding & Business KYB (SP4a — backend)
 
+> **Auth changed (sub-plan A1 Task 4).** These flows used to send a shared `x-admin-api-key`. That
+> secret is **deleted** — one static credential held by everyone, naming nobody, which the audit log
+> could only record as "an operator". Sign in at `/admin/auth/start` with your `amana-ng.com`
+> Workspace account instead and send the session cookie:
+>
+> ```bash
+> # -b/-c persist the session cookie across calls
+> curl -sS -c admin.jar -L https://admin.amana-ng.com/admin/auth/start   # complete Google sign-in
+> curl -sS -b admin.jar https://admin.amana-ng.com/vendors-admin/claim-queue
+> ```
+>
+> You need the `ops` role. A signed-in colleague without it gets 403, not 401 — being staff is not
+> the same as being allowed near this surface. Every write below now records **which operator** made
+> it.
+
+
 Curated marketplace supply: a retailer does not self-serve onto the platform. Ops creates the
 application, submits Business KYB to Anchor, and Anchor's verdict (or an explicit ops decision)
 decides whether the retailer goes live.
@@ -89,19 +105,27 @@ late `kyb.rejected` cannot un-approve a live retailer.
 
 ---
 
-## 2. Admin auth (`x-admin-api-key`)
+## 2. Admin auth (Google Workspace session)
 
-All `/retailers` routes are gated by `middleware/admin-auth.ts`:
+All `/retailers` routes are gated by `middleware/admin-session.ts` plus a permission check:
 
-- Header `x-admin-api-key`, compared against `ADMIN_API_KEY` in **constant time**.
-- **Unset key = deny.** A missing or misconfigured `ADMIN_API_KEY` 401s every request; it never opens
-  the surface. `env.ts` also boot-enforces the var in `NODE_ENV=production` (min 32 chars).
-- The key is read from `process.env` per request (same contract as `ANCHOR_WEBHOOK_SECRET`), so it
-  can be rotated without a code change and tests can set it between calls.
+- A signed-in `amana-ng.com` Workspace account, carried as the `amana_admin_session` cookie.
+- **`retailer.read`** to list and read, **`retailer.write`** to create, submit KYB, approve or
+  suspend. A signed-in colleague without the role gets **403**, not 401 — being staff is not the
+  same as being allowed near this surface.
+- No credential = 401. A suspended admin's live cookie stops working at the next request, not at
+  expiry.
 
-**Containment rule:** a shared ops key is *not an identity*. These routes touch retailer onboarding
-state only. They must never reach a wallet, ledger, or transaction path, where authorization is by
-user identity vs. ownership (`assertWalletAccess`) and a shared key would be an authorization hole.
+**What changed, and why (sub-plan A1 Task 4).** This surface used to sit behind one shared
+`ADMIN_API_KEY`. That key is **deleted, with no fallback** — a fallback is the original
+vulnerability with extra steps. The old key bought four bad properties: rotating it locked out the
+whole team at once, revocation was all-or-nothing, a key in a shell history was permanent access,
+and — worst — the audit log could only record that *somebody* approved or suspended a business.
+Every write here now records `actorAdminUserId`.
+
+**Containment rule (unchanged):** staff authority is *not account ownership*. These routes touch
+retailer onboarding state only. They must never reach a wallet, ledger, or transaction path, where
+authorization is by user identity vs. ownership (`assertWalletAccess`).
 Adding a money-moving endpoint under `adminAuth` is a design error, not a shortcut.
 
 ---
@@ -128,18 +152,18 @@ submit is safely retryable, and the retailer is never stranded in `kyb_pending` 
 KEY=$ADMIN_API_KEY; API=https://amana-api.fly.dev
 
 # 1. Create the application
-curl -sX POST $API/retailers -H "x-admin-api-key: $KEY" -H 'content-type: application/json' \
+curl -sX POST $API/retailers -b admin.jar -H 'content-type: application/json' \
   -d '{"businessName":"Ada Salon","payoutBankCode":"000014","payoutAccountNumber":"0123456789"}'
 
 # 2. Work the queue
-curl -s "$API/retailers?status=applied" -H "x-admin-api-key: $KEY"
+curl -s "$API/retailers?status=applied" -b admin.jar
 
 # 3. Submit KYB (BVN of a director; rcNumber = CAC registration, optional)
-curl -sX POST $API/retailers/$ID/kyb -H "x-admin-api-key: $KEY" -H 'content-type: application/json' \
+curl -sX POST $API/retailers/$ID/kyb -b admin.jar -H 'content-type: application/json' \
   -d '{"bvn":"22222222222","rcNumber":"RC12345","email":"ada@salon.ng"}'
 
 # 4. Wait for the kyb.approved webhook, or override
-curl -sX POST $API/retailers/$ID/approve -H "x-admin-api-key: $KEY"
+curl -sX POST $API/retailers/$ID/approve -b admin.jar
 ```
 
 ---

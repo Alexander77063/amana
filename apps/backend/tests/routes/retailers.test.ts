@@ -4,12 +4,16 @@ import { AnchorHttpError } from '../../src/integrations/anchor/client';
 import { retailerOnboardingService } from '../../src/modules/marketplace/retailer-onboarding.service';
 import { retailersRepo } from '../../src/modules/marketplace/retailers.repo';
 import { createServer } from '../../src/server';
+import { signedInAdmin } from '../helpers/admin-session';
 import { factories } from '../helpers/factories';
 import { testDb, truncateAll } from '../helpers/test-db';
 
-const ADMIN_KEY = 'test-admin-key-0000000000000000000';
-const ADMIN = { 'x-admin-api-key': ADMIN_KEY };
 const JSON_HEADERS = { 'content-type': 'application/json' };
+
+// Sub-plan A1 Task 4: the shared `x-admin-api-key` is gone. Every request below is made by a
+// signed-in member of staff holding `retailer.read`/`retailer.write`, and `ADMIN` is now that
+// operator's session cookie rather than a secret anyone could hold.
+let ADMIN: Record<string, string>;
 
 const applyBody = {
   businessName: 'Ada Salon',
@@ -29,12 +33,13 @@ function post(path: string, body?: unknown, headers: Record<string, string> = AD
 
 beforeEach(async () => {
   await truncateAll();
-  process.env.ADMIN_API_KEY = ADMIN_KEY;
   vi.restoreAllMocks();
+  const { cookie } = await signedInAdmin('ops@amana-ng.com', ['ops']);
+  ADMIN = { cookie };
 });
 
 describe('retailer admin routes: auth', () => {
-  it('401s every route without the admin key', async () => {
+  it('401s every route without a staff session', async () => {
     const id = factories.userId();
     const responses = await Promise.all([
       post('/retailers', applyBody, {}),
@@ -47,17 +52,19 @@ describe('retailer admin routes: auth', () => {
     expect(responses.map((r) => r.status)).toEqual([401, 401, 401, 401, 401, 401]);
   });
 
-  it('401s on a wrong admin key', async () => {
-    const res = await post('/retailers', applyBody, { 'x-admin-api-key': 'wrong' });
+  it('401s on a forged session cookie', async () => {
+    const res = await post('/retailers', applyBody, {
+      cookie: 'amana_admin_session=not-a-real-session',
+    });
     expect(res.status).toBe(401);
   });
 
-  it('401s when no admin key is configured at all', async () => {
-    process.env.ADMIN_API_KEY = undefined;
-    // biome-ignore lint/performance/noDelete: must be absent, not the string "undefined"
-    delete process.env.ADMIN_API_KEY;
-    const res = await post('/retailers', applyBody);
-    expect(res.status).toBe(401);
+  it('403s a signed-in admin who does not hold retailer permissions', async () => {
+    // The distinction the shared key could never make: this person is genuinely staff, and still
+    // has no business admitting or suspending a marketplace business.
+    const { cookie } = await signedInAdmin('iam@amana-ng.com', ['admin']);
+    const res = await post('/retailers', applyBody, { cookie });
+    expect(res.status).toBe(403);
   });
 });
 

@@ -6,6 +6,8 @@ import { errorHandler } from './middleware/error-handler';
 import { bodyFieldKey, clientIp, rateLimit } from './middleware/rate-limit';
 import { requestId } from './middleware/request-id';
 import { securityHeaders } from './middleware/security-headers';
+import type { OidcProvider } from './modules/admin/oidc/types';
+import { adminMeRoute, createAdminAuthRoute } from './routes/admin/auth';
 import { authRoute, logoutRoute, meRoute } from './routes/auth';
 import { bumpsRoute } from './routes/bumps';
 import { devicesRoute } from './routes/devices';
@@ -115,6 +117,22 @@ function attachRateLimiters(app: Hono): void {
     );
   }
 
+  // Admin sign-in. Unauthenticated by necessity — it is the door staff come through — and it is
+  // the one admin surface reachable before `adminSession()` exists to bound anything. `/callback`
+  // in particular does real work for an anonymous caller (a state lookup, and on a match an
+  // outbound call to Google), and `admin-identity.service` deliberately does NOT audit the
+  // pre-identity refusals, on the grounds that this limiter bounds them instead. Keyed per IP:
+  // there is no actor yet to key on.
+  app.use(
+    '/admin/auth/*',
+    rateLimit({
+      limit: env.RATE_LIMIT_AUTH_PER_IP,
+      windowSeconds,
+      keyPrefix: 'admin-auth:ip',
+      key: clientIp,
+    }),
+  );
+
   // The vendor-code lookup used to be limited here, per IP. It is not any more: it now lives
   // inside `vendorsRoute`, after `jwtAuth()`, keyed on the authenticated account. See the comment
   // at that `.use('/code/*', …)` for why the mechanism had to move rather than just be resized.
@@ -202,7 +220,16 @@ function attachCors(app: Hono): void {
   logger.info({ allowed }, 'CORS enabled for browser origins');
 }
 
-export function createServer(): Hono {
+export type CreateServerOptions = {
+  /**
+   * The OIDC provider backing admin sign-in. Defaults to the real Google Workspace one.
+   * Injectable so route tests can drive the full HTTP path — headers, rate limiters, error
+   * handler — without a Google tenant, which does not exist yet (sub-plan A1, Task 1).
+   */
+  adminOidcProvider?: OidcProvider;
+};
+
+export function createServer(options: CreateServerOptions = {}): Hono {
   const app = new Hono();
   // First, and above every route including /health, /webhooks and the public /v page. HSTS has to
   // be on EVERY response — see go-live-checklist.md §6, item 1 of the vendor-code
@@ -233,6 +260,12 @@ export function createServer(): Hono {
   app.route('/vendor-claim', vendorClaimRoute);
   app.route('/vendors-admin', vendorsAdminRoute);
   app.route('/media', mediaRoute);
+  // The staff portal's own auth. Mounted above the catch-all for the same reason `/health` and
+  // `/v` are: `/admin/auth/start` and `/admin/auth/callback` are reached by a browser that holds
+  // no customer bearer token, and below this line they would inherit `jwtAuth()` and 401 before
+  // Google was ever contacted. `/admin/me` carries its own `adminSession()` guard instead.
+  app.route('/admin/auth', createAdminAuthRoute(options.adminOidcProvider));
+  app.route('/admin', adminMeRoute);
   // MOUNTED LAST, AND IT IS A CATCH-ALL. Every router inside `buildMeRouter()` calls
   // `.use(jwtAuth())` with no path, which at a `/` mount means `/*` — so this does not only
   // authenticate `/me`, it authenticates every request that matched no route above it. That is why

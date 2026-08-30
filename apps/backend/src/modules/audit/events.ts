@@ -363,4 +363,69 @@ export const auditEvents = {
       },
     };
   },
+
+  /**
+   * A member of staff signed in to the admin portal.
+   *
+   * The first event in the codebase to carry `actorAdminUserId`. Signing in is worth recording on
+   * its own — "who had a live session at 02:00" is the question every later ops action is read
+   * against — and it is the proof that attribution works end to end before Task 4 depends on it.
+   */
+  adminSignedIn(input: { adminUserId: string; email: string; at: Date }): AuditEntry {
+    return {
+      actorKind: 'ops',
+      actorAdminUserId: input.adminUserId,
+      action: 'admin.signed_in',
+      subjectKind: 'admin_user',
+      subjectId: input.adminUserId,
+      payloadJson: { email: input.email, at: input.at.toISOString() },
+    };
+  },
+
+  /**
+   * A sign-in was refused, and why.
+   *
+   * `adminUserId` is null whenever the refusal happened before we knew who was asking — an
+   * unknown state, a failed exchange, an address outside the Workspace. The subject is then the
+   * login attempt itself, which is the only identifier such an event has.
+   *
+   * The address is recorded ONLY for someone inside the Workspace domain. A stranger's personal
+   * email is not ours to file: `emailDomain` is enough to investigate a pattern of attempts
+   * without keeping an address belonging to a person who is neither staff nor a customer.
+   */
+  adminSignInDenied(input: {
+    adminUserId: string | null;
+    subjectId: string;
+    reason: string;
+    email: string | null;
+    workspaceDomain: string;
+    at: Date;
+  }): AuditEntry {
+    const domain = input.email?.split('@')[1] ?? null;
+    const insideWorkspace = domain === input.workspaceDomain.toLowerCase();
+    return {
+      actorKind: 'ops',
+      actorAdminUserId: input.adminUserId,
+      action: 'admin.sign_in_denied',
+      subjectKind: input.adminUserId ? 'admin_user' : 'admin_auth_request',
+      subjectId: input.subjectId,
+      payloadJson: {
+        reason: input.reason,
+        emailDomain: domain,
+        email: insideWorkspace ? input.email : null,
+        at: input.at.toISOString(),
+      },
+    };
+  },
+
+  adminSignedOut(input: { adminUserId: string; at: Date }): AuditEntry {
+    return {
+      actorKind: 'ops',
+      actorAdminUserId: input.adminUserId,
+      action: 'admin.signed_out',
+      subjectKind: 'admin_user',
+      subjectId: input.adminUserId,
+      payloadJson: { at: input.at.toISOString() },
+    };
+  },
 };

@@ -84,12 +84,18 @@ makes step 3's "Internal" option available.
    **Authorised redirect URIs** — add both, so local development works without a second client:
 
    ```
-   https://admin.amana-ng.com/api/auth/callback/google
-   http://localhost:3400/api/auth/callback/google
+   https://admin.amana-ng.com/admin/auth/callback
+   http://localhost:3000/admin/auth/callback
    ```
 
-   The exact path depends on the portal's auth library and will be confirmed in Task 1; if it
-   differs, the redirect URI is a one-line change in this console.
+   **Confirmed by Task 1** (this replaces the earlier `/api/auth/callback/google` guess). The code
+   exchange happens in the **Hono backend**, not in a Next.js auth library: the portal never sees
+   the authorization code, the client secret or the ID token, and the session it gets is an opaque
+   server-side cookie. So the redirect URI is a backend path, and the local one is the backend's
+   port `3000`, not the portal's `3400`.
+
+   Whatever you register here must equal `ADMIN_OIDC_REDIRECT_URI` **exactly** — Google compares
+   the string, including scheme, host, port and trailing slash.
 
 6. **Copy the Client ID and Client Secret.** These are the two values Task 1 needs.
 
@@ -104,11 +110,41 @@ fly secrets set --app amana-api \
   GOOGLE_OAUTH_CLIENT_ID='<client id>' \
   GOOGLE_OAUTH_CLIENT_SECRET='<client secret>' \
   ADMIN_WORKSPACE_DOMAIN='amana-ng.com' \
-  ADMIN_BOOTSTRAP_OWNER_EMAIL='david@amana-ng.com'
+  ADMIN_BOOTSTRAP_OWNER_EMAIL='david@amana-ng.com' \
+  ADMIN_OIDC_REDIRECT_URI='https://admin.amana-ng.com/admin/auth/callback' \
+  ADMIN_PORTAL_URL='https://admin.amana-ng.com'
 ```
 
 `ADMIN_BOOTSTRAP_OWNER_EMAIL` is invariant 6: the **only** way an `owner` comes into existence. There
-is deliberately no endpoint that creates one.
+is deliberately no endpoint that creates one. It is seeded at API boot (`src/index.ts`), idempotently,
+so restarts and multiple instances are harmless.
+
+**`ADMIN_BOOTSTRAP_OWNER_EMAIL` must be on `ADMIN_WORKSPACE_DOMAIN`, and the boot enforces it.** An
+owner outside the domain is one the portal will refuse forever — a system that looks configured and
+admits nobody — so `env.ts` refuses to start rather than let that ship.
+
+`GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET` are **not** boot-required yet, on purpose.
+Until Task 4 deletes `ADMIN_API_KEY` the ops endpoints still authenticate with the shared key, so a
+missing Workspace degrades nothing that currently works — and `amana-api` has still not had a
+successful production boot, so every extra boot-required secret is one more thing that must exist
+before it can. **Task 4 moves both into the required set**, in the same change that removes the
+fallback they replace; from then on a missing OAuth app means no ops access at all, and refusing to
+boot is the correct behaviour.
+
+The two timings have defaults and rarely need setting: `ADMIN_SESSION_TTL_SECONDS` (default 8 hours,
+absolute — a staff session does not slide) and `ADMIN_LOGIN_TTL_SECONDS` (default 10 minutes — how
+long a half-finished sign-in stays claimable).
+
+### One thing to get right when the portal is deployed (Task 5)
+
+The session is an `HttpOnly; Secure; SameSite=Lax` cookie set by the **backend**. For the portal's
+own `fetch` calls to carry it, the portal and these `/admin/*` endpoints must be **one origin** —
+which is what the plan's "Fly, beside the API" hosting decision buys. Serve `admin.amana-ng.com` so
+that `/admin/*` reaches the backend, rather than putting the portal and the API on two hostnames.
+
+Locally this is the one place dev differs: the backend is `:3000` and the portal will be `:3400`, so
+a dev proxy (portal → backend for `/admin/*`) is needed before the cookie works end to end. Task 1
+has no UI, so nothing is blocked by it today.
 
 ---
 

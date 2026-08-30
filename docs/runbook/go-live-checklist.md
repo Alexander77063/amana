@@ -39,7 +39,8 @@ Set as **Fly secrets** (`fly secrets set …`), never committed. The backend **r
 
 - [x] `JWT_SECRET` — deployed
 - [x] `FIELD_ENCRYPTION_KEY` — generated + deployed 2026-08-27
-- [x] `ADMIN_API_KEY` — generated + deployed 2026-08-27
+- [x] ~~`ADMIN_API_KEY`~~ — **deleted** by A1 Task 4; the ops surfaces use Google Workspace sessions now. Unset the Fly secret; it is inert either way.
+- [ ] `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` — boot-required since A1 Task 4
 - [x] `TERMII_API_KEY` / `TERMII_SENDER_ID` — deployed
 - [x] `DATABASE_URL` — repaired 2026-08-27. Two separate faults: the **direct** Supabase host
       publishes only an AAAA record (IPv4 resolvers get `ENOTFOUND`), and the password contained a
@@ -65,7 +66,8 @@ Reference (what each is and why it is enforced):
 | `ANCHOR_API_KEY` | ✅ enforced | Anchor API key (sandbox key until real-money go-live) |
 | `ANCHOR_WEBHOOK_SECRET` | ✅ enforced | HMAC verify on `/webhooks/anchor`; missing → 503 = lost money |
 | `TERMII_API_KEY` | ✅ enforced | OTP SMS; missing → no logins |
-| `ADMIN_API_KEY` | ✅ enforced | ≥32 chars; `x-admin-api-key` on `/retailers` ops routes. Unset = every admin route 401s (fails closed) |
+| `GOOGLE_OAUTH_CLIENT_ID` | ✅ enforced | The Workspace OAuth app. Since A1 Task 4 it is the only way staff reach the ops routes, so unset = nobody can work the claim queue or retailer KYB |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | ✅ enforced | As above. Deliver via Fly secrets, never committed |
 | `SENTRY_DSN` | recommended | error reporting |
 | `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` | if media used | S3 `af-south-1` |
 | `DEV_OTP_BYPASS_CODE` | **must be UNSET** | enforced: boot throws if set in prod |

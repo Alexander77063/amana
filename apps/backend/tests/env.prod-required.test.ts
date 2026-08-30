@@ -15,7 +15,6 @@ const prodSecrets = {
   ANCHOR_API_KEY: 'anchor-test-key',
   ANCHOR_WEBHOOK_SECRET: 'whsec-test',
   TERMII_API_KEY: 'termii-test-key',
-  ADMIN_API_KEY: 'z'.repeat(32),
   GOOGLE_OAUTH_CLIENT_ID: 'amana-admin.apps.googleusercontent.com',
   GOOGLE_OAUTH_CLIENT_SECRET: 'google-client-secret',
 };
@@ -42,34 +41,30 @@ describe('env: production-required secrets', () => {
     expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).toThrow(/TERMII_API_KEY/);
   });
 
-  it('throws in production when ADMIN_API_KEY is missing', () => {
-    const { ADMIN_API_KEY: _omit, ...rest } = prodSecrets;
-    expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).toThrow(/ADMIN_API_KEY/);
+  it('throws in production when the Workspace OAuth client is missing', () => {
+    // Inverted by the Task 4 cutover, exactly as the note that used to sit here said it would be.
+    // `ADMIN_API_KEY` is gone, so Google Workspace is now the ONLY way into the ops surfaces: a
+    // missing OAuth app means no claim queue, no retailer KYB, no suspensions. Booting a portal
+    // nobody can sign in to is worse than refusing to boot.
+    const { GOOGLE_OAUTH_CLIENT_ID: _id, ...rest } = prodSecrets;
+    expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).toThrow(
+      /GOOGLE_OAUTH_CLIENT_ID/,
+    );
   });
 
-  it('rejects a too-short ADMIN_API_KEY outright (schema, not just presence)', () => {
+  it('throws in production when GOOGLE_OAUTH_CLIENT_SECRET is missing', () => {
+    const { GOOGLE_OAUTH_CLIENT_SECRET: _secret, ...rest } = prodSecrets;
+    expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).toThrow(
+      /GOOGLE_OAUTH_CLIENT_SECRET/,
+    );
+  });
+
+  it('no longer knows about ADMIN_API_KEY at all', () => {
+    // Not merely optional — removed. Setting it is inert, so a stale deploy that still exports the
+    // old secret boots fine and gains nothing from it, which is exactly what should happen.
     expect(() =>
       loadEnv({ ...base, ...prodSecrets, ADMIN_API_KEY: 'short', NODE_ENV: 'production' }),
-    ).toThrow(/ADMIN_API_KEY/);
-  });
-
-  it('does NOT yet require the Workspace OAuth client in production — Task 4 adds that', () => {
-    // Deliberate, and the deliberation is the point of the test.
-    //
-    // A boot-required secret is a precondition for the app existing at all, and `amana-api` has
-    // never booted in production. Until Task 4 deletes `ADMIN_API_KEY`, the 13 ops endpoints
-    // still authenticate with the shared key, so a missing Workspace degrades nothing that works
-    // — it would just be two more secrets standing between this app and its first boot.
-    //
-    // When Task 4 removes that fallback, a missing OAuth app means no ops access at all, and this
-    // test should be inverted in the same change. If you are reading it because you deleted
-    // `ADMIN_API_KEY`, that is the change: move both into `required` and flip this to `toThrow`.
-    const {
-      GOOGLE_OAUTH_CLIENT_ID: _id,
-      GOOGLE_OAUTH_CLIENT_SECRET: _secret,
-      ...rest
-    } = prodSecrets;
-    expect(() => loadEnv({ ...base, ...rest, NODE_ENV: 'production' })).not.toThrow();
+    ).not.toThrow();
   });
 
   it('refuses a bootstrap owner outside the Workspace domain, in every environment', () => {
@@ -100,7 +95,7 @@ describe('env: production-required secrets', () => {
 
   it('lists every missing required secret in one error', () => {
     expect(() => loadEnv({ ...base, NODE_ENV: 'production' })).toThrow(
-      /ANCHOR_API_KEY.*ANCHOR_WEBHOOK_SECRET.*TERMII_API_KEY.*ADMIN_API_KEY/s,
+      /ANCHOR_API_KEY.*ANCHOR_WEBHOOK_SECRET.*TERMII_API_KEY.*GOOGLE_OAUTH_CLIENT_ID/s,
     );
   });
 

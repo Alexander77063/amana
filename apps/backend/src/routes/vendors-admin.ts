@@ -5,7 +5,8 @@ import { z } from 'zod';
 import { db } from '../db/client';
 import { mintPrefixedCode } from '../lib/crockford';
 import { parseBody, parseParams } from '../lib/validate';
-import { adminAuth } from '../middleware/admin-auth';
+import { type AdminActorVariables, adminSession } from '../middleware/admin-session';
+import { adminIamService } from '../modules/admin/admin-iam.service';
 import { auditRepo } from '../modules/audit/audit.repo';
 import { householdsRepo } from '../modules/identity/households.repo';
 import { phoneFingerprint } from '../modules/vendors/vendor-claim.service';
@@ -43,14 +44,19 @@ const ApproveBody = z.object({
 });
 
 /**
- * Ops controls for the vendor registry. Mounted at `/vendors-admin`, behind the shared
- * `x-admin-api-key`.
+ * Ops controls for the vendor registry. Mounted at `/vendors-admin`, behind `adminSession()` and
+ * a per-endpoint permission check.
+ *
+ * **The shared `x-admin-api-key` is gone** (sub-plan A1 Task 4). It was one static secret, held by
+ * everyone, naming nobody: rotating it locked out the whole team, and the audit rows below could
+ * only record that *somebody* approved a claim. Every route here now requires a signed-in member
+ * of staff holding `vendor.read` or `vendor.write`, and there is deliberately **no fallback** to
+ * the old key — a fallback would be the original vulnerability with extra steps.
  *
  * Deliberately NOT `jwtAuth`, and deliberately a separate route file from `/vendors` and
  * `/vendor-claim`: everything here is an operator action on registry state, and none of it may
  * ever touch a wallet, ledger or transaction — those authorize by user identity against
- * ownership, which a shared ops secret cannot express. `ADMIN_API_KEY` unset means deny, so a
- * misconfigured boot fails closed.
+ * ownership, which staff authority does not confer.
  *
  * `approve-claim` and `category` are deliberately powerful:
  *
@@ -64,13 +70,15 @@ const ApproveBody = z.object({
  * - `category` (`setOpsCategory`) outranks even a *claimed* category with no CAS guard at all —
  *   unlike `setObservedCategory`, which only wins against `observed`. That is correct here: an
  *   operator is correcting a business's own answer about itself, and that must always win. Both
- *   of these would be dangerously overpowered behind anything weaker than `adminAuth`.
+ *   of these would be dangerously overpowered behind anything weaker than a named, revocable
+ *   staff session.
  *
  * **Every mutating route here audits, in the same transaction as its write.** `approve-claim` is
  * not special: `category` silently overwrites a business's own answer about itself, `suspend` is
  * the documented remedy for a fraudulent one, and `enforcement` turns a whole household's registry
- * category locks on or off wholesale. A shared ops secret names no human, so the audit row is the
- * only record that any of this happened at all — and an audit written outside the write's own
+ * category locks on or off wholesale. Since Task 4 those rows also carry `actorAdminUserId`, so
+ * they finally name the operator rather than only the fact of an operator — and an audit written
+ * outside the write's own
  * transaction is a record that can survive a rollback, or be lost by one. Nothing is audited that
  * did not change a row: a 404 leaves no trace, because nothing happened.
  */
@@ -79,15 +87,19 @@ const RevokeConsentSchema = z.object({
   purpose: z.enum(['service_terms', 'lender_introduction']),
 });
 
-export const vendorsAdminRoute = new Hono()
-  .use('*', async (c, next) => adminAuth(process.env.ADMIN_API_KEY)(c, next))
+export const vendorsAdminRoute = new Hono<{ Variables: AdminActorVariables }>()
+  .use('*', adminSession())
 
   .get('/claim-queue', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.read');
     const rows = await vendorClaimsRepo.listPendingForOps(db, new Date());
     return c.json({ attempts: rows }, 200);
   })
 
   .post('/vendors/:id/approve-claim', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.write');
     const params = parseParams(c, IdParams);
     if (params instanceof Response) return params;
     const body = await parseBody(c, ApproveBody);
@@ -137,6 +149,10 @@ export const vendorsAdminRoute = new Hono()
       // record, or a record for an approval that rolled back, are both wrong.
       await auditRepo.append(txDb, {
         actorKind: 'ops',
+        // Sub-plan A1 Task 4: the operator, by name. This is the endpoint that motivated the
+        // whole sub-plan — `approve-claim` assigns ownership of a bank account to a person, and
+        // until now the trail could only say that somebody did it.
+        actorAdminUserId: actor.adminUserId,
         action: 'vendor.claim_approved_by_ops',
         subjectKind: 'vendor',
         subjectId: params.id,
@@ -154,6 +170,8 @@ export const vendorsAdminRoute = new Hono()
   })
 
   .post('/vendors/:id/category', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.write');
     const params = parseParams(c, IdParams);
     if (params instanceof Response) return params;
     const body = await parseBody(c, CategoryBody);
@@ -169,6 +187,7 @@ export const vendorsAdminRoute = new Hono()
       if (!changed) return false;
       await auditRepo.append(txDb, {
         actorKind: 'ops',
+        actorAdminUserId: actor.adminUserId,
         action: 'vendor.category_set_by_ops',
         subjectKind: 'vendor',
         subjectId: params.id,
@@ -184,6 +203,8 @@ export const vendorsAdminRoute = new Hono()
   })
 
   .post('/vendors/:id/suspend', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.write');
     const params = parseParams(c, IdParams);
     if (params instanceof Response) return params;
 
@@ -194,6 +215,7 @@ export const vendorsAdminRoute = new Hono()
       if (!changed) return false;
       await auditRepo.append(txDb, {
         actorKind: 'ops',
+        actorAdminUserId: actor.adminUserId,
         action: 'vendor.suspended_by_ops',
         subjectKind: 'vendor',
         subjectId: params.id,
@@ -221,6 +243,8 @@ export const vendorsAdminRoute = new Hono()
    * in the runbook; until it exists, this is the withdrawal mechanism and support must know it.
    */
   .get('/vendors/:id/consents', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.read');
     const params = parseParams(c, IdParams);
     if (params instanceof Response) return params;
     const [state, history] = await Promise.all([
@@ -231,6 +255,8 @@ export const vendorsAdminRoute = new Hono()
   })
 
   .post('/vendors/:id/consents/revoke', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.write');
     const params = parseParams(c, IdParams);
     if (params instanceof Response) return params;
     const body = await parseBody(c, RevokeConsentSchema);
@@ -249,6 +275,7 @@ export const vendorsAdminRoute = new Hono()
       });
       await auditRepo.append(txDb, {
         actorKind: 'ops',
+        actorAdminUserId: actor.adminUserId,
         action: 'vendor.consent_revoked_by_ops',
         subjectKind: 'vendor',
         subjectId: params.id,
@@ -259,6 +286,18 @@ export const vendorsAdminRoute = new Hono()
   })
 
   .post('/households/:id/enforcement', async (c) => {
+    const actor = c.get('adminActor');
+    // `vendor.write`, even though the row written is a HOUSEHOLD row — the one permission mapping
+    // in this file that is not obvious, so it is argued rather than assumed.
+    //
+    // The role matrix gives `ops` the vendor registry and explicitly withholds unrestricted
+    // customer data. This endpoint sets a single tri-state boolean, `vendorCategoryEnforced`,
+    // which decides whether the vendor registry's category rules apply to that household. It is
+    // the registry's rollout switch: it reads nothing about the household, exposes no balance,
+    // transaction, name or identifier, and its only effect is on how vendor categories are
+    // enforced. So it is vendor-registry authority pointed at one household, not customer-data
+    // access, and it belongs with the rest of the registry controls.
+    await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.write');
     const params = parseParams(c, IdParams);
     if (params instanceof Response) return params;
     const body = await parseBody(c, EnforcementBody);
@@ -275,6 +314,7 @@ export const vendorsAdminRoute = new Hono()
       if (!changed) return false;
       await auditRepo.append(txDb, {
         actorKind: 'ops',
+        actorAdminUserId: actor.adminUserId,
         // Subject is the HOUSEHOLD, not a vendor — this switch is scoped to one household and
         // touches every vendor it ever pays. The action keeps the `vendor.*` namespace anyway, so
         // the whole registry rail stays queryable as one thing.

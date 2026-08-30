@@ -1,12 +1,14 @@
 # Sub-plan A1 — Admin portal & IAM — Implementation Plan
 
-**Status:** Planned 2026-08-28. **Tasks 1, 2 and 3 built 2026-08-29** — admin identity, Google
+**Status:** Planned 2026-08-28. **Tasks 1, 2, 3 and 4A built 2026-08-29** — admin identity, Google
 Workspace OIDC (verified against a stub; see the caveat under Task 1), server-side sessions, the
-seeded first owner, the `audit_log` attribution column, the role model with its invariants, and
-maker-checker on role grants. Tasks 4–7 not started, and **Task 4 is now the critical path**: three
-separate deferrals all wait on it (see "Everything that needs an actor" under Task 3).
-Three changes to this plan were made during Tasks 2 and 3; all are recorded in the decision tables
-below rather than absorbed silently.
+seeded first owner, the `audit_log` attribution column, the role model with its invariants,
+maker-checker on role grants, and **the cutover: the shared `ADMIN_API_KEY` is deleted and all 13
+ops endpoints now require a named staff session.** Remaining: Task 4B (maker-checker on the ops
+actions) and Tasks 5–7.
+
+Four changes to this plan were made during Tasks 2–4; all are recorded in the decision tables below
+rather than absorbed silently.
 **Decisions locked with Alex before planning** (see "Decisions" below) — do not re-litigate them
 mid-build; raise a change instead.
 
@@ -213,24 +215,44 @@ there is no maker to record. See "everything that needs an actor" below.
 | When are proposals re-validated? | **At propose time AND at approve time** | Days pass between the two. The target may have been suspended, or acquired the mutually exclusive role by another route. A proposal is a request, never a pre-authorised write. Proposing also validates, so an impossible request fails immediately instead of sitting in an inbox for a week. |
 | Expiry | **A cron sweep writes the `expired` status**, hourly | The house pattern (`bump-ttl-sweep`), and the alternative is worse: a `pending` row that has silently stopped working is one an operator keeps clicking approve on with nothing explaining why nothing happens. |
 
-### Everything that needs an actor is blocked behind Task 4
+### Everything that needs an actor was blocked behind Task 4 — two of three now closed
 
-Three separate pieces of work now wait on the same thing, which is worth stating once rather than
-as three deferrals:
+Three separate pieces of work waited on the same thing:
 
-1. The 13 ops routes writing `actorUserId` (Task 2).
-2. Maker-checker on vendor suspend / approve-claim / consent revoke (Task 3).
-3. Filling in the operator on the new `retailer.*` audit events (Task 2).
+1. ~~The 13 ops routes writing `actorUserId`~~ — **closed by Task 4A.**
+2. Maker-checker on vendor suspend / approve-claim / consent revoke — **Task 4B, the last one.**
+3. ~~Filling in the operator on the new `retailer.*` audit events~~ — **closed by Task 4A.**
 
-All three need those routes to carry a signed-in admin instead of a shared secret — which is
-exactly what Task 4 does. **Task 4 is now the critical path for the rest of this sub-plan**, and it
-is also the step this plan's own self-review calls the riskiest. Worth doing next.
+All three needed those routes to carry a signed-in admin instead of a shared secret, which is what
+Task 4A did.
 
-### Task 4 — Cut the 13 endpoints over
+### Task 4 — Cut the 13 endpoints over ✅ built 2026-08-29 (part A)
 `vendors-admin.ts` and `retailers.ts` move from `adminAuth` to `adminSession` + a permission check.
 `ADMIN_API_KEY` is **deleted**, not left as a fallback — a fallback is the whole vulnerability with
 extra steps.
 *Ships:* the shared secret is gone.
+
+**Split into two PRs**, cutover first. The cutover is the part that can cause an outage or a silent
+hole and it should be reviewable without approval plumbing beside it; if it has to be reverted, the
+maker-checker work should not go with it.
+
+- **Part A (built):** the middleware swap, per-endpoint permissions, attribution on all nine audit
+  events, and deleting the key. Closes two of the three deferrals — the ops routes now write
+  `actorUserId`, and the `retailer.*` events name their operator.
+- **Part B (next):** maker-checker on vendor suspend / approve-claim / consent revoke, closing the
+  third deferral.
+
+**The test that proves it** is `tests/routes/admin-cutover.test.ts`, and it is deliberately about
+the OLD mechanism: it presents a correctly configured `x-admin-api-key` to all thirteen endpoints
+and requires every one to answer 401. Tests that only prove the new session auth works would pass
+just as happily with a leftover `adminAuth` mount still honouring the secret somewhere. Before the
+cutover it failed with all 13 accepting the key (200/400/404); after, all 13 refuse it.
+
+| Decision | Choice | Why |
+|---|---|---|
+| `POST /vendors-admin/households/:id/enforcement` permission | **`vendor.write`**, though it writes a household row | The one mapping in this change that is not obvious, so it is argued rather than assumed. The role matrix gives `ops` the vendor registry and withholds unrestricted customer data. This endpoint sets one tri-state boolean, `vendorCategoryEnforced`, deciding whether registry category rules apply to that household. It reads nothing about the household and exposes no balance, transaction or identifier — it is vendor-registry authority pointed at one household, not customer-data access. |
+| `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` | **Now boot-required in production** | Exactly as the Task 1 follow-up promised. With `ADMIN_API_KEY` gone, Google Workspace is the only way into the ops surfaces, so a missing OAuth app means no claim queue, no retailer KYB, no suspensions. Booting a portal nobody can sign in to is worse than refusing to boot. |
+| `ADMIN_API_KEY` in `env.ts` | **Removed from the schema entirely**, not deprecated | Setting it is now inert (the schema is non-strict), which is the right outcome for a stale deploy that still exports it — it boots fine and the value buys nothing. |
 
 ### Task 5 — The portal UI
 Next.js app: sign-in, the ops surfaces, the IAM screens, an approvals inbox. Tokens duplicated in

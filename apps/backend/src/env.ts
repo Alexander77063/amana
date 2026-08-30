@@ -12,9 +12,10 @@ const EnvSchema = z
     SENTRY_DSN: z.string().url().optional(),
     ANCHOR_API_KEY: z.string().min(1).optional(),
     ANCHOR_WEBHOOK_SECRET: z.string().min(1).optional(),
-    // Shared ops secret for the admin-only retailer onboarding surface (x-admin-api-key).
-    // Min 32 chars: it is a bearer-equivalent static credential with no rotation story yet.
-    ADMIN_API_KEY: z.string().min(32, 'ADMIN_API_KEY must be at least 32 chars').optional(),
+    // ADMIN_API_KEY was here. It is GONE, not deprecated — sub-plan A1 Task 4 cut the 13 ops
+    // endpoints over to Google Workspace sessions and deleted the shared secret outright, with no
+    // fallback, because a fallback is the original vulnerability with extra steps. Setting it now
+    // does nothing (the schema is non-strict), which is the right outcome for a stale deploy.
     API_BASE_URL: z.string().url().default('http://localhost:3000'),
     // Browser clients only. Comma-separated EXACT origins (scheme://host:port) — there is
     // deliberately no wildcard: this is a money API, and `*` plus a bearer token in a browser
@@ -234,20 +235,13 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       ANCHOR_API_KEY: parsed.data.ANCHOR_API_KEY,
       ANCHOR_WEBHOOK_SECRET: parsed.data.ANCHOR_WEBHOOK_SECRET,
       TERMII_API_KEY: parsed.data.TERMII_API_KEY,
-      ADMIN_API_KEY: parsed.data.ADMIN_API_KEY,
+      // Moved in by the Task 4 cutover, exactly as the note that used to sit here promised.
+      // `ADMIN_API_KEY` is gone: the 13 ops endpoints now authenticate with a Google Workspace
+      // session, so a missing OAuth app means no ops access AT ALL — no claim queue, no retailer
+      // KYB, no suspensions. That is worth refusing to boot for, where before it was not.
+      GOOGLE_OAUTH_CLIENT_ID: parsed.data.GOOGLE_OAUTH_CLIENT_ID,
+      GOOGLE_OAUTH_CLIENT_SECRET: parsed.data.GOOGLE_OAUTH_CLIENT_SECRET,
     };
-    // GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET are deliberately NOT here yet.
-    //
-    // They will belong here the moment Task 4 deletes `ADMIN_API_KEY`, because from then on a
-    // missing OAuth app means no ops access at all, and refusing to boot is the honest response.
-    // Today it means nothing: the 13 ops endpoints still authenticate with the shared key, so an
-    // absent Workspace degrades no capability that currently works.
-    //
-    // The distinction matters because this app has never booted in production, and every
-    // additional boot-required secret is another thing that must exist before it can. Adding two
-    // that depend on a Google Workspace tenant which does not exist yet would extend the critical
-    // path to first boot for a feature nothing yet depends on. Move them in with the Task 4
-    // cutover, in the same change that removes the fallback they replace.
     const missing = Object.entries(required)
       .filter(([, v]) => !v)
       .map(([k]) => k);

@@ -51,6 +51,7 @@ const TABLES_TO_TRUNCATE = [
   'admin_sessions',
   'admin_auth_requests',
   'admin_role_grants',
+  'admin_approvals',
   'admin_users',
 ] as const;
 

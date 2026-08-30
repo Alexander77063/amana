@@ -1,4 +1,5 @@
 import { cronScheduler } from '../src/cron';
+import { adminApprovalSweepJob } from '../src/cron/jobs/admin-approval-sweep.job';
 import { bumpTtlSweepJob } from '../src/cron/jobs/bump-ttl-sweep.job';
 import { reconSweepJob } from '../src/cron/jobs/recon-sweep.job';
 import { vendorRegistrySweepJob } from '../src/cron/jobs/vendor-registry-sweep.job';
@@ -10,6 +11,7 @@ cronScheduler.register(reconSweepJob);
 cronScheduler.register(bumpTtlSweepJob);
 cronScheduler.register(vendorRegistrySweepJob);
 cronScheduler.register(voucherExpirySweepJob);
+cronScheduler.register(adminApprovalSweepJob);
 cronScheduler.start();
 
 const shutdown = async (signal: string) => {

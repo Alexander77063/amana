@@ -79,8 +79,9 @@ describe('admin IAM routes', () => {
     expect(body.permissions).toEqual([]);
   });
 
-  it('an admin can onboard a colleague and grant them a role', async () => {
+  it('an admin can onboard a colleague, but the role grant needs a second admin', async () => {
     await provision('boss@amana-ng.com', ['admin']);
+    await provision('checker@amana-ng.com', ['admin']);
     const { app, cookie } = await signInAs('boss@amana-ng.com');
 
     const created = await app.request('/admin/iam/admins', {
@@ -91,13 +92,86 @@ describe('admin IAM routes', () => {
     expect(created.status).toBe(201);
     const { id } = await created.json();
 
-    const granted = await app.request(`/admin/iam/admins/${id}/roles`, {
+    const proposed = await app.request(`/admin/iam/admins/${id}/roles`, {
       method: 'POST',
       headers: { cookie, 'content-type': 'application/json' },
       body: JSON.stringify({ role: 'ops', reason: 'joined ops' }),
     });
-    expect(granted.status).toBe(204);
+    // 202 and a proposal id — the request was accepted, the grant has not happened.
+    expect(proposed.status).toBe(202);
+    const { approvalId, status } = await proposed.json();
+    expect(status).toBe('pending');
+    expect(await adminIamService.rolesFor(testDb, id)).toEqual([]);
+
+    const second = await signInAs('checker@amana-ng.com');
+    const approved = await second.app.request(`/admin/iam/approvals/${approvalId}/approve`, {
+      method: 'POST',
+      headers: { cookie: second.cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(approved.status).toBe(204);
     expect(await adminIamService.rolesFor(testDb, id)).toEqual(['ops']);
+  });
+
+  it('403s a maker trying to approve their own proposal over HTTP', async () => {
+    await provision('boss@amana-ng.com', ['admin']);
+    const target = await provision('t@amana-ng.com', []);
+    const { app, cookie } = await signInAs('boss@amana-ng.com');
+
+    const proposed = await app.request(`/admin/iam/admins/${target.id}/roles`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ role: 'ops' }),
+    });
+    const { approvalId } = await proposed.json();
+
+    const res = await app.request(`/admin/iam/approvals/${approvalId}/approve`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(403);
+    expect(await adminIamService.rolesFor(testDb, target.id)).toEqual([]);
+  });
+
+  it('lists what is waiting for a decision', async () => {
+    await provision('boss@amana-ng.com', ['admin']);
+    const target = await provision('t@amana-ng.com', []);
+    const { app, cookie } = await signInAs('boss@amana-ng.com');
+
+    await app.request(`/admin/iam/admins/${target.id}/roles`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ role: 'ops' }),
+    });
+
+    const res = await app.request('/admin/iam/approvals', { headers: { cookie } });
+    expect(res.status).toBe(200);
+    const { approvals } = await res.json();
+    expect(approvals).toHaveLength(1);
+    expect(approvals[0]).toMatchObject({ kind: 'role_grant', status: 'pending' });
+  });
+
+  it('lets the maker withdraw their own proposal', async () => {
+    await provision('boss@amana-ng.com', ['admin']);
+    const target = await provision('t@amana-ng.com', []);
+    const { app, cookie } = await signInAs('boss@amana-ng.com');
+
+    const proposed = await app.request(`/admin/iam/admins/${target.id}/roles`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ role: 'ops' }),
+    });
+    const { approvalId } = await proposed.json();
+
+    const res = await app.request(`/admin/iam/approvals/${approvalId}/cancel`, {
+      method: 'POST',
+      headers: { cookie },
+    });
+    expect(res.status).toBe(204);
+
+    const list = await (await app.request('/admin/iam/approvals', { headers: { cookie } })).json();
+    expect(list.approvals).toHaveLength(0);
   });
 
   it('revokes a role', async () => {

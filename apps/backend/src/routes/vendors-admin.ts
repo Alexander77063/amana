@@ -7,6 +7,7 @@ import { mintPrefixedCode } from '../lib/crockford';
 import { parseBody, parseParams } from '../lib/validate';
 import { type AdminActorVariables, adminSession } from '../middleware/admin-session';
 import { adminIamService } from '../modules/admin/admin-iam.service';
+import { adminOpsApprovalService } from '../modules/admin/admin-ops-approval.service';
 import { auditRepo } from '../modules/audit/audit.repo';
 import { householdsRepo } from '../modules/identity/households.repo';
 import { phoneFingerprint } from '../modules/vendors/vendor-claim.service';
@@ -97,76 +98,28 @@ export const vendorsAdminRoute = new Hono<{ Variables: AdminActorVariables }>()
     return c.json({ attempts: rows }, 200);
   })
 
+  /**
+   * PROPOSE a claim approval. Since sub-plan A1 Task 4B this does not claim anything: it mints a
+   * public code and assigns a business identity, i.e. hands ownership of a bank account to whoever
+   * the operator names, so it takes a second admin to complete at `/admin/approvals/:id/approve`.
+   *
+   * It is the ONLY ops action gated this way. `suspend` and `consents/revoke` stay immediate —
+   * they remove standing rather than create it, and delaying them is the harmful direction.
+   */
   .post('/vendors/:id/approve-claim', async (c) => {
     const actor = c.get('adminActor');
-    await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.write');
     const params = parseParams(c, IdParams);
     if (params instanceof Response) return params;
     const body = await parseBody(c, ApproveBody);
     if (body instanceof Response) return body;
 
-    const publicCode = mintPrefixedCode('AMNV');
-    const now = new Date();
-    // One transaction: a vendor left `claimed` with its queue entry still `pending` is a phantom
-    // ops-queue row for a business that no longer needs review.
-    const claimed = await db.transaction(async (tx) => {
-      const txDb = tx as DbOrTx;
-      const claimedRow = await vendorsRepo.claim(txDb, {
-        vendorId: params.id,
-        phone: body.phone,
-        category: body.category,
-        // `null` = keep the observation-derived name, and it is a known, accepted gap rather than
-        // an oversight. The self-service rail overwrites `display_name` with the name from the
-        // NIBSS enquiry that proved ownership; this rail exists precisely BECAUSE that enquiry
-        // refused, so it has no bank-confirmed name to write. The vendor still goes on to serve a
-        // 200 on the public `/v/:code` page, which means an ops-approved vendor's public name is
-        // operator-reviewed observation data — never bank-confirmed. Say so wherever that page's
-        // provenance is described (`lib/html.ts`, `routes/vendor-page.ts`).
-        //
-        // Closing it properly means an unconditional `nameEnquiry(bankCode, accountNumber)` here,
-        // which needs no phone match and so would work on this rail. It is deliberately NOT in
-        // this change: it puts a new paid-partner-call failure path into the most powerful route
-        // in the rail, and that deserves its own commit and its own failure-mode decision.
-        displayName: null,
-        publicCode,
-        now,
-      });
-      if (!claimedRow) return null;
-
-      // Resolve the queue entry this approval is for, if there is one — a hand-approval need not
-      // have come through the public rail at all. `vendorId` is checked so an operator approving
-      // vendor A can never resolve a pending attempt that actually belongs to vendor B, since
-      // `findPendingByPhone` is keyed by phone alone.
-      const attempt = await vendorClaimsRepo.findPendingByPhone(txDb, body.phone, now);
-      if (attempt && attempt.vendorId === params.id) {
-        await vendorClaimsRepo.markVerified(txDb, attempt.id, 'ops', now);
-      }
-
-      // Spec §7.1: an ops manual approval must be recorded in the audit log with the operator as
-      // actor. `actorKind: 'ops'` (never `'system'`) so this is queryable as distinct from the
-      // self-service `vendor.claimed` path — the whole point of the two trust levels is that they
-      // stay separable after the fact. Same commit as the claim itself: an approval with no
-      // record, or a record for an approval that rolled back, are both wrong.
-      await auditRepo.append(txDb, {
-        actorKind: 'ops',
-        // Sub-plan A1 Task 4: the operator, by name. This is the endpoint that motivated the
-        // whole sub-plan — `approve-claim` assigns ownership of a bank account to a person, and
-        // until now the trail could only say that somebody did it.
-        actorAdminUserId: actor.adminUserId,
-        action: 'vendor.claim_approved_by_ops',
-        subjectKind: 'vendor',
-        subjectId: params.id,
-        payloadJson: {
-          claimantPhone: phoneFingerprint(body.phone),
-          publicCode,
-          category: body.category,
-          ownershipProof: 'ops',
-        },
-      });
-      return claimedRow;
+    const proposal = await adminOpsApprovalService.proposeClaimApproval(db, {
+      actorAdminUserId: actor.adminUserId,
+      vendorId: params.id,
+      phone: body.phone,
+      category: body.category,
     });
-    if (!claimed) return c.json({ error: 'not_claimable' }, 409);
-    return c.json({ publicCode, displayName: claimed.displayName }, 200);
+    return c.json({ approvalId: proposal.id, status: proposal.status }, 202);
   })
 
   .post('/vendors/:id/category', async (c) => {

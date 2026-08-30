@@ -1,0 +1,1 @@
+ALTER TYPE "admin_approval_kind" ADD VALUE 'vendor_approve_claim';

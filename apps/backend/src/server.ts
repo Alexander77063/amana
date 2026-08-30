@@ -8,6 +8,7 @@ import { requestId } from './middleware/request-id';
 import { securityHeaders } from './middleware/security-headers';
 import type { OidcProvider } from './modules/admin/oidc/types';
 import { adminMeRoute, createAdminAuthRoute } from './routes/admin/auth';
+import { adminIamRoute } from './routes/admin/iam';
 import { authRoute, logoutRoute, meRoute } from './routes/auth';
 import { bumpsRoute } from './routes/bumps';
 import { devicesRoute } from './routes/devices';
@@ -265,6 +266,7 @@ export function createServer(options: CreateServerOptions = {}): Hono {
   // no customer bearer token, and below this line they would inherit `jwtAuth()` and 401 before
   // Google was ever contacted. `/admin/me` carries its own `adminSession()` guard instead.
   app.route('/admin/auth', createAdminAuthRoute(options.adminOidcProvider));
+  app.route('/admin/iam', adminIamRoute);
   app.route('/admin', adminMeRoute);
   // MOUNTED LAST, AND IT IS A CATCH-ALL. Every router inside `buildMeRouter()` calls
   // `.use(jwtAuth())` with no path, which at a `/` mount means `/*` — so this does not only

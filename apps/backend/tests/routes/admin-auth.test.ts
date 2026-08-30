@@ -76,12 +76,12 @@ describe('admin auth routes', () => {
       headers: { cookie: `${COOKIE}=${token}` },
     });
     expect(me.status).toBe(200);
-    expect(await me.json()).toMatchObject({
-      email: 'david@amana-ng.com',
-      // No role is reported, because none exists yet. Task 2 adds them; until then the portal
-      // must not be able to infer permissions it does not have.
-      roles: [],
-    });
+    const body = await me.json();
+    expect(body.email).toBe('david@amana-ng.com');
+    // Task 2 seeds the bootstrap account with BOTH roles, because `owner` alone could never
+    // grant anyone anything and the system would admit nobody. It is break-glass, and
+    // `google-workspace-setup.md` documents how to stand it down once a real admin exists.
+    expect([...body.roles].sort()).toEqual(['admin', 'owner']);
   });
 
   it('/admin/me refuses a request with no cookie', async () => {

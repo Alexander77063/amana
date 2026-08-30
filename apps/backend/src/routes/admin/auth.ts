@@ -9,6 +9,7 @@ import {
   adminSelf,
   adminSession,
 } from '../../middleware/admin-session';
+import { adminIamService } from '../../modules/admin/admin-iam.service';
 import { adminIdentityService } from '../../modules/admin/admin-identity.service';
 import { adminUsersRepo } from '../../modules/admin/admin-users.repo';
 import { createGoogleOidcProvider } from '../../modules/admin/oidc/google-oidc.provider';
@@ -117,6 +118,8 @@ export const adminMeRoute = new Hono<{ Variables: AdminActorVariables }>().get(
     const actor = c.get('adminActor');
     const adminUser = await adminUsersRepo.findById(db, actor.adminUserId);
     if (!adminUser) return c.json({ error: 'admin_unauthorized' }, 401);
-    return c.json(adminSelf(adminUser), 200);
+    const roles = await adminIamService.rolesFor(db, adminUser.id);
+    const permissions = await adminIamService.permissionsFor(db, adminUser.id);
+    return c.json(adminSelf(adminUser, roles, permissions), 200);
   },
 );

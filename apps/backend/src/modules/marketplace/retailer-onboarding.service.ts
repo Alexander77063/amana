@@ -2,6 +2,8 @@ import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
 import { ConflictError, NotFoundError } from '../../lib/errors';
 import { logger } from '../../lib/logger';
+import { auditRepo } from '../audit/audit.repo';
+import { auditEvents } from '../audit/events';
 import { type RetailerOnboardingStatus, type RetailerRow, retailersRepo } from './retailers.repo';
 
 type DbOrTx = PostgresJsDatabase;
@@ -35,7 +37,17 @@ const MANUALLY_APPROVABLE: readonly RetailerOnboardingStatus[] = ['applied', 'ky
  */
 export const retailerOnboardingService = {
   async apply(db: DbOrTx, input: ApplyInput): Promise<RetailerRow> {
-    return retailersRepo.insert(db, { ...input, onboardingStatus: 'applied' });
+    const retailer = await retailersRepo.insert(db, { ...input, onboardingStatus: 'applied' });
+    await auditRepo.append(
+      db,
+      auditEvents.retailerOnboardingChanged({
+        retailerId: retailer.id,
+        action: 'applied',
+        at: new Date(),
+        details: { businessName: retailer.businessName },
+      }),
+    );
+    return retailer;
   },
 
   /**
@@ -82,6 +94,17 @@ export const retailerOnboardingService = {
         `retailer ${retailerId} changed status during KYB submission; not re-opened`,
       );
     }
+    // Deliberately records that KYB was submitted and nothing about its content: the BVN and the
+    // RC number are exactly the identity data the audit log must not accumulate a second copy of.
+    await auditRepo.append(
+      db,
+      auditEvents.retailerOnboardingChanged({
+        retailerId,
+        action: 'kyb_submitted',
+        at: new Date(),
+        details: { anchorBusinessCustomerId: biz.id },
+      }),
+    );
     return updated;
   },
 
@@ -144,13 +167,34 @@ export const retailerOnboardingService = {
         `retailer ${retailerId} cannot be approved from status ${retailer.onboardingStatus}`,
       );
     }
+    // Written only after the transition succeeded, so the trail never claims an approval that a
+    // status conflict actually refused.
+    await auditRepo.append(
+      db,
+      auditEvents.retailerOnboardingChanged({
+        retailerId,
+        action: 'approved',
+        at: new Date(),
+        details: { fromStatus: retailer.onboardingStatus },
+      }),
+    );
     return updated;
   },
 
   /** Kill switch — legal from any status, including `approved` and `suspended` (no-op). */
   async suspend(db: DbOrTx, retailerId: string): Promise<RetailerRow> {
+    const before = await retailersRepo.findById(db, retailerId);
     const updated = await retailersRepo.updateOnboardingStatus(db, retailerId, 'suspended');
     if (!updated) throw new NotFoundError(`retailer ${retailerId} not found`);
+    await auditRepo.append(
+      db,
+      auditEvents.retailerOnboardingChanged({
+        retailerId,
+        action: 'suspended',
+        at: new Date(),
+        details: { fromStatus: before?.onboardingStatus ?? null },
+      }),
+    );
     return updated;
   },
 };

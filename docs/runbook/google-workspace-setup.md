@@ -166,6 +166,47 @@ wrong place — recreate it signed in as the Workspace admin rather than settlin
 
 ---
 
+## After the first sign-in — stand the break-glass account down
+
+`david@amana-ng.com` is seeded from configuration with **both** `owner` and `admin`. That is
+deliberate and it is temporary.
+
+It has to hold both because otherwise nothing works: `owner` cannot grant roles — only `admin` can —
+so an owner seeded alone could never onboard anybody, and the system would admit nobody forever.
+Holding both makes it a break-glass account, and a break-glass account that stays that way is just a
+god account with a nicer name. So stand it down as soon as there is a second person:
+
+```bash
+# 1. As david@, onboard the real admin. They start with NO roles — that is invariant 4, and it is
+#    supposed to feel broken.
+curl -X POST https://admin.amana-ng.com/admin/iam/admins \
+  -b "$COOKIE" -H 'content-type: application/json' \
+  -d '{"email":"ada@amana-ng.com"}'
+
+# 2. As david@, make them an admin.
+curl -X POST https://admin.amana-ng.com/admin/iam/admins/<their-id>/roles \
+  -b "$COOKIE" -H 'content-type: application/json' \
+  -d '{"role":"admin","reason":"first real admin"}'
+
+# 3. As ADA — not david@ — revoke david@'s admin role.
+curl -X POST https://admin.amana-ng.com/admin/iam/admins/<davids-id>/roles/revoke \
+  -b "$ADA_COOKIE" -H 'content-type: application/json' \
+  -d '{"role":"admin","reason":"bootstrap complete; restoring segregation of duties"}'
+```
+
+Step 3 **must** be performed by the other person. Nobody can change their own roles (invariant 1),
+so david@ cannot stand himself down — which is the point: it takes two people to end the exception,
+exactly as it should take two to create power.
+
+Afterwards `david@` holds `owner` only: money operations, no ability to hand out access. `ada@` holds
+`admin`: hands out access, cannot touch money. Neither can become the other alone.
+
+**The seed will not undo this.** `ensureBootstrapOwner` grants a role only if it has *never* been
+granted, so the next deploy does not hand back the `admin` role you just removed. (There is a test
+for exactly that, because a seed that resurrected it would make this whole ceremony theatre.)
+
+---
+
 ## When you are done
 
 You should have: a working `david@amana-ng.com` sign-in, a Cloud project set to **Internal**, and a

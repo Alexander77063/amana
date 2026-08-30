@@ -4,6 +4,7 @@ import { env } from '../../env';
 import { auditRepo } from '../audit/audit.repo';
 import { auditEvents } from '../audit/events';
 import { adminAuthRequestsRepo } from './admin-auth-requests.repo';
+import { adminRoleGrantsRepo } from './admin-role-grants.repo';
 import { adminSessionsRepo } from './admin-sessions.repo';
 import { type AdminUserRow, adminUsersRepo } from './admin-users.repo';
 import type { OidcProvider } from './oidc/types';
@@ -75,10 +76,35 @@ export const adminIdentityService = {
    * is a no-op, so a restart loop cannot multiply owners.
    */
   async ensureBootstrapOwner(db: DbOrTx): Promise<void> {
-    await adminUsersRepo.insertIfAbsent(db, {
-      email: normaliseEmail(env.ADMIN_BOOTSTRAP_OWNER_EMAIL),
-      provisioningSource: 'config',
-    });
+    const email = normaliseEmail(env.ADMIN_BOOTSTRAP_OWNER_EMAIL);
+    await adminUsersRepo.insertIfAbsent(db, { email, provisioningSource: 'config' });
+
+    // The row alone would deadlock the system. `owner` cannot grant roles — only `admin` can — so
+    // an owner seeded on its own could never onboard anybody, and there would be no path out.
+    // Configuration therefore seeds BOTH, making this a break-glass account (which the plan lists
+    // under `owner`), and both grants carry a null granter to mark them as config-made.
+    //
+    // It is not meant to stay that way: the exit ceremony is that this account onboards a real
+    // admin, who then revokes THIS account's `admin` grant — restoring segregation of duties.
+    // Invariant 1 stops the break-glass account doing that to itself.
+    const admin = await adminUsersRepo.findByEmail(db, email);
+    if (!admin) return;
+
+    // Seed a role only if it has NEVER been granted — not merely if it is not held right now.
+    // Otherwise the next deploy would hand back the `admin` role the ceremony deliberately took
+    // away, the exit would be theatre, and the god account would be permanent.
+    const history = await adminRoleGrantsRepo.listForAdmin(db, admin.id);
+    for (const role of ['owner', 'admin'] as const) {
+      if (history.some((row) => row.role === role)) continue;
+      await adminRoleGrantsRepo.append(db, {
+        adminUserId: admin.id,
+        role,
+        granted: true,
+        grantedByAdminUserId: null,
+        source: 'config',
+        reason: 'bootstrap',
+      });
+    }
   },
 
   /**

@@ -1,0 +1,313 @@
+/*
+ * Design tokens copied from @amana/ui (packages/ui/src/theme/tokens.ts).
+ *
+ * Copied, not imported — the accepted cost recorded for the retailer portal in
+ * docs/superpowers/plans/2026-08-24-marketplace-sp4b-retailer-portal.md applies here for the same
+ * reason: @amana/ui ships React Native source that Metro transpiles, and a Next app cannot consume
+ * it. The tokens are duplicated ONCE per portal; the drift table in UI-UX-DESIGN-BRIEF.md §9.2
+ * tracks both copies. If those tokens change, this file changes with them.
+ */
+:root {
+  --bg-base: #0d1b2a;
+  --bg-surface: #152535;
+  --bg-raised: #1c3147;
+  --text-primary: #f5f0e8;
+  --text-secondary: #8ba3b8;
+  --text-muted: #5a8ca8;
+  --accent: #c9a227;
+  --accent-dim: rgba(201, 162, 39, 0.18);
+  --debit: #ff6b6b;
+  --credit: #52c49a;
+  --border: rgba(255, 255, 255, 0.06);
+  --radius: 10px;
+  --serif: Georgia, "Times New Roman", serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+body {
+  font: 15px / 1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--serif);
+  margin: 0;
+}
+h1 {
+  font-size: 26px;
+  line-height: 1.2;
+}
+h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+.sub {
+  color: var(--text-secondary);
+  margin: 4px 0 20px;
+  max-width: 64ch;
+}
+
+/* Shell: rail + content. The rail holds the person; attribution stays on screen. */
+.shell {
+  display: grid;
+  grid-template-columns: 232px 1fr;
+  min-height: 100vh;
+}
+.rail {
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  padding: 24px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rail .brand {
+  font-family: var(--serif);
+  font-size: 20px;
+  margin-bottom: 18px;
+}
+.rail a {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--text-secondary);
+}
+.rail a[aria-current="page"] {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.rail .count {
+  font-family: var(--serif);
+  font-size: 18px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+.rail .person {
+  margin-top: auto;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-secondary);
+  word-break: break-all;
+}
+.rail .person strong {
+  display: block;
+  color: var(--text-primary);
+}
+main {
+  padding: 30px 34px 60px;
+  max-width: 1080px;
+}
+
+.card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+label {
+  display: block;
+  font-size: 12px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin: 12px 0 6px;
+}
+input,
+select,
+textarea {
+  width: 100%;
+  max-width: 420px;
+  background: var(--bg-raised);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  font: inherit;
+}
+input:focus,
+select:focus,
+textarea:focus,
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+button {
+  font: inherit;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--bg-base);
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 14px;
+  cursor: pointer;
+}
+button.secondary {
+  background: var(--bg-raised);
+  color: var(--text-primary);
+}
+button.danger {
+  background: transparent;
+  color: var(--debit);
+  border: 1px solid var(--debit);
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+th {
+  text-align: left;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+td {
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.num,
+.mono {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  background: var(--bg-raised);
+  color: var(--text-secondary);
+}
+.pill.ok {
+  background: rgba(82, 196, 154, 0.15);
+  color: var(--credit);
+}
+.pill.warn {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.pill.bad {
+  background: rgba(255, 107, 107, 0.15);
+  color: var(--debit);
+}
+
+.banner {
+  background: var(--bg-raised);
+  border-left: 3px solid var(--accent);
+  padding: 12px 14px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+.banner.bad {
+  border-left-color: var(--debit);
+}
+.err {
+  color: var(--debit);
+  margin: 8px 0;
+}
+.ok-msg {
+  color: var(--credit);
+  margin: 8px 0;
+}
+.muted {
+  color: var(--text-secondary);
+}
+.center {
+  max-width: 400px;
+  margin: 11vh auto;
+}
+
+/* The two-seat approval line. */
+.approval {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+}
+.approval .what {
+  font-family: var(--serif);
+  font-size: 18px;
+}
+.seats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+.seat {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.seat.filled {
+  border-style: solid;
+}
+.seat .who {
+  display: block;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+.code {
+  font-family: var(--serif);
+  font-size: 24px;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
+@media (max-width: 760px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .rail {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .rail .person {
+    margin-top: 0;
+    border-top: 0;
+    width: 100%;
+  }
+  .seats {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+  }
+}

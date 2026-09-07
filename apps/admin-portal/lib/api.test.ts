@@ -33,12 +33,21 @@ describe('request', () => {
     } satisfies Partial<ApiError>);
   });
 
-  it('returns undefined for 204', async () => {
+  it('returns undefined for 204, and drains the body first', async () => {
+    const res = new Response(null, { status: 204 });
+    // Spied rather than asserted through `bodyUsed`: a 204 built in Node has a null body, so
+    // nothing is ever marked used. The browser's 204 carries a real, empty stream, and the call
+    // is what has to happen there.
+    const drained = vi.spyOn(res, 'arrayBuffer');
     vi.stubGlobal(
       'fetch',
-      fetchMock(() => new Response(null, { status: 204 })),
+      fetchMock(() => res),
     );
     expect(await request('/x', { method: 'POST' })).toBeUndefined();
+    // Not pedantry: Chromium aborts a response nobody reads, so leaving this undrained made every
+    // successful sign-out log `net::ERR_ABORTED` in the network panel — the one place a developer
+    // looks when sign-out actually fails.
+    expect(drained).toHaveBeenCalled();
   });
 
   it('posts JSON bodies', async () => {

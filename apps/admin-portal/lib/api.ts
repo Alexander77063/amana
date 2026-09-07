@@ -44,7 +44,15 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
       ...(init.headers ?? {}),
     },
   });
-  if (res.status === 204) return undefined as T;
+  if (res.status === 204) {
+    // Drain before dropping the Response. Chromium aborts a response whose stream is never
+    // consumed, and on a 204 there is nothing to consume by accident — so sign-out, the only
+    // 204 the portal asks for, logged `net::ERR_ABORTED` on every successful call. The request
+    // had already been served; the error was a lie, and a lie in the network panel is the worst
+    // place to leave one, because it is where you look when sign-out really does fail.
+    await res.arrayBuffer().catch(() => undefined);
+    return undefined as T;
+  }
   const body = (await res.json().catch(() => null)) as
     | ({ error?: string; detail?: string } & Record<string, unknown>)
     | null;

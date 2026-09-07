@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../../db/client';
-import { parseBody, parseParams } from '../../lib/validate';
+import { parseBody, parseParams, parseQuery } from '../../lib/validate';
 import { type AdminActorVariables, adminSession } from '../../middleware/admin-session';
 import { adminApprovalDispatch } from '../../modules/admin/admin-approval-dispatch.service';
 import { adminApprovalService } from '../../modules/admin/admin-approval.service';
@@ -9,6 +9,7 @@ import { adminIamService } from '../../modules/admin/admin-iam.service';
 
 const IdParams = z.object({ id: z.string().uuid() });
 const DecisionBody = z.object({ reason: z.string().max(500).optional() });
+const ListQuery = z.object({ status: z.enum(['pending', 'decided']).default('pending') });
 
 /**
  * The maker-checker inbox. Mounted at `/admin/approvals`.
@@ -25,19 +26,30 @@ export const adminApprovalsRoute = new Hono<{ Variables: AdminActorVariables }>(
 
   .get('/', async (c) => {
     const actor = c.get('adminActor');
-    // `iam.read` gates the inbox as a whole. It lists WHAT is awaiting a decision, not the
-    // contents of any customer or merchant record, so it does not need per-domain read rights —
-    // and the decision endpoints below each enforce the permission for their own kind.
-    await adminIamService.requirePermission(db, actor.adminUserId, 'iam.read');
-    const pending = await adminApprovalService.listPending(db);
+    const query = parseQuery(c, ListQuery);
+    if (query instanceof Response) return query;
+    // No permission gate on the inbox as a whole: the list is scoped per kind to what this
+    // person may decide, plus their own proposals. Someone with no matching permission gets an
+    // empty list, not a 403 — an empty inbox is a true statement about their work.
+    const permissions = await adminIamService.permissionsFor(db, actor.adminUserId);
+    const rows = await adminApprovalService.listForActor(
+      db,
+      { adminUserId: actor.adminUserId, permissions },
+      { status: query.status },
+    );
     return c.json({
-      approvals: pending.map((a) => ({
+      approvals: rows.map((a) => ({
         id: a.id,
         kind: a.kind,
         status: a.status,
         payload: a.payloadJson,
         makerAdminUserId: a.makerAdminUserId,
+        makerEmail: a.makerEmail,
+        checkerAdminUserId: a.checkerAdminUserId,
+        checkerEmail: a.checkerEmail,
         reason: a.reason,
+        decisionReason: a.decisionReason,
+        decidedAt: a.decidedAt?.toISOString() ?? null,
         expiresAt: a.expiresAt.toISOString(),
         createdAt: a.createdAt.toISOString(),
       })),
@@ -68,10 +80,10 @@ export const adminApprovalsRoute = new Hono<{ Variables: AdminActorVariables }>(
     const body = await parseBody(c, DecisionBody);
     if (body instanceof Response) return body;
 
-    // Rejecting decides nothing domain-specific — it just closes the request — so it needs no
-    // dispatch. The permission to reject is the permission to have an opinion on the queue.
-    await adminIamService.requirePermission(db, actor.adminUserId, 'iam.read');
-    await adminApprovalService.reject(db, {
+    // Declining is deciding, so it dispatches on kind exactly as approving does and needs the
+    // same permission. `iam.read` used to be enough, which let an `auditor` — who writes nothing,
+    // anywhere — close a vendor claim that the `ops` admin who works the queue could not.
+    await adminApprovalDispatch.reject(db, {
       approvalId: params.id,
       checkerAdminUserId: actor.adminUserId,
       reason: body.reason ?? null,

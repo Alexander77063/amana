@@ -74,7 +74,10 @@ describe('retailer page', () => {
     await flush();
     expect(api.retailers.kyb).toHaveBeenCalledWith('r1', { bvn: '12345678901' });
     expect(textContent(root)).toContain('KYB submitted');
-    expect(textContent(root)).not.toContain('12345678901');
+    // Assert on the input's value, not on textContent: an input's value is a prop, and
+    // `textContent` walks children only — so the textContent form of this assertion passes
+    // whether or not the field was ever cleared, which makes it no assertion at all.
+    expect(byLabel(root, 'Owner BVN').props.value).toBe('');
   });
 
   it('explains an Anchor outage as retryable', async () => {
@@ -107,6 +110,29 @@ describe('retailer page', () => {
     );
     await flush();
     expect(textContent(root)).toContain('can still redeem vouchers already sold');
+    expect(() => byRole(root, 'button', 'Approve without KYB')).toThrow();
+  });
+
+  it('a retailer suspended without ever being approved is told redemption is off too', async () => {
+    // A KYB rejection lands in `suspended` with `approvedAt` still null, and the backend's
+    // `assertCanRedeem` refuses redemption for exactly that row. Telling the operator vouchers
+    // are still redeemable would be the opposite of what the API does.
+    __setParams({ id: 'r1' });
+    vi.mocked(api.retailers.get).mockResolvedValue({
+      ...r,
+      onboardingStatus: 'suspended',
+      approvedAt: null,
+    });
+    const { root } = render(
+      <MeProvider me={ops}>
+        <RetailerPage />
+      </MeProvider>,
+    );
+    await flush();
+    const text = textContent(root);
+    expect(text).toContain('Suspended, and never approved.');
+    expect(text).toContain('nowhere to pay it');
+    expect(text).not.toContain('can still redeem vouchers already sold');
     expect(() => byRole(root, 'button', 'Approve without KYB')).toThrow();
   });
 

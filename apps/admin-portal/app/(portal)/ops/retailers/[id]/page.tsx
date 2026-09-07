@@ -69,9 +69,21 @@ export default function RetailerPage() {
       </p>
       {s === 'suspended' ? (
         <div className="banner bad">
-          <strong>Suspended.</strong> This business cannot list items or run deals. It can still
-          redeem vouchers already sold — customers paid for those — and those payouts still reach
-          it. There is no un-suspend: a suspended retailer re-applies and goes through KYB again.
+          {r.approvedAt ? (
+            <>
+              <strong>Suspended.</strong> This business cannot list items or run deals. It can still
+              redeem vouchers already sold — customers paid for those — and those payouts still
+              reach it. There is no un-suspend: a suspended retailer re-applies and goes through KYB
+              again.
+            </>
+          ) : (
+            <>
+              <strong>Suspended, and never approved.</strong> This business failed or abandoned KYB,
+              so it has no verified payout account. It cannot list items, run deals, or redeem
+              anything — redemption pays money out, and there is nowhere to pay it. There is no
+              un-suspend: it re-applies and goes through KYB again.
+            </>
+          )}
         </div>
       ) : null}
       {msg.ok ? <p className="ok-msg">{msg.ok}</p> : null}

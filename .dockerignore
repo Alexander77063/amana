@@ -4,4 +4,5 @@
 **/test-corpus
 **/tests
 **/*.test.ts
+**/.next
 .git

@@ -75,12 +75,27 @@ stripping, manual redirects, multiple `Set-Cookie`s, the 502 on an unreachable b
 `lib/api.test.ts`, `lib/copy.test.ts` (error copy, phone masking, the approval sentences), the
 components, and the screens, rendered with `react-test-renderer` against the mocks in `test/`.
 
-> **The browser probe (`tools/demo/probe-admin-portal.mjs`) is not in the repo yet** — it is Task 10
-> of the build plan and has not been committed. When it lands it mints a staff session **directly in
-> Postgres** (an `admin_users` row, `admin_role_grants`, and an `admin_sessions` row whose
-> `token_hash` is `sha256(token)`) and drops the cookie into Playwright, because Google sign-in is
-> the one leg no script can drive. Everything after the cookie is real: proxy, session, permissions,
-> screens.
+**The browser probe** is `tools/demo/probe-admin-portal.mjs`. Run it with both dev servers up:
+
+```bash
+node tools/demo/probe-admin-portal.mjs
+```
+
+It mints a staff session **directly in Postgres** (an `admin_users` row, `admin_role_grants`, and an
+`admin_sessions` row whose `token_hash` is `sha256(token)`) and drops the cookie into Playwright,
+because Google sign-in is the one leg no script can drive. Everything after the cookie is real:
+proxy, session, permissions, screens. It asserts a 2xx was actually served for each screen's API
+call, because the dev database is empty and a screen that never fetched renders identically to one
+that did — headings alone are not evidence the two halves agree on the wire.
+
+It earns its keep. It found a defect no unit test could: `request()` returned on a 204 without
+draining the body, so Chromium aborted every *successful* sign-out, and `Rail.signOut`'s `finally`
+swallowed the error so nothing surfaced it.
+
+**What the probe does not cover.** It walks the shell and the four list screens. The three detail
+pages and the approval card's two-seat line are never rendered in a browser — they have unit tests,
+but no probe coverage, and they are the surfaces most likely to break. `/people/[id]` is the one
+reachable with no seed data, since `admin_users` always has rows.
 
 ### A gotcha anyone adding a page will hit
 
@@ -142,9 +157,10 @@ endpoint and requires each to refuse it, now enumerates **15** endpoints rather 
 
 ## Deploy
 
-> **Not in the repo yet.** `apps/admin-portal/Dockerfile`, `fly.admin.toml` and the CI job are Task
-> 11 of the build plan and are not committed. Treat this section as the sequence to follow once they
-> land, not as a description of files you can read today.
+`apps/admin-portal/Dockerfile`, `fly.admin.toml` and the `deploy-admin` CI job are in the repo. The
+image has been built and run locally: it serves `/health` and proxies `/admin/me` through to a real
+backend. What has **not** happened is any of the ops work below — the Fly app, the certificate and
+the DNS record do not exist, so nothing has ever been deployed.
 
 The portal is its own Fly app rather than a process group on `amana-api`, because the OAuth redirect
 URI registered with Google points at the **portal** host and the session cookie is host-only — the

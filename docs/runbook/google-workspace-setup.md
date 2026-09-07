@@ -18,7 +18,7 @@ silently ignored by the internet.
 
 Records in the live zone as of 2026-09-07: `api` / `api-staging` A+AAAA → Fly; `@` MX 1
 `smtp.google.com`; `@` TXT SPF `v=spf1 include:_spf.google.com ~all`; Google's two verification
-TXTs (site + recovery — **leave both**); `google._domainkey` DKIM (**not yet visible** from outside on 2026-09-07 — add it from Admin → Apps → Gmail → Authenticate email, then click *Start authentication*);
+TXTs (site + recovery — **leave both**); `google._domainkey` DKIM 2048-bit (added 2026-09-07; *Start authentication* is clicked in Google about an hour after the record appears);
 `_dmarc` `p=none` reporting to `david@`. Nothing at the apex or `www`.
 
 **Who does this:** whoever controls DNS for `amana-ng.com`. It is browser work, not a deploy.
@@ -122,6 +122,10 @@ makes step 3's "Internal" option available.
 ## Part 3 — Hand the values to the backend
 
 Set as Fly secrets, never committed:
+
+> **From PowerShell, not Command Prompt.** `cmd.exe` passes single quotes through literally, so
+> every value is stored with quote marks around it, and the backslash continuations below are
+> bash/PowerShell syntax anyway. Verify by watching the digests in `fly secrets list` change.
 
 ```bash
 fly secrets set --app amana-api \
@@ -281,6 +285,13 @@ propagated, and the 2SV enforcement above.
    unused. The tell is `admin_sessions.last_used_at`: if it does not move, the cookie never arrived.
    Also sign in to `accounts.google.com` as `david@` *first*, otherwise the chooser offers whatever
    personal account is already there and Google blocks it as `org_internal`.
+
+4. **Namecheap says "Failed to save record" on the DKIM TXT.** It is the paste, not the length:
+   reload the page, pass the value through Notepad so it is one line with no surrounding quotes or
+   trailing space, and save again — the 2048-bit value then saves fine. Long TXT values display as
+   two quoted chunks afterwards; that is normal. Check it on the authoritative server, which shows
+   it before public resolvers do:
+   `nslookup -type=TXT google._domainkey.amana-ng.com pdns1.registrar-servers.com`.
 
 Locally the backend reads env from the shell only (no `.env` loader), so:
 `$env:GOOGLE_OAUTH_CLIENT_ID = '…'; $env:GOOGLE_OAUTH_CLIENT_SECRET = '…'; pnpm --filter @amana/backend dev`

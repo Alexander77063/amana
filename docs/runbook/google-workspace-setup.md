@@ -1,7 +1,25 @@
 # Google Workspace + OAuth setup for `amana-ng.com`
 
+**Status (2026-09-07): done.** Workspace verified, Gmail live, OAuth app created (Internal), the six
+secrets set on `amana-api`. What remains is listed under "When you are done" at the bottom.
+
 **Blocks:** sub-plan A1 Task 1 (admin identity). Task 1 can be *built* against a stub, but not
 verified against anything real until this is done.
+
+## Where DNS actually lives — read before touching a record
+
+`amana-ng.com` is registered at **Namecheap** and its zone is served by Namecheap BasicDNS
+(`pdns1/pdns2.registrar-servers.com`). Google Workspace was bought through **Bluehost** as a
+reseller, and Bluehost lists the domain as *External* with its own nameservers and an "under
+construction" A record. **Bluehost's DNS panel is not live** — the .com registry delegates to
+Namecheap, and Bluehost's nameservers do not answer for the zone at all. Every record goes in
+**Namecheap → Domain List → Manage → Advanced DNS**. Anything typed into Bluehost's DNS screen is
+silently ignored by the internet.
+
+Records in the live zone as of 2026-09-07: `api` / `api-staging` A+AAAA → Fly; `@` MX 1
+`smtp.google.com`; `@` TXT SPF `v=spf1 include:_spf.google.com ~all`; Google's two verification
+TXTs (site + recovery — **leave both**); `google._domainkey` DKIM 2048-bit (added 2026-09-07; *Start authentication* is clicked in Google about an hour after the record appears);
+`_dmarc` `p=none` reporting to `david@`. Nothing at the apex or `www`.
 
 **Who does this:** whoever controls DNS for `amana-ng.com`. It is browser work, not a deploy.
 
@@ -104,6 +122,10 @@ makes step 3's "Internal" option available.
 ## Part 3 — Hand the values to the backend
 
 Set as Fly secrets, never committed:
+
+> **From PowerShell, not Command Prompt.** `cmd.exe` passes single quotes through literally, so
+> every value is stored with quote marks around it, and the backslash continuations below are
+> bash/PowerShell syntax anyway. Verify by watching the digests in `fly secrets list` change.
 
 ```bash
 fly secrets set --app amana-api \
@@ -227,8 +249,50 @@ client ID and secret. That unblocks A1 Task 1.
 
 Then tick these in [go-live-checklist](./go-live-checklist.md):
 
-- [ ] `amana-ng.com` owned and DNS controlled
-- [ ] Workspace verified, 2SV enforced
-- [ ] OAuth client created, consent screen **Internal**
-- [ ] `pay.amana-ng.com` confirmed available (⚠️ before any vendor code is printed)
-- [ ] `admin.amana-ng.com` reserved
+- [x] `amana-ng.com` owned and DNS controlled — **Namecheap** (see "Where DNS actually lives")
+- [x] Workspace verified (2026-09-07, Business Standard via Bluehost; first user `david@amana-ng.com`)
+- [ ] 2SV enforced for the organisation (Security → Authentication → 2-Step Verification → Enforcement **On**)
+- [x] OAuth client created, consent screen **Internal** — project `amana-admin-portal` inside
+      organisation `amana-ng.com`; client `amana-api` with both redirect URIs; the six secrets
+      in Part 3 set on `amana-api` 2026-09-07 and `ADMIN_API_KEY` unset
+- [x] `pay.amana-ng.com` confirmed available — no record exists and the zone is ours; add the
+      CNAME + Fly cert at go-live-checklist §6 item 3, not before
+- [x] `admin.amana-ng.com` reserved — same: nothing else claims it; the record is created when
+      the portal deploys (Task 5)
+
+- [x] **First live sign-in — done 2026-09-07, locally.** A real Google ID token for
+      `david@amana-ng.com` went through `GET /admin/auth/start` → Google → `/admin/auth/callback`
+      → `GET /admin/me`, which returned the seeded owner with roles `owner` + `admin` and
+      permissions `money.operate`, `iam.read`, `iam.write`. Two `admin.signed_in` audit events,
+      both carrying `actor_admin_user_id`. A personal Gmail was refused by Google's own
+      `org_internal` gate before reaching the backend — the Internal consent screen works.
+
+Still open after this runbook: DKIM **Start authentication** once the `google._domainkey` record has
+propagated, and the 2SV enforcement above.
+
+### Three things that cost an hour on the first run — so nobody repeats them
+
+1. **Do not run `fly secrets set` from `cmd.exe` with single quotes.** Command Prompt passes the
+   quotes through literally, so `ADMIN_WORKSPACE_DOMAIN='amana-ng.com'` stores the quote marks.
+   Use PowerShell (single quotes work there) or drop the quotes entirely.
+2. **The client ID pastes badly.** Twice the value that reached the process was the first 13
+   characters — the project number and the hyphen — and Google answers `401 invalid_client` /
+   "The OAuth client was not found". Before starting anything, print the length: a real ID is 72
+   characters and ends in `.apps.googleusercontent.com`. The same truncated value went to Fly and
+   had to be re-set.
+3. **Test in one incognito window and do not close it.** Closing every incognito window wipes its
+   cookies, and the session then looks broken (401 on `/admin/me`) while the DB shows it live and
+   unused. The tell is `admin_sessions.last_used_at`: if it does not move, the cookie never arrived.
+   Also sign in to `accounts.google.com` as `david@` *first*, otherwise the chooser offers whatever
+   personal account is already there and Google blocks it as `org_internal`.
+
+4. **Namecheap says "Failed to save record" on the DKIM TXT.** It is the paste, not the length:
+   reload the page, pass the value through Notepad so it is one line with no surrounding quotes or
+   trailing space, and save again — the 2048-bit value then saves fine. Long TXT values display as
+   two quoted chunks afterwards; that is normal. Check it on the authoritative server, which shows
+   it before public resolvers do:
+   `nslookup -type=TXT google._domainkey.amana-ng.com pdns1.registrar-servers.com`.
+
+Locally the backend reads env from the shell only (no `.env` loader), so:
+`$env:GOOGLE_OAUTH_CLIENT_ID = '…'; $env:GOOGLE_OAUTH_CLIENT_SECRET = '…'; pnpm --filter @amana/backend dev`
+— the redirect URI, portal URL, domain and owner all default correctly for `localhost:3000`.

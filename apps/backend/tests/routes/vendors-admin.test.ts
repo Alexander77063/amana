@@ -100,7 +100,7 @@ describe('/vendors-admin', () => {
     const attempt = await vendorClaimsRepo.openAttempt(testDb, {
       vendorId: v.id,
       phone,
-      expiresAt: new Date(NOW.getTime() + 60_000),
+      expiresAt: new Date(Date.now() + 60_000),
       now: NOW,
       renewableSince: new Date(NOW.getTime() - 3_600_000),
     });

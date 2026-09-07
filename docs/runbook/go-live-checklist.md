@@ -40,7 +40,7 @@ Set as **Fly secrets** (`fly secrets set …`), never committed. The backend **r
 - [x] `JWT_SECRET` — deployed
 - [x] `FIELD_ENCRYPTION_KEY` — generated + deployed 2026-08-27
 - [x] ~~`ADMIN_API_KEY`~~ — **deleted** by A1 Task 4; the ops surfaces use Google Workspace sessions now. Fly secret unset 2026-09-07.
-- [x] `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` — boot-required since A1 Task 4; set 2026-09-07 together with `ADMIN_WORKSPACE_DOMAIN`, `ADMIN_BOOTSTRAP_OWNER_EMAIL`, `ADMIN_OIDC_REDIRECT_URI`, `ADMIN_PORTAL_URL` (see [google-workspace-setup](./google-workspace-setup.md)). Not yet exercised by a live sign-in.
+- [x] `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` — boot-required since A1 Task 4; set 2026-09-07 together with `ADMIN_WORKSPACE_DOMAIN`, `ADMIN_BOOTSTRAP_OWNER_EMAIL`, `ADMIN_OIDC_REDIRECT_URI`, `ADMIN_PORTAL_URL` (see [google-workspace-setup](./google-workspace-setup.md)). Exercised by a live sign-in **locally** 2026-09-07 (`/admin/me` → owner+admin). ⚠️ The value first set on Fly was the **truncated** 13-char client ID from a bad paste and was set from `cmd.exe` with literal single quotes — **re-set all six from PowerShell** before the first production boot, and confirm the `GOOGLE_OAUTH_CLIENT_ID` digest changes from `7b8fa18dd58dd17e`.
 - [x] `TERMII_API_KEY` / `TERMII_SENDER_ID` — deployed
 - [x] `DATABASE_URL` — repaired 2026-08-27. Two separate faults: the **direct** Supabase host
       publishes only an AAAA record (IPv4 resolvers get `ENOTFOUND`), and the password contained a

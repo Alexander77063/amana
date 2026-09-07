@@ -256,7 +256,32 @@ Then tick these in [go-live-checklist](./go-live-checklist.md):
 - [x] `admin.amana-ng.com` reserved — same: nothing else claims it; the record is created when
       the portal deploys (Task 5)
 
-Still open after this runbook: the **first live sign-in** (no real Google ID token has been through
-the code yet — run it locally against `http://localhost:3000/admin/auth/start`, then `GET /admin/me`),
-DKIM **Start authentication** once the `google._domainkey` record has propagated, and the 2SV
-enforcement above.
+- [x] **First live sign-in — done 2026-09-07, locally.** A real Google ID token for
+      `david@amana-ng.com` went through `GET /admin/auth/start` → Google → `/admin/auth/callback`
+      → `GET /admin/me`, which returned the seeded owner with roles `owner` + `admin` and
+      permissions `money.operate`, `iam.read`, `iam.write`. Two `admin.signed_in` audit events,
+      both carrying `actor_admin_user_id`. A personal Gmail was refused by Google's own
+      `org_internal` gate before reaching the backend — the Internal consent screen works.
+
+Still open after this runbook: DKIM **Start authentication** once the `google._domainkey` record has
+propagated, and the 2SV enforcement above.
+
+### Three things that cost an hour on the first run — so nobody repeats them
+
+1. **Do not run `fly secrets set` from `cmd.exe` with single quotes.** Command Prompt passes the
+   quotes through literally, so `ADMIN_WORKSPACE_DOMAIN='amana-ng.com'` stores the quote marks.
+   Use PowerShell (single quotes work there) or drop the quotes entirely.
+2. **The client ID pastes badly.** Twice the value that reached the process was the first 13
+   characters — the project number and the hyphen — and Google answers `401 invalid_client` /
+   "The OAuth client was not found". Before starting anything, print the length: a real ID is 72
+   characters and ends in `.apps.googleusercontent.com`. The same truncated value went to Fly and
+   had to be re-set.
+3. **Test in one incognito window and do not close it.** Closing every incognito window wipes its
+   cookies, and the session then looks broken (401 on `/admin/me`) while the DB shows it live and
+   unused. The tell is `admin_sessions.last_used_at`: if it does not move, the cookie never arrived.
+   Also sign in to `accounts.google.com` as `david@` *first*, otherwise the chooser offers whatever
+   personal account is already there and Google blocks it as `org_internal`.
+
+Locally the backend reads env from the shell only (no `.env` loader), so:
+`$env:GOOGLE_OAUTH_CLIENT_ID = '…'; $env:GOOGLE_OAUTH_CLIENT_SECRET = '…'; pnpm --filter @amana/backend dev`
+— the redirect URI, portal URL, domain and owner all default correctly for `localhost:3000`.

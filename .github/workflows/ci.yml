@@ -106,3 +106,17 @@ jobs:
       - run: flyctl deploy --config fly.staging.toml --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_STAGING }}
+
+  deploy-admin:
+    needs: build-and-test
+    runs-on: ubuntu-24.04
+    # Flip the repository variable ADMIN_PORTAL_DEPLOY to 'true' once `fly apps create amana-admin`,
+    # the cert and the DNS record exist (docs/runbook/admin-portal.md). Until then this job is skipped
+    # rather than failing every push.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && vars.ADMIN_PORTAL_DEPLOY == 'true'
+    steps:
+      - uses: actions/checkout@v6
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --config fly.admin.toml --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN_ADMIN }}

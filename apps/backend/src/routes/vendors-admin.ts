@@ -4,7 +4,8 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../db/client';
 import { mintPrefixedCode } from '../lib/crockford';
-import { parseBody, parseParams } from '../lib/validate';
+import { parseBody, parseParams, parseQuery } from '../lib/validate';
+import { vendorSummary } from '../lib/vendor-summary';
 import { type AdminActorVariables, adminSession } from '../middleware/admin-session';
 import { adminIamService } from '../modules/admin/admin-iam.service';
 import { adminOpsApprovalService } from '../modules/admin/admin-ops-approval.service';
@@ -39,6 +40,10 @@ const SPEND_CATEGORY_VALUES = SPEND_CATEGORIES.map((c) => c.value) as [string, .
 const IdParams = z.object({ id: z.string().uuid() });
 const CategoryBody = z.object({ category: z.enum(SPEND_CATEGORY_VALUES).nullable() });
 const EnforcementBody = z.object({ enforced: z.boolean().nullable() });
+const VendorListQuery = z.object({
+  status: z.enum(['observed', 'claimed', 'suspended']).optional(),
+  q: z.string().trim().min(1).max(80).optional(),
+});
 const ApproveBody = z.object({
   phone: z.string().regex(PHONE_RE, 'invalid_phone'),
   category: z.enum(SPEND_CATEGORY_VALUES).nullable(),
@@ -95,7 +100,36 @@ export const vendorsAdminRoute = new Hono<{ Variables: AdminActorVariables }>()
     const actor = c.get('adminActor');
     await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.read');
     const rows = await vendorClaimsRepo.listPendingForOps(db, new Date());
-    return c.json({ attempts: rows }, 200);
+    const vendorsById = new Map(
+      (await vendorsRepo.findManyByIds(db, [...new Set(rows.map((r) => r.vendorId))])).map((v) => [
+        v.id,
+        vendorSummary(v),
+      ]),
+    );
+    return c.json(
+      { attempts: rows.map((r) => ({ ...r, vendor: vendorsById.get(r.vendorId) ?? null })) },
+      200,
+    );
+  })
+
+  .get('/vendors', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.read');
+    const query = parseQuery(c, VendorListQuery);
+    if (query instanceof Response) return query;
+    const rows = await vendorsRepo.search(db, query);
+    return c.json({ vendors: rows.map(vendorSummary) }, 200);
+  })
+
+  .get('/vendors/:id', async (c) => {
+    const actor = c.get('adminActor');
+    await adminIamService.requirePermission(db, actor.adminUserId, 'vendor.read');
+    const params = parseParams(c, IdParams);
+    if (params instanceof Response) return params;
+    const vendor = await vendorsRepo.findById(db, params.id);
+    if (!vendor) return c.json({ error: 'not_found' }, 404);
+    const claimAttempts = await vendorClaimsRepo.listForVendor(db, params.id);
+    return c.json({ vendor: vendorSummary(vendor), claimAttempts }, 200);
   })
 
   /**

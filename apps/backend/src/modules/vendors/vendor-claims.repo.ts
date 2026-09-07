@@ -139,6 +139,16 @@ export const vendorClaimsRepo = {
     return changed.length;
   },
 
+  /** Every attempt against one vendor, newest first — the history an operator reads before deciding. */
+  async listForVendor(db: DbOrTx, vendorId: string): Promise<ClaimAttemptRow[]> {
+    return db
+      .select()
+      .from(vendorClaimAttempts)
+      .where(eq(vendorClaimAttempts.vendorId, vendorId))
+      .orderBy(desc(vendorClaimAttempts.createdAt))
+      .limit(50);
+  },
+
   /** Pending attempts an operator may need to approve by hand. Newest first. */
   async listPendingForOps(db: DbOrTx, now: Date): Promise<ClaimAttemptRow[]> {
     return db

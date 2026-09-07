@@ -1,6 +1,7 @@
-import { and, eq, lt } from 'drizzle-orm';
+import { and, desc, eq, inArray, lt, or } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
-import { adminApprovals } from '../../db/schema';
+import { adminApprovals, adminUsers } from '../../db/schema';
 import { env } from '../../env';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../lib/errors';
 import { auditRepo } from '../audit/audit.repo';
@@ -10,6 +11,23 @@ type DbOrTx = PostgresJsDatabase;
 
 export type AdminApprovalRow = typeof adminApprovals.$inferSelect;
 export type AdminApprovalKind = AdminApprovalRow['kind'];
+
+export type InboxStatus = 'pending' | 'decided';
+const DECIDED = ['approved', 'rejected', 'cancelled', 'expired'] as const;
+
+export type InboxRow = AdminApprovalRow & { makerEmail: string; checkerEmail: string | null };
+
+/** Which kinds a set of permissions may see and decide. Reading and writing both count. */
+export function visibleKinds(permissions: readonly string[]): AdminApprovalKind[] {
+  const kinds: AdminApprovalKind[] = [];
+  if (permissions.includes('iam.read') || permissions.includes('iam.write')) {
+    kinds.push('role_grant');
+  }
+  if (permissions.includes('vendor.read') || permissions.includes('vendor.write')) {
+    kinds.push('vendor_approve_claim');
+  }
+  return kinds;
+}
 
 export type ProposeInput = {
   kind: AdminApprovalKind;
@@ -42,6 +60,54 @@ export const adminApprovalService = {
 
   async listPending(db: DbOrTx): Promise<AdminApprovalRow[]> {
     return db.select().from(adminApprovals).where(eq(adminApprovals.status, 'pending'));
+  },
+
+  /**
+   * The inbox as one person sees it: every proposal of a kind their permissions let them decide,
+   * plus every proposal they made themselves — a maker keeps sight of their own request even
+   * after losing the permission that let them make it, because cancelling is still theirs to do.
+   *
+   * Scoped per kind rather than gated as a whole because the queue spans domains: `ops` works
+   * vendor claims and holds no IAM permission at all, and an inbox they cannot open is not a
+   * control, it is a rumour.
+   *
+   * Permissions arrive as a PARAMETER rather than being read here, so this generic service never
+   * imports `admin-iam.service` — which imports this one for `propose`/`approve`. The route
+   * resolves them and passes them in.
+   */
+  async listForActor(
+    db: DbOrTx,
+    actor: { adminUserId: string; permissions: readonly string[] },
+    opts: { status: InboxStatus },
+  ): Promise<InboxRow[]> {
+    const maker = alias(adminUsers, 'maker');
+    const checker = alias(adminUsers, 'checker');
+    const kinds = visibleKinds(actor.permissions);
+    const mine = eq(adminApprovals.makerAdminUserId, actor.adminUserId);
+    const scope = kinds.length > 0 ? or(inArray(adminApprovals.kind, kinds), mine) : mine;
+    const status =
+      opts.status === 'pending'
+        ? eq(adminApprovals.status, 'pending')
+        : inArray(adminApprovals.status, [...DECIDED]);
+
+    const rows = await db
+      .select({
+        approval: adminApprovals,
+        makerEmail: maker.email,
+        checkerEmail: checker.email,
+      })
+      .from(adminApprovals)
+      .innerJoin(maker, eq(maker.id, adminApprovals.makerAdminUserId))
+      .leftJoin(checker, eq(checker.id, adminApprovals.checkerAdminUserId))
+      .where(and(scope, status))
+      .orderBy(desc(adminApprovals.createdAt))
+      .limit(200);
+
+    return rows.map((r) => ({
+      ...r.approval,
+      makerEmail: r.makerEmail,
+      checkerEmail: r.checkerEmail,
+    }));
   },
 
   async propose(

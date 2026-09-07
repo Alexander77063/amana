@@ -5,10 +5,10 @@
 Workspace OIDC (verified against a stub; see the caveat under Task 1), server-side sessions, the
 seeded first owner, the `audit_log` attribution column, the role model with its invariants,
 maker-checker on role grants, and **the cutover: the shared `ADMIN_API_KEY` is deleted and all 13
-ops endpoints now require a named staff session.** Remaining: Task 4B (maker-checker on the ops
-actions) and Tasks 5–7.
+ops endpoints now require a named staff session.** **Task 5 built 2026-09-07** — `apps/admin-portal`,
+the staff UI, plus two backend permission corrections it forced. Remaining: Tasks 6–7.
 
-Four changes to this plan were made during Tasks 2–4; all are recorded in the decision tables below
+Six changes to this plan were made during Tasks 2–5; all are recorded in the decision tables below
 rather than absorbed silently.
 **Decisions locked with Alex before planning** (see "Decisions" below) — do not re-litigate them
 mid-build; raise a change instead.
@@ -234,8 +234,8 @@ Three separate pieces of work waited on the same thing:
 3. ~~Filling in the operator on the new `retailer.*` audit events~~ — **closed by Task 4A.**
 
 All three needed those routes to carry a signed-in admin instead of a shared secret, which is what
-Task 4A did. **Task 4 is complete.** Remaining: Task 5 (portal UI), 6 (support verification),
-7 (JIT elevation).
+Task 4A did. **Task 4 is complete.** **Task 5 built 2026-09-07** — the portal exists. Remaining:
+Task 6 (support verification), 7 (JIT elevation).
 
 ### Task 4 — Cut the 13 endpoints over ✅ built 2026-08-29 (part A)
 `vendors-admin.ts` and `retailers.ts` move from `adminAuth` to `adminSession` + a permission check.
@@ -266,9 +266,28 @@ cutover it failed with all 13 accepting the key (200/400/404); after, all 13 ref
 | `GOOGLE_OAUTH_CLIENT_ID` / `_SECRET` | **Now boot-required in production** | Exactly as the Task 1 follow-up promised. With `ADMIN_API_KEY` gone, Google Workspace is the only way into the ops surfaces, so a missing OAuth app means no claim queue, no retailer KYB, no suspensions. Booting a portal nobody can sign in to is worse than refusing to boot. |
 | `ADMIN_API_KEY` in `env.ts` | **Removed from the schema entirely**, not deprecated | Setting it is now inert (the schema is non-strict), which is the right outcome for a stale deploy that still exports it — it boots fine and the value buys nothing. |
 
-### Task 5 — The portal UI
-Next.js app: sign-in, the ops surfaces, the IAM screens, an approvals inbox. Tokens duplicated in
-CSS as the retailer portal does (same accepted cost, same reason).
+### Task 5 — The portal UI ✅ built 2026-09-07
+`apps/admin-portal` — Next.js 14 App Router on :3400, holding no secrets and configured by one
+variable (`BACKEND_ORIGIN`): sign-in, the approvals inbox, the vendor and retailer ops surfaces and
+the IAM screens, plus two backend changes the survey forced and the Fly/CI deploy config. Tokens
+duplicated in CSS as the retailer portal does (same accepted cost, same reason).
+
+The decisions — the same-origin mechanism, the hosting shape, the API layer and the rest — are in
+[`2026-09-07-a1-task5-admin-portal-ui.md`](./2026-09-07-a1-task5-admin-portal-ui.md); the operator
+documentation is [`docs/runbook/admin-portal.md`](../../runbook/admin-portal.md).
+
+**Two permission rules changed in this task — see *Decided during Task 5*.**
+
+### Decided during Task 5 (2026-09-07) — including two changes to the plan itself
+
+| Decision | Choice | Why |
+|---|---|---|
+| **PLAN CHANGE — inbox visibility** | `GET /admin/approvals` is **scoped by permission per kind**: `role_grant` visible with `iam.read` or `iam.write`; `vendor_approve_claim` visible with `vendor.read` or `vendor.write`; **your own proposals always visible**. Gains `?status=pending\|decided`, maker/checker emails, decision fields. | Task 3 gated the whole inbox on `iam.read`. `ops` does not hold it, so the only role that can work vendor-claim approvals could not see the queue (403) and had to be handed ids out of band. A queue nobody can see is not a control. |
+| **PLAN CHANGE — reject permission** | Rejecting requires the **same permission as approving that kind** (`iam.write` / `vendor.write`), dispatched like approve. | `iam.read` was enough to reject, so `auditor` — specified as "writes nothing, anywhere" — could reject a vendor claim, while `ops` could not. The permission to decline is the permission to decide. Maker-cannot-be-checker still applies. |
+| Same-origin mechanism | **Explicit Route Handler proxies** in the portal for `/admin/*`, `/vendors-admin/*`, `/retailers/*`, sharing one `lib/proxy.ts` — not `next.config` `rewrites()` | The one load-bearing unknown with rewrites is whether a `302` that also carries `Set-Cookie` (the OAuth callback) survives Next's proxy unmodified. A Route Handler copies status, `set-cookie` and `location` explicitly, and is unit-testable by injecting `fetch`. Rewrites exist nowhere in the repo, so neither option follows a precedent; the testable one wins. |
+| Hosting | **Separate Fly app `amana-admin`**, `jnb`, `min_machines_running = 1`, 512 MB, `/health` route, `admin.amana-ng.com` CNAME at Namecheap | The plan says "beside the API", the OAuth redirect URI already registered with Google points at the **portal** host, and the cookie is host-only — so the portal host must forward `/admin/*`. `min_machines_running = 1` because a cold portal stalls Google's redirect inside the 10-minute login TTL, not for the API's "no cold starts" reason. |
+| Vendor read surface | New `GET /vendors-admin/vendors` (status + text search, limit 200), `GET /vendors-admin/vendors/:id`, and the claim queue joins a **vendor summary** with the account number **masked** (`••••1234`) | The queue returned bare `vendorId`s and no admin route reads a vendor, so the claim screen could show nothing about the business being claimed. Ops never needs the full account number; the claim carries the bank identity already. The cutover test now enumerates 15 endpoints, not 13. |
+| API layer | Portal-local `lib/api.ts` (relative `fetch`, `credentials: 'same-origin'`), **not** `@amana/api-client` | The shared client requires a `tokenStore` and never sends credentials; a cookie-authenticated same-origin portal needs neither. Adding a cookie mode to a client the two mobile apps depend on is risk with no mobile benefit. This is an explicit exception to sp4b's "the portal consumes only the client" rule, and it is written down here. |
 
 ### Task 6 — Support: verify the customer *before* the conversation, and see almost nothing
 

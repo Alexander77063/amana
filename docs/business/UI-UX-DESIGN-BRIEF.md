@@ -449,6 +449,10 @@ matters visually:
 ### Web — retailer portal
 Not React Native. Next.js 14, its own stylesheet, dark-only, no webfonts. Full treatment in §9.
 
+### Web — admin portal *(added 2026-09-07)*
+Also Next.js 14, also dark-only and webfont-free, but for staff rather than customers, and it adds
+Georgia back as a **system** serif. Full treatment in §10.
+
 ---
 
 ## 9. Retailer portal *(added 2026-08-25)*
@@ -471,20 +475,26 @@ The alternatives were worse: extracting a framework-neutral token package for on
 speculative structure, and building `@amana/ui` for web would put a build step in the path of every
 mobile edit to buy nothing for mobile.
 
-### 9.2 Known drift in the copy — as of 2026-08-25
+### 9.2 Known drift in the copies — as of 2026-09-07
 
 Auditing the copy against the source found three divergences. Listing them is the point of the
 section — a duplicate whose drift nobody tracks is just two designs.
 
+**There are now two copies**, not one: `apps/retailer-portal/app/globals.css` (2026-08-25) and
+`apps/admin-portal/app/globals.css` (2026-09-07). The `portal` column below is the retailer portal
+unless a row says otherwise. Every row applies to both files unless stated, because the admin
+portal's block was copied from the retailer portal's and matches it value for value.
+
 | | `packages/ui` | portal | |
 |---|---|---|---|
-| `border` | `rgba(255,255,255,0.06)` | was `0.08` | **Copy error. Fixed 2026-08-25** — found by this audit, not by eye. |
-| Scheme | follows the OS | dark only | Tolerated — see below |
+| `border` | `rgba(255,255,255,0.06)` | was `0.08` | **Copy error. Fixed 2026-08-25** — found by this audit, not by eye. The admin portal copied the corrected value. |
+| Scheme | follows the OS | dark only | Tolerated — see below. True of both copies. |
 | Typeface | Georgia + Plus Jakarta Sans | `system-ui` | Tolerated — see below |
+| `--serif` (**admin portal only**) | Georgia + Plus Jakarta Sans | `Georgia, "Times New Roman", serif` | **Added 2026-09-07.** The admin portal's only addition to the copied block, and the only place the two portals differ. Georgia is a system serif — it restores the design system's `heading`/`amount` face at zero download, so the "no webfonts" rule below is kept rather than broken. Nothing else in the file diverges. |
 
 The first row is the argument for keeping this table: an alpha two hundredths off is invisible in
 review and invisible in a screenshot, and it only surfaced because something read the two files
-side by side. Assume there will be another one.
+side by side. Assume there will be another one — and there are now two files to assume it about.
 
 **Dark only.** The portal hardcodes the dark ramp; there is no `prefers-color-scheme` block. A
 retailer uses this at a counter for thirty seconds to redeem a code, not all day. Shipping a light
@@ -522,4 +532,89 @@ Small on purpose — one stylesheet, no component library, no CSS-in-JS:
   failure would send a retailer to support over something already working.
 - **Focus is visible and gold** — `outline: 2px solid var(--accent)` with an offset, never
   `outline: none`. This is a form-heavy app used by people who may be tabbing through it fast.
+
+---
+
+## 10. Admin portal *(added 2026-09-07)*
+
+`apps/admin-portal` — Next.js 14 App Router, served on :3400. The fourth surface, and the only one
+whose audience is Amana's own staff. Five to ten people, all day, on a desktop. Full operator
+documentation: [`docs/runbook/admin-portal.md`](../runbook/admin-portal.md).
+
+The subject is a control room where the most consequential act is two people agreeing to hand a
+bank account to a merchant. The job of the page is to make *who* and *what* unmistakable before
+**Approve** is pressed. Everything below follows from that sentence.
+
+### 10.1 The duplication, and why it is accepted
+
+Identical to §9.1, for the identical reason: `@amana/ui` ships raw React Native source that a Next
+app cannot consume, so the tokens are duplicated **once**, at the top of
+`apps/admin-portal/app/globals.css`, as CSS custom properties — with a comment block naming
+`packages/ui/src/theme/tokens.ts` as the origin.
+
+That makes **two** copies of the same block, which is worse than one and was still the right call.
+The alternative that removes the debt — a framework-neutral token package — is now serving two
+consumers rather than one, so it has stopped being speculative; but extracting it during a UI build
+would mean touching `packages/ui` and both portals to ship a staff screen. What is not acceptable is
+untracked duplication, which is why §9.2 was widened to a table of *copies* rather than left as a
+table about one file. **If the tokens change, both files change with them.**
+
+### 10.2 Drift
+
+Tracked in **§9.2**, which now covers both copies. The admin portal's block is value-for-value
+identical to the retailer portal's, with exactly one addition: `--serif: Georgia, "Times New Roman",
+serif`. That row carries the reasoning; the short version is that Georgia is already installed
+everywhere, so the design system's heading face comes back at zero download cost and the no-webfonts
+rule survives intact.
+
+### 10.3 Component vocabulary
+
+§9.3's vocabulary carries over — `.card`, `.pill` with `.ok`/`.warn`/`.bad`, `.banner`,
+`.table-wrap` — and four things are added:
+
+- **`.rail`** — a 232px fixed nav, like `.shell`'s, with one difference that is the point of it: the
+  bottom block is **the person**. Email, roles, sign out, always on screen. This sub-plan exists
+  because the audit log could not say who did something; a portal that lets you forget whose
+  session you are in would be undoing that at the interface layer. The rail also carries the count
+  of things waiting for you, in the serif, in gold — the only number on the page rendered that way.
+- **`.approval` / `.seats` / `.seat`** — the two-seat decision line, the one memorable element. Every
+  approval is a ledger line with two seats: the maker's is filled with their email, the checker's is
+  empty and reads *"needs a second person"* until somebody sits in it. Approving fills the seat with
+  you, and nothing else on the page moves. An empty seat on a *decided* row says which ending it
+  was — expired without a decision, withdrawn by the maker — because printing "needs a second
+  person" over a closed row would send an operator hunting for a decision they can no longer make.
+- **`.code`** — the minted `AMNV-…` public code, serif, 24px, gold, letter-spaced. It appears once,
+  at the moment of approval, and is shown nowhere else; the label above it says so, because an
+  operator who closes the card has to read it to the merchant.
+- **`.button-link`** — an anchor styled as the primary button. Sign-in is a page load, not a fetch
+  (the backend answers `/admin/auth/start` with a redirect to Google), so the anchor has to be the
+  control that carries the accessible name. A `<button>` nested inside a link takes that name away.
+
+### 10.4 Portal-specific rules
+
+- **Gold is spent in exactly three places**: the count of things waiting for you, the primary action
+  of a screen, and focus. A dark navy dashboard with gold accents could be any fintech's admin; gold
+  meaning *"this needs you"* and nothing else is what makes it this one.
+- **Every action names its consequence, in plain words.** "Give CORNER SHOP's account to +234 803
+  ••• 4567", not "Approve claim". "Make ada@ an admin", not "Grant role". The sentence is built from
+  the approval's own payload, so it cannot describe a different action than the one the button
+  performs.
+- **Two seats, never one line of status.** "Pending" is a state; "needs a second person" is a
+  request. The second is what an operator can act on.
+- **Status is always colour plus a word.** `.pill` never carries meaning in hue alone, and the word
+  is the pill's content rather than a tooltip.
+- **Render from permissions, never from role names.** A section whose first request would 403 is not
+  in the rail at all. Role names appear in exactly one place — as information *about a person*, in
+  the rail and on their page. This is not a style rule: keeping a second copy of the role matrix in
+  the UI is how the two drift, and only one of them is tested.
+- **Destructive and immediate actions confirm inline, not in a modal.** Suspend and revoke take a
+  second click, next to the thing they are about, where the first click already said what would
+  happen. A modal moves the question away from its subject.
+- **The portal shows no money.** Not a balance, not a settlement, not a fee. `money.operate` is
+  behind JIT elevation in a later task, and a staff surface that displays money before it can
+  control it teaches the wrong habit.
+- **Errors say what happened and what to do; empty states say what would fill them.** A 403 is never
+  explained beyond "You don't have permission for that" — the backend deliberately collapses every
+  `ForbiddenError` to `{ error: 'forbidden' }`, and a helpful UI that reconstructed the reason would
+  hand back exactly what the backend withheld.
 

@@ -1,7 +1,25 @@
 # Google Workspace + OAuth setup for `amana-ng.com`
 
+**Status (2026-09-07): done.** Workspace verified, Gmail live, OAuth app created (Internal), the six
+secrets set on `amana-api`. What remains is listed under "When you are done" at the bottom.
+
 **Blocks:** sub-plan A1 Task 1 (admin identity). Task 1 can be *built* against a stub, but not
 verified against anything real until this is done.
+
+## Where DNS actually lives — read before touching a record
+
+`amana-ng.com` is registered at **Namecheap** and its zone is served by Namecheap BasicDNS
+(`pdns1/pdns2.registrar-servers.com`). Google Workspace was bought through **Bluehost** as a
+reseller, and Bluehost lists the domain as *External* with its own nameservers and an "under
+construction" A record. **Bluehost's DNS panel is not live** — the .com registry delegates to
+Namecheap, and Bluehost's nameservers do not answer for the zone at all. Every record goes in
+**Namecheap → Domain List → Manage → Advanced DNS**. Anything typed into Bluehost's DNS screen is
+silently ignored by the internet.
+
+Records in the live zone as of 2026-09-07: `api` / `api-staging` A+AAAA → Fly; `@` MX 1
+`smtp.google.com`; `@` TXT SPF `v=spf1 include:_spf.google.com ~all`; Google's two verification
+TXTs (site + recovery — **leave both**); `google._domainkey` DKIM (**not yet visible** from outside on 2026-09-07 — add it from Admin → Apps → Gmail → Authenticate email, then click *Start authentication*);
+`_dmarc` `p=none` reporting to `david@`. Nothing at the apex or `www`.
 
 **Who does this:** whoever controls DNS for `amana-ng.com`. It is browser work, not a deploy.
 
@@ -227,8 +245,18 @@ client ID and secret. That unblocks A1 Task 1.
 
 Then tick these in [go-live-checklist](./go-live-checklist.md):
 
-- [ ] `amana-ng.com` owned and DNS controlled
-- [ ] Workspace verified, 2SV enforced
-- [ ] OAuth client created, consent screen **Internal**
-- [ ] `pay.amana-ng.com` confirmed available (⚠️ before any vendor code is printed)
-- [ ] `admin.amana-ng.com` reserved
+- [x] `amana-ng.com` owned and DNS controlled — **Namecheap** (see "Where DNS actually lives")
+- [x] Workspace verified (2026-09-07, Business Standard via Bluehost; first user `david@amana-ng.com`)
+- [ ] 2SV enforced for the organisation (Security → Authentication → 2-Step Verification → Enforcement **On**)
+- [x] OAuth client created, consent screen **Internal** — project `amana-admin-portal` inside
+      organisation `amana-ng.com`; client `amana-api` with both redirect URIs; the six secrets
+      in Part 3 set on `amana-api` 2026-09-07 and `ADMIN_API_KEY` unset
+- [x] `pay.amana-ng.com` confirmed available — no record exists and the zone is ours; add the
+      CNAME + Fly cert at go-live-checklist §6 item 3, not before
+- [x] `admin.amana-ng.com` reserved — same: nothing else claims it; the record is created when
+      the portal deploys (Task 5)
+
+Still open after this runbook: the **first live sign-in** (no real Google ID token has been through
+the code yet — run it locally against `http://localhost:3000/admin/auth/start`, then `GET /admin/me`),
+DKIM **Start authentication** once the `google._domainkey` record has propagated, and the 2SV
+enforcement above.

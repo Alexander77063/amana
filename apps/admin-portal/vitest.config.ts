@@ -17,7 +17,14 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['lib/**/*.test.ts', 'components/**/*.test.tsx', 'app/**/*.test.tsx'],
+    // `test/**` is included so the query harness in test/render.tsx has its own test: every screen
+    // test selects through it, and a helper that quietly returns the wrong node fails silently.
+    include: [
+      'lib/**/*.test.ts',
+      'components/**/*.test.tsx',
+      'app/**/*.test.tsx',
+      'test/**/*.test.tsx',
+    ],
     setupFiles: ['./test/setup.ts'],
     globals: false,
   },

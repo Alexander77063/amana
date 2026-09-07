@@ -172,6 +172,17 @@ button:disabled {
   opacity: 0.55;
   cursor: default;
 }
+/* A link that navigates away but reads as the primary action — sign-in is a page load, not a fetch,
+   so the anchor has to be the control that carries the accessible name. */
+.button-link {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--bg-base);
+  font-weight: 600;
+  padding: 9px 14px;
+  border-radius: 8px;
+  text-decoration: none;
+}
 .row {
   display: flex;
   gap: 10px;

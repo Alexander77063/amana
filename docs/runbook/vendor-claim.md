@@ -14,6 +14,11 @@
 > You need the `ops` role. A signed-in colleague without it gets 403, not 401 — being staff is not
 > the same as being allowed near this surface. Every write below now records **which operator** made
 > it.
+>
+> **There is a UI now (A1 Task 5, 2026-09-07).** The claim queue, vendor search and every action in
+> this document are on the admin portal at `/ops/vendors` — see
+> [`admin-portal.md`](./admin-portal.md). The `curl` below still works and is still the reference for
+> what each endpoint does; it is no longer the only way to work the queue.
 
 
 A shopkeeper whose bank account the passive registry (SP-V1) has already promoted proves
@@ -217,24 +222,39 @@ attempt's `createdAt` — the 409 itself leaves no audit-log trace (see below).
 
 ```bash
 curl "$API/vendors-admin/claim-queue" -b admin.jar
-# -> 200 { "attempts": [ { id, vendorId, phone, status, ownershipProof, expiresAt, verifiedAt, createdAt }, ... ] }
+# -> 200 { "attempts": [ {
+#      id, vendorId, phone, status, ownershipProof, expiresAt, verifiedAt, createdAt,
+#      vendor: { id, displayName, bankCode, accountNumberMasked, status, category,
+#                categorySource, publicCode, promotedHouseholdCount, promotedAt, claimedAt }
+#          | null
+#    }, ... ] }
 ```
 
 `listPendingForOps` (`vendor-claims.repo.ts`) returns up to **200** unexpired `pending`
 rows, newest first. Two things to know before treating this as a worklist:
 
-- **Rows are thin.** `vendor_claim_attempts` carries `vendorId`, not the bank code, account
-  number, or display name a human needs to recognise the business. Join to `vendors` for
-  anything operationally useful:
+- **Rows carry the vendor now** *(changed 2026-09-07, A1 Task 5)*. They used to be thin —
+  `vendor_claim_attempts` holds a `vendorId` and nothing a human can recognise a business by, and
+  the advice here was to run a hand-written SQL join. That was a queue you could not work from the
+  API you were given, which is a strange thing to have shipped and the reason the portal could not
+  show anything about the business being claimed. The route now joins a **vendor summary** onto each
+  row (`apps/backend/src/lib/vendor-summary.ts`), and two read endpoints exist beside it:
 
-  ```sql
-  SELECT a.id, a.phone, a.created_at, a.expires_at,
-         v.display_name, v.bank_code, v.account_number, v.status
-  FROM vendor_claim_attempts a
-  JOIN vendors v ON v.id = a.vendor_id
-  WHERE a.status = 'pending' AND a.expires_at > now()
-  ORDER BY a.created_at DESC;
+  ```bash
+  # search: by display-name substring (case-insensitive) or exact public code; 200 max,
+  # newest promotion first. Both filters optional.
+  curl "$API/vendors-admin/vendors?status=observed&q=corner" -b admin.jar
+  # -> 200 { "vendors": [ <vendor summary>, ... ] }
+
+  curl "$API/vendors-admin/vendors/<vendor-uuid>" -b admin.jar
+  # -> 200 { "vendor": <vendor summary>, "claimAttempts": [ ... ] }
   ```
+
+  **`accountNumberMasked` is `••••1234` — the last four digits, and there is no route that returns
+  the full number.** Ops decides *who owns this account*, and the claim in front of them already
+  carries the bank identity; handing the whole number to every reader of the queue buys nothing and
+  widens what a stolen staff session is worth. If you genuinely need it, it is in `vendors`, in the
+  database, where reading it leaves a different kind of trace.
 - **The phone is raw here, fingerprinted everywhere else.** The queue returns the claimant's
   actual phone number; `audit_log` only ever stores `phoneFingerprint(phone)` (`***1234:` +
   8 hex chars of a SHA-256 digest, `vendor-claim.service.ts`). You cannot search the audit
@@ -248,8 +268,24 @@ curl -X POST "$API/vendors-admin/vendors/<vendor-uuid>/approve-claim" \
   -b admin.jar \
   -H 'content-type: application/json' \
   -d '{"phone":"+2348012345678","category":"food"}'
-# -> 200 {"publicCode": "AMNV-...-...", "displayName": "..."}
+# -> 202 {"approvalId": "<uuid>", "status": "pending"}
+
+# A DIFFERENT admin then decides it:
+curl -X POST "$API/admin/approvals/<approval-uuid>/approve" -b admin2.jar \
+  -H 'content-type: application/json' -d '{"reason":"phone/BVN mismatch, confirmed by call"}'
+# -> 200 {"kind":"vendor_approve_claim","publicCode":"AMNV-...-...","displayName":"..."}
 ```
+
+**This takes two people** *(since A1 Task 4B)*. `approve-claim` no longer claims anything: it
+**proposes**, returning `202` and an approval id, and a second admin holding `vendor.write` — never
+the maker — approves it from the inbox (`/admin/approvals`, or the portal's home screen). The
+minted code comes back to **the checker**, once, and is shown nowhere else, so whoever approves is
+the person who has to read it to the merchant. Declining needs `vendor.write` too: the permission to
+decline is the permission to decide.
+
+The rest of this section describes what happens **when the approval is applied**, not when it is
+proposed. Everything is re-checked at that moment against the world as it then is — the vendor may
+have been claimed by the self-service rail, or suspended, in the days between.
 
 This is the escape hatch for the 409 dead end above — a real business whose phone genuinely
 isn't the one NIBSS has on file for its account. Approving:
@@ -281,11 +317,13 @@ Two failure shapes an operator will hit:
   a business's behalf entirely out-of-band (a phone call, a support ticket), not only to
   resolve a stuck queue entry.
 
-**This is a powerful action.** `approve-claim` assigns a business identity on an operator's
-say-so alone. The admin key that reaches this route is, from this sub-plan on, a credential
-that can mint a vendor's public identity — treat `ADMIN_API_KEY` accordingly (rotation,
-access logging, whatever your ops-key handling already does for the retailer surface it's
-shared with).
+**This is a powerful action.** `approve-claim` assigns a business identity on an operator's say-so
+alone. This paragraph used to say "treat `ADMIN_API_KEY` accordingly" — **that secret no longer
+exists** (deleted in A1 Task 4; see the banner at the top of this file), and the note contradicted
+its own document. What guards the action now is stronger and needs no key hygiene at all: a named
+Google Workspace session, the `vendor.write` permission, **two different people**, and an
+`audit_log` row naming both of them. Offboarding is Google's job — disable the Workspace account and
+this access dies with it, with no rotation to co-ordinate and nobody else locked out.
 
 ### The queue-depth trigger for SP-V2b (micro-deposit verification)
 

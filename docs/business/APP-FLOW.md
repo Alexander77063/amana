@@ -19,12 +19,21 @@
 > and remain correct as history. It also carries the only actor in this document who is **not an
 > Amana user** — the shopkeeper being paid.
 >
+> **Amended 2026-09-07.** New **§9, the staff flows** — the admin portal (`apps/admin-portal`,
+> sub-plan A1 Task 5): sign-in, the two-seat approval, claim → propose → approve, the retailer
+> lifecycle, and onboarding plus role grants. It is the first surface documented here whose actor
+> works *for* Amana. Two passages were also **wrong, not merely thin**, and are corrected in place:
+> §8.4 said the ops surfaces were authenticated by `ADMIN_API_KEY` with "no UI" — that secret was
+> deleted in A1 Task 4 and there is now a UI — and §7.1's ops column said "admin key" for the same
+> reason. §8.4 also now shows the claim queue's real response shape (rows carry a masked vendor
+> summary) and the two vendor read endpoints added in Task 5.
+>
 > Index: [`docs/product/README.md`](../product/README.md)
 
 **Version:** 1.0 | **Date:** 2026-05-13
-**Apps covered:** Principal (iOS + Android) · Agent (Android first, iOS secondary) · plus two
-surfaces belonging to neither app: the retailer portal (§7, web) and the vendor claim rail and
-public code page (§8, web + unauthenticated)
+**Apps covered:** Principal (iOS + Android) · Agent (Android first, iOS secondary) · plus three
+surfaces belonging to neither app: the retailer portal (§7, web), the vendor claim rail and public
+code page (§8, web + unauthenticated), and the staff admin portal (§9, web)
 
 > **Executive summary:** Amana has two separate mobile apps — Principal and Agent — built in React Native (Expo). The principal controls and funds; the agent spends within rules. This document maps every screen, transition, and deep-link in both apps, plus the shared transaction lifecycle that connects them.
 
@@ -481,8 +490,8 @@ opens a web page; they do not install anything.
 ### 7.1 Claiming the business
 
 ```
-ops (admin key)                         RETAILER OWNER
-───────────────                         ──────────────
+ops (staff session, retailer.write)     RETAILER OWNER
+───────────────────────────────────     ──────────────
 POST /retailers  { businessName,
                    payout account }
   → records the CONTACT PHONE the
@@ -623,21 +632,212 @@ a hostname, which is exactly and only what a printed sticker creates. See
 [`runbook/go-live-checklist.md`](../runbook/go-live-checklist.md) §6. **This blocks printing, not
 launch** — the scan path needs no public hostname and works today.
 
-### 8.4 Ops surfaces
+### 8.4 Ops surfaces *(rewritten 2026-09-07 — both halves of the old sentence were false)*
 
-Admin-key authenticated (`ADMIN_API_KEY`), no UI — `curl` against `/vendors-admin`:
+This used to read "admin-key authenticated (`ADMIN_API_KEY`), no UI — `curl`". Neither half is true
+any more. `ADMIN_API_KEY` was **deleted** in sub-plan A1 Task 4 and every route below requires a
+named staff session with `vendor.read` / `vendor.write`; and since Task 5 there **is** a UI — the
+admin portal's `/ops/vendors`, §9.3 below. `curl` with a session cookie still works and is what
+[`runbook/vendor-claim.md`](../runbook/vendor-claim.md) documents.
 
 ```
-GET  /vendors-admin/claim-queue                    attempts awaiting a human
-POST /vendors-admin/vendors/:id/approve-claim      claim for the real business; needs NO
-                                                   pending row, so ops are never blocked
-                                                   by whoever holds the queue
+GET  /vendors-admin/claim-queue                    attempts awaiting a human — each row now
+                                                   carries a `vendor` summary (name, bank code,
+                                                   account number MASKED to ••••1234, status,
+                                                   category, public code) so the queue is
+                                                   readable without a join
+GET  /vendors-admin/vendors?status=&q=             search: name substring or exact public code,
+                                                   newest promotion first, capped at 200
+GET  /vendors-admin/vendors/:id                    one vendor + its claim attempts
+POST /vendors-admin/vendors/:id/approve-claim      PROPOSES the claim — 202 {approvalId,status};
+                                                   a second admin approves it in the inbox.
+                                                   Needs NO pending queue row, so ops are never
+                                                   blocked by whoever holds the queue
 POST /vendors-admin/vendors/:id/category           set an ENFORCEABLE category
 POST /vendors-admin/vendors/:id/suspend            revoke enforcement, keep observing
 POST /vendors-admin/households/:id/enforcement     per-household switch — shadow vs enforce
 ```
 
+**The account number is masked on every one of these reads.** Ops decides *who owns this account*,
+and the claim itself carries the bank identity; handing the full number to every reader of the queue
+buys nothing and widens what a compromised staff session is worth.
+
 **Suspension revokes enforcement but still returns the row**, so shadow logging keeps recording. And
 there is **no unsuspend route**: it needs a prior-status column to restore to, which makes it SP-V2b
 scope rather than a bolt-on. The SQL workaround is in the runbook.
+
+---
+
+## 9. Staff flows — the admin portal *(added 2026-09-07)*
+
+`apps/admin-portal`, Next.js 14 on :3400 — the fourth surface, and the only one whose actor works
+*for* Amana. Sub-plan A1 Task 5; operator documentation in
+[`runbook/admin-portal.md`](../runbook/admin-portal.md).
+
+Drawn at the route-and-call level rather than the widget level, deliberately: the screens will be
+rearranged and the contract will not, and a flow pinned to a layout is stale the first time somebody
+moves a button.
+
+**One structural fact underneath all five flows.** The portal answers `/admin/*`, `/vendors-admin/*`
+and `/retailers/*` itself and forwards them to the API, because the staff session is a **host-only**
+cookie — it belongs to the host that set it, so the portal has to be that host. Every arrow below
+that reaches the API passes through that proxy, and every screen renders from the **permissions**
+`/admin/me` returned, never from a role name.
+
+### 9.1 Signing in
+
+```
+STAFF                                   PORTAL (:3400)              API
+─────                                   ──────────────              ───
+opens admin.amana-ng.com
+  └── (portal) GET /admin/me ────────────────────────────────────→ 401, no cookie
+        └── redirect → /sign-in
+              └── "Sign in with Google"  ← a LINK, not a fetch: the
+                    href="/admin/auth/start"  next hop is Google's page
+                    └── proxied ──────────────────────────────────→ 302 → accounts.google.com
+                          └── Google: Workspace account only
+                                └── /admin/auth/callback ─────────→ verify state + code,
+                                      (proxied; 302 + Set-Cookie      match amana-ng.com,
+                                       copied through verbatim)       find the onboarded admin
+                                      └── → "/" with the session cookie now on the PORTAL host
+
+  ✗ anything goes wrong → → → → → → → → → /sign-in?error=sign_in_failed
+        └── one banner: try again with your amana-ng.com account; if it keeps failing
+            an admin has to check your access has been set up
+            (never "no such account" — a staff-facing enumeration oracle is still one)
+```
+
+**Why the sign-in page is the fussiest file in the app.** Reading `?error=` means
+`useSearchParams`, which Next 14 refuses to prerender without a `<Suspense>` boundary. The banner is
+wrapped and the link is not, so the control paints instantly and only the failure message waits.
+
+### 9.2 The inbox — one decision, two seats
+
+```
+/  (any signed-in session — no permission gate on the page itself)
+├── GET /admin/approvals?status=pending
+│     scoped per kind by the backend:
+│       role_grant           ← iam.read OR iam.write
+│       vendor_approve_claim ← vendor.read OR vendor.write
+│       + everything YOU proposed, always
+│     ⇒ no matching permission returns an EMPTY LIST, not a 403
+├── GET /admin/approvals?status=decided   (the last 20, for reading back)
+└── each row is a ledger line with two seats:
+
+      ┌ Give CORNER SHOP's account to +234 803 ••• 4567 ──────────┐
+      │ [ proposed by ops1@amana-ng.com ] [ needs a second person ]│
+      │                                     expires in 6 days      │
+      └────────────────────────────────────────────────────────────┘
+        ├── you are the MAKER      → Withdraw   POST …/cancel     (maker only, no permission)
+        ├── you may DECIDE          → Approve   POST …/approve  ┐ both need the permission
+        │   (not the maker, and     → Decline   POST …/reject   ┘ that KIND requires:
+        │    pending, and hold          role_grant → iam.write · claim → vendor.write
+        │    the deciding permission)
+        └── otherwise               → you can see it and you cannot act on it
+
+  approving a vendor claim returns the minted code ⇒ shown ONCE, in gold, with
+  "read this to the merchant — it is shown nowhere else"
+```
+
+An empty checker seat on a **decided** row names its ending instead — *expired without a decision*,
+*withdrawn by the maker* — because two of the four endings never seat a checker at all, and printing
+"needs a second person" over a closed row sends an operator hunting for a decision they cannot make.
+
+### 9.3 Vendor claim → propose → approve
+
+The only flow in Amana that needs two named people and crosses two screens.
+
+```
+OPS 1                                          OPS 2 (a different person)
+─────                                          ─────────────────────────
+/ops/vendors                    (vendor.read)
+├── GET /vendors-admin/claim-queue
+│     rows now carry the VENDOR: name, bank
+│     code, ••••1234, status, category
+│     ⇒ the queue is finally readable without
+│       a hand-written SQL join
+├── GET /vendors-admin/vendors?status=&q=
+│     search by shop name, or paste a code
+└── propose               (vendor.write)
+      POST /vendors-admin/vendors/:id/approve-claim
+        { phone, category }
+      → 202 { approvalId, status: 'pending' }
+      → "Proposed. A second ops colleague has
+         to approve it in the inbox."
+                                               /  (the inbox, §9.2)
+                                               └── the claim is there because OPS 2
+                                                   holds vendor.read
+                                                     └── Approve   (needs vendor.write)
+                                                           ⇒ re-checked against the world
+                                                             as it is NOW — the vendor may
+                                                             have been claimed or suspended
+                                                             since the proposal
+                                                           ⇒ mints AMNV-XXXXX-XXXXX
+                                                           ⇒ ownership_proof = 'ops'
+                                                           ⇒ audit row in the SAME txn
+```
+
+`/ops/vendors/[id]` (`vendor.read`) is the same vendor read plus its consent log; from there
+`vendor.write` sets an enforceable category, suspends the vendor, revokes a consent, or flips one
+household's registry enforcement. **Those four are immediate, not maker-checked** — they remove
+standing rather than create it, and delay is the harmful direction for all of them.
+
+### 9.4 Retailer lifecycle
+
+The staff half of §7; the retailer's own half is unchanged.
+
+```
+/ops/retailers                      (retailer.read)
+├── GET /retailers?status=applied|kyb_pending|approved|suspended
+└── create                          (retailer.write)
+      POST /retailers { businessName, payoutBankCode, payoutAccountNumber }
+        ⇒ the owner claims it later by signing in with the contact phone (§7.1)
+
+/ops/retailers/[id]                 (retailer.read)
+├── GET /retailers/:id
+└──                                 (retailer.write)
+      POST /retailers/:id/kyb      { bvn, rcNumber?, email? } → kyb_pending
+            ⇒ Anchor rules on it; the webhook moves it to approved or suspended
+      POST /retailers/:id/approve  → approved   (stamps approved_at)
+      POST /retailers/:id/suspend  → suspended  (asymmetric — see §7.2)
+```
+
+Every one of these writes an `audit_log` row naming the operator. Before A1 Task 4 the retailer
+routes wrote **no audit row at all**: approving a retailer admits a business to the marketplace and
+suspending one cuts off its income, and neither left any trace that it had happened, by anyone.
+
+### 9.5 Onboarding a colleague, and granting them a role
+
+```
+/people                                        (iam.read)
+├── GET /admin/iam/admins
+│     email · roles · active/suspended · config-or-admin provisioned · last signed in
+└── onboard                                    (iam.write)
+      POST /admin/iam/admins { email }
+        ⇒ REFUSES any address outside the Workspace domain — the boundary is enforced on
+          the way IN as well as at sign-in, because a record that could never sign in is
+          not a useful thing to create
+        ⇒ creates the person with NO roles
+
+/people/[id]                                   (iam.read)
+├── GET /admin/iam/admins/:id/roles
+├── grant                                      (iam.write)
+│     POST /admin/iam/admins/:id/roles { role, reason }
+│       → 202 { approvalId, status: 'pending' }   ⇒ a REQUEST, not a change
+│           └── a second admin approves it in the inbox (§9.2)
+│           ⚠ the ONE exception: the config-seeded bootstrap account comes back
+│             already 'approved', which is how the very first grant is possible at all
+└── revoke                                     (iam.write)
+      POST /admin/iam/admins/:id/roles/revoke { role, reason }
+        → 204, immediate, no second person
+        ⇒ and you cannot change your OWN roles, ever, either way
+```
+
+**Why granting waits and revoking does not.** A grant creates standing — a role converts into every
+permission it carries, and `iam.write` converts into all of them — so it takes two people. A
+revocation removes standing, and making *that* wait for a second person is how you keep giving
+access to someone you have decided should not have it. The break-glass stand-down in
+[`runbook/google-workspace-setup.md`](../runbook/google-workspace-setup.md) is exactly this
+asymmetry being used on purpose: the newly onboarded admin revokes the bootstrap account's `admin`
+role, alone, from this screen.
 

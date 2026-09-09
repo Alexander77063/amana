@@ -1,11 +1,22 @@
 # Amana — database schema
 
-**Date:** 2026-08-25 · **Source of truth:** `apps/backend/src/db/schema/*.ts` (Drizzle)
+**Date:** 2026-08-25 · **Refreshed:** 2026-09-09 · **Source of truth:** `apps/backend/src/db/schema/*.ts` (Drizzle)
 **Supersedes** [`BACKEND-SCHEMA.md`](../business/BACKEND-SCHEMA.md), which predates the VAS,
 marketplace, sticker and recents schema files.
 
-Generated from the schema as it stands: **30 tables, 29 enums, 35 migrations.** Where this document
+Current as of 2026-09-09: **40 tables, 40 enums, 49 migrations.** Where this document
 and the code disagree, the code is right — but tell someone, because that means this drifted.
+
+> **Refresh, 2026-09-09 — this document had drifted in exactly the way it warns about.**
+> The 2026-08-25 version said *30 tables, 29 enums, 35 migrations*. Ten tables were missing:
+> the five-table admin/IAM subsystem (sub-plan A1), the two consent logs, and the three vendor
+> registry tables. That is the same failure this document was written to fix — it superseded
+> `BACKEND-SCHEMA.md` for predating five schema files, and then came to predate ten itself,
+> in fifteen days.
+>
+> **What was already right and is unchanged:** all three invariants, every table group below
+> through "Observability & prefs", and the forward-only migration policy. Nothing was rewritten;
+> the missing tables are appended in their own section, in this document's notation.
 
 ## The three invariants that matter more than the tables
 
@@ -72,9 +83,57 @@ because a sold voucher must still be able to name what was bought.
 **Observability & prefs** — `audit_log` (immutable), `notifications`,
 `notification_preferences`, `subwallet_snooze`, `phone_otp_challenges`
 
+**Admin & IAM** (added 2026-08-28 → 09-09, sub-plan A1) — `admin_users`, `admin_sessions`,
+`admin_auth_requests`, `admin_role_grants`, `admin_approvals`
+
+**Consent** — `user_consents`, `vendor_consents`
+
+**Vendor registry** — `vendors`, `vendor_observations`, `vendor_claim_attempts`
+
+### Admin & IAM — three decisions the tables encode
+
+**Staff are deliberately not rows in `users`.** `users` requires `phone` (unique), `nin` (NOT NULL)
+and a `kyc_tier` — it models a Nigerian customer who has passed KYC. Putting staff there would mean
+inventing a National Identity Number per employee, sitting in the same encrypted column as real
+customers' NINs, purely to satisfy a NOT NULL. Staff have no wallet, no household and no NIN we are
+entitled to hold, so they get their own table and `audit_log` grows a second actor column instead
+(migration `0042`).
+
+**`admin_users` has no role column.** Roles live in `admin_role_grants`, an append-only log of grant
+*events* rather than a set of roles per admin — modelled directly on `vendor_consents`, for the same
+reason. An incident review asks "what could this person do **at the time they did it**", and a
+mutable set only knows the present. A revocation is a new row; nothing is ever UPDATEd or DELETEd.
+A row in `admin_users` proves *who* someone is and nothing about what they may do, which is least
+privilege expressed in the schema.
+
+**`admin_approvals` gates only the direction that creates power.** Maker-checker covers role grants
+and vendor claim approvals — the two actions that create authority, one over the system and one over
+a bank account. Every *removal* is ungated: revoking a role, suspending a vendor and revoking a
+merchant's consent all take one person, because requiring two would leave the dangerous state in
+place while a second admin is found.
+
+### Consent — append-only, for the same reason twice
+
+`user_consents` and `vendor_consents` are both append-only logs, never mutable flags. The question a
+dispute or a regulator actually asks is "what had this person agreed to **at the time**", and a
+boolean only knows the present. `termsVersion` is recorded per grant, because a grant is only
+meaningful against the terms it was given under.
+
+### Vendor registry — the sensitive one
+
+`vendors` is a payment graph over Nigerian bank accounts, built from `vendor_observations`. **It is
+exposed by no route.** The promotion threshold and the retention sweep are what keep it defensible,
+and `vendor_recents` cannot serve the purpose — `recentsService.touch` trims to the ten most recent
+per sub-wallet on every write, so it destroys its own history by design.
+
+`vendor_claim_attempts` holds one in-flight claim by a phone number against one registry vendor. It
+exists because the OTP challenge is keyed by phone alone: something must remember *which* account
+the phone claimed between request and verify, and it must not be the client — otherwise the verify
+step could redirect a legitimately-earned OTP at a different vendor.
+
 ## Migrations
 
-35, in `apps/backend/src/db/migrations/`, generated with `drizzle-kit` and applied in production by
+49, in `apps/backend/src/db/migrations/`, generated with `drizzle-kit` and applied in production by
 the Fly `release_command`. **Forward-only** — a rollback across a migration boundary needs a
 hand-written down-migration, which makes any release containing one a release you cannot cheaply
 undo.

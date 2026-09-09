@@ -14,15 +14,15 @@ export type AdminActorVariables = { adminActor: AdminActor };
 /**
  * Authenticate a member of staff from their session cookie.
  *
- * This is the replacement for `admin-auth.ts`'s shared `x-admin-api-key`, and the two live side
- * by side deliberately until Task 4 cuts the 13 ops endpoints over and deletes the key. Do not
- * shortcut that: a fallback from one to the other would be the original vulnerability with extra
- * steps, which is exactly what the plan says not to build.
+ * This replaced `admin-auth.ts`'s shared `x-admin-api-key`. **Task 4 completed that cutover:**
+ * the 13 ops endpoints now authenticate here, `admin-auth.ts` is deleted and `ADMIN_API_KEY` is
+ * gone from `env.ts` rather than deprecated. There is deliberately no fallback between the two
+ * paths, and none should be added — a fallback would be the original vulnerability with extra
+ * steps.
  *
  * It AUTHENTICATES only. It answers "which member of staff is this", never "may they do this" —
- * there are no roles until Task 2, and when there are, the permission check belongs in the
- * service layer for the same reason `wallet-access.service` does: a check a route performs is a
- * check the next caller can forget.
+ * the permission check belongs in the service layer (see `admin-iam.service`) for the same reason
+ * `wallet-access.service` does: a check a route performs is a check the next caller can forget.
  */
 export const adminSession =
   (): MiddlewareHandler<{ Variables: AdminActorVariables }> => async (c, next) => {

@@ -19,12 +19,20 @@
 > and remain correct as history. It also carries the only actor in this document who is **not an
 > Amana user** — the shopkeeper being paid.
 >
+> **Amended 2026-09-09.** New **§9, the admin & ops arc** — Google Workspace staff identity, the
+> five fixed roles, the append-only grant log and maker-checker. Sub-plan A1 shipped between
+> 2026-08-28 and 2026-09-09, *after* §8 was written, and had **no flow here at all** — the same gap
+> §8 existed to close for the vendor arc, recurring within a fortnight. §9 carries the fourth actor
+> and the first who is **Amana staff rather than a customer**. It is documented as an **API surface
+> with no screens**, because `apps/` contains no admin app; drawing screens would repeat the §1.1
+> and §2.5 mistake this file already had to correct.
+>
 > Index: [`docs/product/README.md`](../product/README.md)
 
 **Version:** 1.0 | **Date:** 2026-05-13
-**Apps covered:** Principal (iOS + Android) · Agent (Android first, iOS secondary) · plus two
-surfaces belonging to neither app: the retailer portal (§7, web) and the vendor claim rail and
-public code page (§8, web + unauthenticated)
+**Apps covered:** Principal (iOS + Android) · Agent (Android first, iOS secondary) · plus three
+surfaces belonging to neither app: the retailer portal (§7, web), the vendor claim rail and
+public code page (§8, web + unauthenticated), and the admin API (§9, no client)
 
 > **Executive summary:** Amana has two separate mobile apps — Principal and Agent — built in React Native (Expo). The principal controls and funds; the agent spends within rules. This document maps every screen, transition, and deep-link in both apps, plus the shared transaction lifecycle that connects them.
 
@@ -641,3 +649,92 @@ POST /vendors-admin/households/:id/enforcement     per-household switch — shad
 there is **no unsuspend route**: it needs a prior-status column to restore to, which makes it SP-V2b
 scope rather than a bolt-on. The SQL workaround is in the runbook.
 
+
+---
+
+## 9. Admin & ops arc — staff identity, roles, maker-checker *(added 2026-09-09)*
+
+The fourth actor, and the first who is **Amana staff rather than a customer**. Sub-plan A1 shipped
+between 2026-08-28 and 2026-09-09, after §8 was written, and had no flow documented at all — the
+same gap §8 was added to close for the vendor arc.
+
+**There is no admin app.** `apps/` holds `principal`, `agent`, `retailer-portal` and `backend`, and
+nothing else. This arc is an **API surface only**: routes under `/admin/*`, carrying a session
+cookie, with no screens yet. Documented here as endpoints deliberately, rather than drawn as screens
+that do not exist — the mistake this file already had to correct once for §1.1 and §2.5.
+
+Schema in [`product/database-schema.md`](../product/database-schema.md) → *Admin & IAM*.
+
+### 9.1 A member of staff signs in — Google Workspace, no password
+
+```
+STAFF (an amana-ng.com Workspace account, no Amana user row)
+  └── GET  /admin/auth/start                    → redirect to Google OIDC
+        └── one row in admin_auth_requests       ← the in-flight request; state lives server-side
+  └── GET  /admin/auth/callback                 ← Google returns
+        ├── verify, match on Workspace email
+        ├── admin_sessions row created
+        └── Set-Cookie: amana_admin_session
+  └── GET  /admin/me                            → who am I, and what roles do I currently hold
+  └── POST /admin/auth/logout                   → session revoked
+```
+
+**Staff are not rows in `users`, and that is a data-protection decision rather than a modelling
+preference.** `users` demands `phone`, `nin` and a `kyc_tier`; putting staff there would mean
+fabricating a National Identity Number per employee, in the same encrypted column as real customers'
+NINs, purely to satisfy a NOT NULL. So `audit_log` grew a second actor column instead (`0042`).
+
+**The first owner is seeded from `ADMIN_BOOTSTRAP_OWNER_EMAIL`, never minted by an endpoint.**
+`admin_users.provisioning_source` records which path created each row (`config` vs `admin`), because
+that invariant is only auditable afterwards if the row says so.
+
+**The shared `x-admin-api-key` is gone, not deprecated.** Task 4 cut all 13 ops endpoints over to
+this session and deleted the key from `env.ts`. There is deliberately **no fallback** between the
+two paths: a fallback would be the original vulnerability with extra steps.
+
+### 9.2 Roles are a log of events, not a set of flags
+
+Five fixed roles — `owner`, `admin`, `ops`, `support`, `auditor`. Fixed rather than a granular
+permission matrix, so "who can do what" stays answerable by reading one table, and because a role
+can be added later whereas a granular matrix cannot be un-shipped.
+
+```
+GET  /admin/iam/admins                      list staff
+POST /admin/iam/admins                      onboard a colleague
+GET  /admin/iam/admins/:id/roles            current roles — a FOLD of the grant log
+POST /admin/iam/admins/:id/roles            propose a grant   ──▶ maker-checker (§9.3)
+POST /admin/iam/admins/:id/roles/revoke     revoke            ──▶ takes effect immediately
+```
+
+**`admin_role_grants` is append-only.** A revocation is a new row; nothing is ever UPDATEd or
+DELETEd. Modelled directly on `vendor_consents`, for the same reason: an incident review asks *what
+could this person do at the time they did it*, and a mutable set only knows the present.
+
+A row in `admin_users` therefore proves **who** someone is and nothing about what they may do. That
+is least privilege expressed in the schema rather than in a middleware.
+
+### 9.3 Maker-checker gates only the direction that creates power
+
+```
+MAKER proposes ──▶ admin_approvals row (status = pending)
+                     │
+       ┌─────────────┼─────────────┬──────────────────────┐
+       ▼             ▼             ▼                      ▼
+  POST /approve  /reject       /cancel            hourly sweep, 0 * * * *
+  (a DIFFERENT   (a different   (the maker         └── 7-day TTL → status = expired
+   admin)         admin)         withdraws)            WRITTEN, not computed at read time
+```
+
+Two actions are gated, and they are the two that **create** authority: a role grant (power over the
+system) and a vendor claim approval (power over a bank account).
+
+**Every removal is ungated, deliberately.** Revoking a role, suspending a vendor and revoking a
+merchant's consent each take one person. Requiring two would leave the dangerous state in place
+while a second admin is found — so the gate belongs on the direction that creates power, never on
+the one that removes it.
+
+**The expiry is written as a status transition rather than computed at read time**, which is the
+whole reason the sweep job exists: a `pending` row that has silently stopped working is a row an
+operator will keep clicking approve on, with nothing to explain why nothing happens. Hourly rather
+than per-minute, because a seven-day TTL is not time-critical to the minute — unlike a customer
+waiting on a bump.

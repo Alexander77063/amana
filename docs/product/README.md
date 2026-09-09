@@ -11,20 +11,27 @@ history rather than specification until it is refreshed.
 **124 feature commits have landed since**, including the whole marketplace (SP1–SP5b), digital VAS,
 retailer onboarding with Anchor Business KYB, and the retailer portal.
 
-**All ten rows are now current.** The four May documents were refreshed on 2026-08-25 — the same
-day this index first recorded them as stale. Each carries a banner naming what changed and what was
-already right; none was rewritten from scratch. See *What refreshing them involved*, below.
+**Re-audited 2026-09-09, and four rows had drifted again in fifteen days.** Sub-plan A1 — the
+admin portal and IAM — shipped between 2026-08-28 and 2026-09-09 and was **absent from every one
+of these documents**: no requirements in the RRD, no flow in APP-FLOW, and ten tables missing from
+the schema doc. The 2026-08-25 refresh was real and its work stands; what it could not do was stay
+true through a subsystem that landed after it. All four are now corrected — see *The 2026-09-09
+re-audit*, below.
+
+The four May documents were refreshed on 2026-08-25 — the same day this index first recorded them
+as stale. Each carries a banner naming what changed and what was already right; none was rewritten
+from scratch. See *What refreshing them involved*, below.
 
 ## The set
 
 | # | Required | Lives at | Status |
 |---|---|---|---|
 | 1 | **PRD** | [`docs/business/PDR.md`](../business/PDR.md) | ✅ **CURRENT** — v1.1, refreshed 2026-08-25. Marketplace, VAS, the control fusion and the retailer as a second customer added; the May problem statement and market analysis were still right and stand unchanged. |
-| 2 | **TRD** | [`docs/business/RRD.md`](../business/RRD.md) + [`docs/adr/`](../adr/) | ✅ **CURRENT** — refreshed 2026-08-25. Retailer auth (AUTH-10–14), the `merchant` rule and the six rule kinds (RULE-9–14), and new §1.12–1.14 for VAS, marketplace and retailer onboarding. The five ADRs still hold. |
+| 2 | **TRD** | [`docs/business/RRD.md`](../business/RRD.md) + [`docs/adr/`](../adr/) | ✅ **CURRENT** — refreshed 2026-08-25, **§1.15 admin portal & IAM added 2026-09-09** (17 requirements, IAM-1–17; the subsystem had none at all), plus a staff-auth row in §2.2. Retailer auth (AUTH-10–14), the `merchant` rule and the six rule kinds (RULE-9–14), and new §1.12–1.14 for VAS, marketplace and retailer onboarding. The five ADRs still hold. |
 | 3 | **MVP scope** | [`mvp-scope.md`](./mvp-scope.md) | ✅ **CURRENT** — rewritten 2026-08-25. The MVP shipped; this now states what is in, what is deliberately out, and where the cut line moved. |
-| 4 | **User flow** | [`docs/business/APP-FLOW.md`](../business/APP-FLOW.md) | ✅ **CURRENT** — refreshed 2026-08-25, amended 2026-08-26 and 2026-08-27. **§8 vendor arc added 2026-08-27**: the passive registry, the claim rail (post-Gate-3 two-step shape) and the payable code — SP-V1/V2/V3 had shipped with no flow documented at all, and §7.1 covers a different rail with a different actor. Added §3.6 VAS, §6 marketplace incl. the control fusion drawn as a two-column sequence, §7 retailer portal; SP-V3's vendor-code scan branch added to §3.2. **Correction:** the 2026-08-25 note claimed the principal *and* agent wallet flows were accurate. The agent ones were. §1.1's `PayTab` and all of §2.5 (principal direct spend) describe screens that do not exist in `apps/principal/src/`; both are now marked NOT BUILT in place. |
+| 4 | **User flow** | [`docs/business/APP-FLOW.md`](../business/APP-FLOW.md) | ✅ **CURRENT** — refreshed 2026-08-25, amended 2026-08-26, 08-27 and **09-09**. **§9 admin & ops arc added 2026-09-09** — staff SSO, the five roles, the append-only grant log, maker-checker. Documented as an API surface because `apps/` contains no admin client. **§8 vendor arc added 2026-08-27**: the passive registry, the claim rail (post-Gate-3 two-step shape) and the payable code — SP-V1/V2/V3 had shipped with no flow documented at all, and §7.1 covers a different rail with a different actor. Added §3.6 VAS, §6 marketplace incl. the control fusion drawn as a two-column sequence, §7 retailer portal; SP-V3's vendor-code scan branch added to §3.2. **Correction:** the 2026-08-25 note claimed the principal *and* agent wallet flows were accurate. The agent ones were. §1.1's `PayTab` and all of §2.5 (principal direct spend) describe screens that do not exist in `apps/principal/src/`; both are now marked NOT BUILT in place. |
 | 5 | **Design system** | [`packages/ui`](../../packages/ui) (source of truth) + [`UI-UX-DESIGN-BRIEF.md`](../business/UI-UX-DESIGN-BRIEF.md) + [`brand.md`](../brainstorm/brand.md) | ✅ **CURRENT** — v1.1, refreshed 2026-08-25. The brief's palette and typeface were **wrong**, not merely incomplete — §3 and §4 are corrected to the shipped tokens, and §9 covers the retailer portal. Details below. |
-| 6 | **Database schema** | [`database-schema.md`](./database-schema.md) | ✅ **CURRENT** — rewritten 2026-08-25 from `apps/backend/src/db/schema/`. Supersedes `BACKEND-SCHEMA.md`, which predates five of the fifteen schema files. |
+| 6 | **Database schema** | [`database-schema.md`](./database-schema.md) | ✅ **CURRENT** — rewritten 2026-08-25, **refreshed 2026-09-09**: it had gone from 30 tables to 40 with **ten undocumented**, and 35 migrations to 49. It superseded `BACKEND-SCHEMA.md` for predating five schema files, then came to predate ten itself in fifteen days. |
 | 7 | **Monetisation** | [`docs/business/PRICING.md`](../business/PRICING.md) | ✅ **CURRENT** — 2026-07-01, confirmed against Anchor's real pricing schedule. The most load-bearing document here. **§8 added 2026-08-27** — adjacent revenue from operational by-products (the merchant cash-flow graph, category codes, verified-payee identity), explicitly marked strategy rather than model, with the `observed`/`claimed` consent boundary written down. |
 | 8 | **Launch plan** | [`launch-plan.md`](./launch-plan.md) | ✅ **NEW** — 2026-08-25. Was a genuine gap; `go-live-checklist.md` covers ops readiness only, not sequence, gates or rollback. |
 | 9 | **User acquisition** | [`user-acquisition.md`](./user-acquisition.md) | ✅ **NEW** — 2026-08-25, building on [`embedded-distribution-strategy.md`](../business/embedded-distribution-strategy.md). |
@@ -36,6 +43,57 @@ They were written before this index existed, and they are good. Moving them woul
 that points at them and would gain nothing. **Extend the real document; do not write a second copy.**
 Two versions of a PRD drift within a week, and then neither can be trusted — which is precisely the
 failure this index exists to prevent.
+
+## The 2026-09-09 re-audit — the same failure, fifteen days later
+
+**Reference date: 2026-09-09.** 39 commits since the 2026-08-27 amendment, of which 11 touched
+`apps/` or `packages/`. One subsystem accounts for almost all of it: **sub-plan A1, the admin
+portal and IAM** — staff identity on Google Workspace SSO, five fixed roles, an append-only grant
+log, maker-checker on the actions that create authority, and the deletion of the shared ops secret.
+
+It was in **none** of the ten documents. Specifically, and each of these was checked rather than
+assumed:
+
+| Document | What was missing |
+|---|---|
+| TRD (`RRD.md`) | A grep for staff identity, Workspace SSO, maker-checker or `admin_role` returned **zero** matches |
+| User flow (`APP-FLOW.md`) | Sections ran 1–8, ending at the vendor arc. No admin section existed |
+| Schema (`database-schema.md`) | Claimed *30 tables, 29 enums, 35 migrations*. Reality: **40 tables, 40 enums, 49 migrations**, with ten tables undocumented |
+
+The ten missing tables: `admin_users`, `admin_sessions`, `admin_auth_requests`,
+`admin_role_grants`, `admin_approvals`, `user_consents`, `vendor_consents`, `vendors`,
+`vendor_observations`, `vendor_claim_attempts`.
+
+### The uncomfortable pattern
+
+This is the **third** time the same shape of defect has been recorded in this index.
+
+1. `BACKEND-SCHEMA.md` was superseded for predating five schema files.
+2. The vendor arc (SP-V1/V2/V3) shipped with **no flow documented at all**, caught 2026-08-27.
+3. The admin arc shipped with no flow, no requirements and no schema — caught today.
+
+The schema document written *to fix* problem 1 became problem 3 in fifteen days. The flow section
+added *to fix* problem 2 was followed by the identical gap in the very next subsystem.
+
+**A dated audit is not a mechanism.** Each of these was found by someone deciding to look, and
+between decisions the documents drift at the speed the code ships. The standing rule is that a
+document is updated *in the same commit as the change that invalidates it* — an A1 PR should have
+carried its own RRD requirements, its own APP-FLOW section and its own schema rows, and none of
+them did. Until that holds, expect a fourth instance.
+
+The cheap partial guard already exists and works:
+[`tools/docs/validate-tables.py`](../../tools/docs/validate-tables.py) catches malformed tables
+across 92 files. **A comparable check for the schema doc is mechanisable** — the table count and
+names can be diffed against `apps/backend/src/db/schema/*.ts` in CI, which would have caught this
+one the day A1 merged.
+
+### One code comment corrected while auditing
+
+`apps/backend/src/middleware/admin-session.ts` still said the session auth and the shared
+`x-admin-api-key` "live side by side deliberately until Task 4". Task 4 shipped: `admin-auth.ts` is
+deleted and `ADMIN_API_KEY` is gone from `env.ts` rather than deprecated. The comment described a
+transitional state that no longer exists, in the file whose whole purpose is that it no longer
+exists.
 
 ## What refreshing them involved — done 2026-08-25
 

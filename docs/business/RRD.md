@@ -6,6 +6,11 @@
 > been extended with what shipped since: a third actor kind, the sixth rule kind, digital VAS, the
 > marketplace, and retailer onboarding with its portal.
 >
+> **Amended 2026-09-09.** New **§1.15, admin portal & IAM** (sub-plan A1, shipped 2026-08-28 →
+> 2026-09-09). This subsystem had **no requirements recorded here at all** — a grep for staff
+> identity, Workspace SSO, maker-checker or `admin_role` returned nothing. §2.2 Security was
+> likewise silent on how staff authenticate at all, and gains one row for it.
+>
 > Schema: [`docs/product/database-schema.md`](../product/database-schema.md) · Index: [`docs/product/README.md`](../product/README.md)
 
 **Version:** 1.0 — MVP Release | **Date:** 2026-05-13
@@ -197,6 +202,32 @@
 
 ---
 
+### 1.15 Admin portal & IAM *(added 2026-09-09)*
+
+Sub-plan A1. The fourth actor kind, and the first who is Amana staff rather than a customer.
+Flow: [`APP-FLOW.md` §9](./APP-FLOW.md).
+
+| ID | Requirement | Status |
+|---|---|---|
+| IAM-1 | Staff must authenticate via Google Workspace OIDC on the `amana-ng.com` domain; there is no admin password anywhere in the system | ✓ |
+| IAM-2 | Staff must NOT be rows in `users`: that table demands `phone`, `nin` and `kyc_tier`, and staff have no NIN we are entitled to hold | ✓ |
+| IAM-3 | `audit_log` must carry a second actor column so a staff action names its operator | ✓ |
+| IAM-4 | The first owner must be seeded from `ADMIN_BOOTSTRAP_OWNER_EMAIL` and never mintable by an endpoint; `provisioning_source` must record which path created each admin | ✓ |
+| IAM-5 | There must be five fixed roles — `owner`, `admin`, `ops`, `support`, `auditor` — not a granular permission matrix | ✓ |
+| IAM-6 | Role grants must be an APPEND-ONLY log of events; a revocation is a new row and nothing is ever UPDATEd or DELETEd | ✓ |
+| IAM-7 | Current roles must be a fold of that log, so "what could this person do at the time" is answerable after the fact | ✓ |
+| IAM-8 | `admin_users` must carry no role column: identity and authority are separate tables | ✓ |
+| IAM-9 | Maker-checker must gate role grants and vendor claim approvals — the two actions that CREATE authority | ✓ |
+| IAM-10 | Every removal (role revoke, vendor suspend, consent revoke) must remain UNGATED, so a dangerous state is never held open waiting for a second admin | ✓ |
+| IAM-11 | An approver must be a different admin from the proposer; the maker may cancel their own proposal | ✓ |
+| IAM-12 | Pending approvals must expire at a 7-day TTL WRITTEN as a status transition by an hourly sweep, never computed at read time | ✓ |
+| IAM-13 | The shared `x-admin-api-key` must be DELETED rather than deprecated, with all 13 ops endpoints cut over to staff sessions | ✓ |
+| IAM-14 | There must be NO fallback between session auth and the old shared key — a fallback is the original vulnerability with extra steps | ✓ |
+| IAM-15 | The session middleware must AUTHENTICATE only; permission checks belong in the service layer, because a check a route performs is a check the next caller can forget | ✓ |
+| IAM-16 | Consent must be recorded as append-only logs (`user_consents`, `vendor_consents`) with `termsVersion` per grant, never a mutable flag | ✓ |
+| IAM-17 | There is no admin client application; the surface is `/admin/*` API routes carrying a session cookie | ✓ `[NO UI]` |
+
+
 ## 2. Technical Requirements
 
 ### 2.1 Performance
@@ -219,6 +250,7 @@
 | Webhook payload must be verified using HMAC-SHA256 signature (Anchor `X-Anchor-Signature`)
 | All secrets (DATABASE_URL, JWT_SECRET, ANCHOR_API_KEY) managed via Fly secrets — never in code or environment files
 | Database connection requires `sslmode=require`
+| Staff authenticate by Google Workspace OIDC session cookie only; the shared `x-admin-api-key` is deleted, and no fallback to it may be reintroduced (see §1.15) *(added 2026-09-09)*
 
 ### 2.3 Data Integrity
 

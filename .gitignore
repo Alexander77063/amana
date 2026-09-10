@@ -65,3 +65,7 @@ android/build/
 *.log
 *.err
 !npm-debug.log*
+
+# Claude Code: machine-local state (settings.local.json already listed above)
+.claude/scheduled_tasks.lock
+.claude/worktrees/

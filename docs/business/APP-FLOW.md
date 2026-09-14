@@ -28,6 +28,19 @@
 > reason. §8.4 also now shows the claim queue's real response shape (rows carry a masked vendor
 > summary) and the two vendor read endpoints added in Task 5.
 >
+> **Amended 2026-09-09.** New **§9, the admin & ops arc** — Google Workspace staff identity, the
+> five fixed roles, the append-only grant log and maker-checker. Sub-plan A1 shipped between
+> 2026-08-28 and 2026-09-09, *after* §8 was written, and had **no flow here at all** — the same gap
+> §8 existed to close for the vendor arc, recurring within a fortnight. §9 carries the fourth actor
+> and the first who is **Amana staff rather than a customer**. It is documented as an **API surface
+> with no screens**, because `apps/` contains no admin app; drawing screens would repeat the §1.1
+> and §2.5 mistake this file already had to correct.
+>
+> **Merged 2026-09-14.** The two amendments above each added a §9, on separate branches, neither
+> aware of the other — and the 09-09 one's "`apps/` contains no admin app" stops being true the
+> moment the 09-07 one lands. They are now **one §9**: the IAM model (§9.1–9.3) underneath the
+> portal's flows (§9.4–9.7). §8.4's pointer to the vendor screens moved from §9.3 to §9.5.
+>
 > Index: [`docs/product/README.md`](../product/README.md)
 
 **Version:** 1.0 | **Date:** 2026-05-13
@@ -637,7 +650,7 @@ launch** — the scan path needs no public hostname and works today.
 This used to read "admin-key authenticated (`ADMIN_API_KEY`), no UI — `curl`". Neither half is true
 any more. `ADMIN_API_KEY` was **deleted** in sub-plan A1 Task 4 and every route below requires a
 named staff session with `vendor.read` / `vendor.write`; and since Task 5 there **is** a UI — the
-admin portal's `/ops/vendors`, §9.3 below. `curl` with a session cookie still works and is what
+admin portal's `/ops/vendors`, §9.5 below. `curl` with a session cookie still works and is what
 [`runbook/vendor-claim.md`](../runbook/vendor-claim.md) documents.
 
 ```
@@ -668,23 +681,33 @@ scope rather than a bolt-on. The SQL workaround is in the runbook.
 
 ---
 
-## 9. Staff flows — the admin portal *(added 2026-09-07)*
+## 9. Admin & ops arc — staff identity, roles, maker-checker and the admin portal *(IAM model added 2026-09-09; portal flows 2026-09-07; merged 2026-09-14)*
 
-`apps/admin-portal`, Next.js 14 on :3400 — the fourth surface, and the only one whose actor works
-*for* Amana. Sub-plan A1 Task 5; operator documentation in
-[`runbook/admin-portal.md`](../runbook/admin-portal.md).
+The fourth actor, and the first who is **Amana staff rather than a customer**. Sub-plan A1 built
+it in two layers and this section follows them: Tasks 1–4 are the model underneath — Workspace
+identity, five fixed roles, an append-only grant log, maker-checker (§9.2–9.3) — and Task 5 is
+`apps/admin-portal`, Next.js 14 on :3400, the staff portal on top of it (§9.4–9.7). Signing in
+(§9.1) belongs to both. Operator documentation in
+[`runbook/admin-portal.md`](../runbook/admin-portal.md); schema in
+[`product/database-schema.md`](../product/database-schema.md) → *Admin & IAM*.
+
+> **Written twice, merged once (2026-09-14).** This section was drafted on two branches two days
+> apart, each blind to the other. The portal branch (PR #65) wrote the staff flows on 2026-09-07;
+> the docs audit on `main` wrote the IAM model on 2026-09-09 and described it as "an API surface
+> only … `apps/` contains no admin app" — true of `main` that day, false once #65 merged. Both
+> halves are kept; that sentence is not. RRD IAM-17 said the same thing and is rewritten.
 
 Drawn at the route-and-call level rather than the widget level, deliberately: the screens will be
 rearranged and the contract will not, and a flow pinned to a layout is stale the first time somebody
 moves a button.
 
-**One structural fact underneath all five flows.** The portal answers `/admin/*`, `/vendors-admin/*`
-and `/retailers/*` itself and forwards them to the API, because the staff session is a **host-only**
-cookie — it belongs to the host that set it, so the portal has to be that host. Every arrow below
-that reaches the API passes through that proxy, and every screen renders from the **permissions**
-`/admin/me` returned, never from a role name.
+**One structural fact underneath every portal flow here.** The portal answers `/admin/*`,
+`/vendors-admin/*` and `/retailers/*` itself and forwards them to the API, because the staff session
+is a **host-only** cookie — it belongs to the host that set it, so the portal has to be that host.
+Every arrow below that reaches the API passes through that proxy, and every screen renders from the
+**permissions** `/admin/me` returned, never from a role name.
 
-### 9.1 Signing in
+### 9.1 Signing in — Google Workspace, no password
 
 ```
 STAFF                                   PORTAL (:3400)              API
@@ -707,11 +730,95 @@ opens admin.amana-ng.com
             (never "no such account" — a staff-facing enumeration oracle is still one)
 ```
 
+Underneath those same two hops, the API:
+
+```
+GET  /admin/auth/start      → one admin_auth_requests row — the in-flight request's state lives
+                              server-side, not in the browser
+GET  /admin/auth/callback   → verify, match on Workspace email, admin_sessions row created,
+                              Set-Cookie: amana_admin_session
+GET  /admin/me              → who am I, which roles I hold, and the permissions they carry
+POST /admin/auth/logout     → session revoked
+```
+
 **Why the sign-in page is the fussiest file in the app.** Reading `?error=` means
 `useSearchParams`, which Next 14 refuses to prerender without a `<Suspense>` boundary. The banner is
 wrapped and the link is not, so the control paints instantly and only the failure message waits.
 
-### 9.2 The inbox — one decision, two seats
+**Staff are not rows in `users`, and that is a data-protection decision rather than a modelling
+preference.** `users` demands `phone`, `nin` and a `kyc_tier`; putting staff there would mean
+fabricating a National Identity Number per employee, in the same encrypted column as real customers'
+NINs, purely to satisfy a NOT NULL. So `audit_log` grew a second actor column instead (`0042`).
+
+**The first owner is seeded from `ADMIN_BOOTSTRAP_OWNER_EMAIL`, never minted by an endpoint.**
+`admin_users.provisioning_source` records which path created each row (`config` vs `admin`), because
+that invariant is only auditable afterwards if the row says so.
+
+**The shared `x-admin-api-key` is gone, not deprecated.** Task 4 cut all 13 ops endpoints over to
+this session and deleted the key from `env.ts`; Task 5's two vendor reads made it 15, and the
+cutover test refuses the old key on every one. There is deliberately **no fallback** between the
+two paths: a fallback would be the original vulnerability with extra steps.
+
+### 9.2 Roles are a log of events, not a set of flags
+
+Five fixed roles — `owner`, `admin`, `ops`, `support`, `auditor`. Fixed rather than a granular
+permission matrix, so "who can do what" stays answerable by reading one table, and because a role
+can be added later whereas a granular matrix cannot be un-shipped.
+
+```
+GET  /admin/iam/admins                      list staff
+POST /admin/iam/admins                      onboard a colleague
+GET  /admin/iam/admins/:id/roles            current roles — a FOLD of the grant log
+POST /admin/iam/admins/:id/roles            propose a grant   ──▶ maker-checker (§9.3)
+POST /admin/iam/admins/:id/roles/revoke     revoke            ──▶ takes effect immediately
+```
+
+**`admin_role_grants` is append-only.** A revocation is a new row; nothing is ever UPDATEd or
+DELETEd. Modelled directly on `vendor_consents`, for the same reason: an incident review asks *what
+could this person do at the time they did it*, and a mutable set only knows the present.
+
+A row in `admin_users` therefore proves **who** someone is and nothing about what they may do. That
+is least privilege expressed in the schema rather than in a middleware.
+
+### 9.3 Maker-checker gates only the direction that creates power
+
+```
+MAKER proposes ──▶ admin_approvals row (status = pending)
+                     │
+       ┌─────────────┼─────────────┬──────────────────────┐
+       ▼             ▼             ▼                      ▼
+  POST /approve  /reject       /cancel            hourly sweep, 0 * * * *
+  (a DIFFERENT   (a different   (the maker         └── 7-day TTL → status = expired
+   admin)         admin)         withdraws)            WRITTEN, not computed at read time
+```
+
+Two actions are gated, and they are the two that **create** authority: a role grant (power over the
+system) and a vendor claim approval (power over a bank account).
+
+**Deciding either way takes the permission of that kind** *(A1 Task 5)*. Approving *or declining*
+a role grant needs `iam.write`; a vendor claim needs `vendor.write`. Declining used to need only
+`iam.read`, which let an `auditor` — specified as "writes nothing, anywhere" — close a vendor claim
+that `ops` could not. The permission to decline is the permission to decide. Withdrawing needs no
+permission, because only the maker can do it.
+
+**The inbox is scoped per kind, for the same reason.** It was gated on `iam.read` alone, which
+`ops` does not hold, so the one role that works vendor claims could not see the queue it had to
+work. Now a grant is visible to `iam.read`/`iam.write`, a claim to `vendor.read`/`vendor.write`,
+your own proposals always, and no matching permission returns an empty list rather than a 403.
+The screen that renders it is §9.4.
+
+**Every removal is ungated, deliberately.** Revoking a role, suspending a vendor and revoking a
+merchant's consent each take one person. Requiring two would leave the dangerous state in place
+while a second admin is found — so the gate belongs on the direction that creates power, never on
+the one that removes it.
+
+**The expiry is written as a status transition rather than computed at read time**, which is the
+whole reason the sweep job exists: a `pending` row that has silently stopped working is a row an
+operator will keep clicking approve on, with nothing to explain why nothing happens. Hourly rather
+than per-minute, because a seven-day TTL is not time-critical to the minute — unlike a customer
+waiting on a bump.
+
+### 9.4 The inbox — one decision, two seats
 
 ```
 /  (any signed-in session — no permission gate on the page itself)
@@ -743,7 +850,7 @@ An empty checker seat on a **decided** row names its ending instead — *expired
 *withdrawn by the maker* — because two of the four endings never seat a checker at all, and printing
 "needs a second person" over a closed row sends an operator hunting for a decision they cannot make.
 
-### 9.3 Vendor claim → propose → approve
+### 9.5 Vendor claim → propose → approve
 
 The only flow in Amana that needs two named people and crosses two screens.
 
@@ -764,7 +871,7 @@ OPS 1                                          OPS 2 (a different person)
       → 202 { approvalId, status: 'pending' }
       → "Proposed. A second ops colleague has
          to approve it in the inbox."
-                                               /  (the inbox, §9.2)
+                                               /  (the inbox, §9.4)
                                                └── the claim is there because OPS 2
                                                    holds vendor.read
                                                      └── Approve   (needs vendor.write)
@@ -782,7 +889,7 @@ OPS 1                                          OPS 2 (a different person)
 household's registry enforcement. **Those four are immediate, not maker-checked** — they remove
 standing rather than create it, and delay is the harmful direction for all of them.
 
-### 9.4 Retailer lifecycle
+### 9.6 Retailer lifecycle
 
 The staff half of §7; the retailer's own half is unchanged.
 
@@ -806,10 +913,10 @@ Every one of these writes an `audit_log` row naming the operator. Before A1 Task
 routes wrote **no audit row at all**: approving a retailer admits a business to the marketplace and
 suspending one cuts off its income, and neither left any trace that it had happened, by anyone.
 
-### 9.5 Onboarding a colleague, and granting them a role
+### 9.7 Onboarding a colleague, and granting them a role
 
 ```
-/people                                        (iam.read)
+/people                                        (iam.read)   — the model is §9.2
 ├── GET /admin/iam/admins
 │     email · roles · active/suspended · config-or-admin provisioned · last signed in
 └── onboard                                    (iam.write)
@@ -824,7 +931,7 @@ suspending one cuts off its income, and neither left any trace that it had happe
 ├── grant                                      (iam.write)
 │     POST /admin/iam/admins/:id/roles { role, reason }
 │       → 202 { approvalId, status: 'pending' }   ⇒ a REQUEST, not a change
-│           └── a second admin approves it in the inbox (§9.2)
+│           └── a second admin approves it in the inbox (§9.4)
 │           ⚠ the ONE exception: the config-seeded bootstrap account comes back
 │             already 'approved', which is how the very first grant is possible at all
 └── revoke                                     (iam.write)
@@ -840,4 +947,3 @@ access to someone you have decided should not have it. The break-glass stand-dow
 [`runbook/google-workspace-setup.md`](../runbook/google-workspace-setup.md) is exactly this
 asymmetry being used on purpose: the newly onboarded admin revokes the bootstrap account's `admin`
 role, alone, from this screen.
-

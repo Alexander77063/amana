@@ -1,0 +1,32 @@
+app = 'amana-admin'
+primary_region = 'jnb'
+
+[build]
+  dockerfile = 'apps/admin-portal/Dockerfile'
+
+[env]
+  NODE_ENV = 'production'
+  PORT = '3400'
+  # The API the proxy forwards to. Public hostname on purpose: the cookie is scoped to the PORTAL
+  # host, so what the browser sees is admin.amana-ng.com and this hop is server-to-server.
+  BACKEND_ORIGIN = 'https://api.amana-ng.com'
+
+[http_service]
+  internal_port = 3400
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  # One warm machine: the OAuth callback traverses this app, and a cold start inside Google's
+  # redirect makes sign-in look broken. Not the API's "no cold starts for money" reason.
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    grace_period = '10s'
+    interval = '15s'
+    method = 'GET'
+    path = '/health'
+    timeout = '3s'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'

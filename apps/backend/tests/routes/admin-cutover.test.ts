@@ -7,7 +7,7 @@
 // fallback is the whole vulnerability with extra steps". Tests that only prove the new session
 // auth works would pass just as happily with a leftover `adminAuth` mount still accepting the
 // shared secret on some forgotten endpoint. So this file presents what used to be a perfectly
-// valid key to all thirteen endpoints and requires every one of them to refuse it.
+// valid key to all fifteen endpoints and requires every one of them to refuse it.
 //
 // If you are reading this because it failed: an endpoint still honours the shared key. That is the
 // hole, not the test.
@@ -22,9 +22,16 @@ import { testDb, truncateAll } from '../helpers/test-db';
 const OLD_KEY = 'test-admin-key-0000000000000000000';
 const JSON_HEADERS = { 'content-type': 'application/json' };
 
-/** Every endpoint that lived behind the shared key. Thirteen of them, per the plan. */
-const THIRTEEN = [
+/**
+ * Every endpoint on the staff surface that must refuse the old shared key. Thirteen of them
+ * lived behind it per the plan; A1 Task 5 added the two vendor reads the admin portal needs
+ * (`GET /vendors-admin/vendors` and `GET /vendors-admin/vendors/:id`), which sit behind the same
+ * `adminSession()` mount — so they belong here too and the proof stays exhaustive at fifteen.
+ */
+const FIFTEEN = [
   { method: 'GET', path: '/vendors-admin/claim-queue' },
+  { method: 'GET', path: '/vendors-admin/vendors' },
+  { method: 'GET', path: `/vendors-admin/vendors/${factories.userId()}` },
   { method: 'POST', path: `/vendors-admin/vendors/${factories.userId()}/approve-claim` },
   { method: 'POST', path: `/vendors-admin/vendors/${factories.userId()}/category` },
   { method: 'POST', path: `/vendors-admin/vendors/${factories.userId()}/suspend` },
@@ -49,10 +56,10 @@ beforeEach(async () => {
 });
 
 describe('the shared ops secret is gone', () => {
-  it('refuses the old x-admin-api-key on every one of the 13 endpoints', async () => {
+  it('refuses the old x-admin-api-key on every one of the 15 endpoints', async () => {
     const accepted: string[] = [];
 
-    for (const { method, path } of THIRTEEN) {
+    for (const { method, path } of FIFTEEN) {
       const res = await app.request(path, {
         method,
         headers: { 'x-admin-api-key': OLD_KEY, ...JSON_HEADERS },
@@ -68,7 +75,7 @@ describe('the shared ops secret is gone', () => {
 
   it('refuses those endpoints outright when no credential is presented at all', async () => {
     const accepted: string[] = [];
-    for (const { method, path } of THIRTEEN) {
+    for (const { method, path } of FIFTEEN) {
       const res = await app.request(path, {
         method,
         headers: JSON_HEADERS,

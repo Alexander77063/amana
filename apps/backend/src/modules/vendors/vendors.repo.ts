@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { type SQL, and, desc, eq, ilike, inArray, or } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { vendors } from '../../db/schema';
 import { normalizeCrockford } from '../../lib/crockford';
@@ -86,6 +86,39 @@ export const vendorsRepo = {
       .onConflictDoNothing({ target: [vendors.bankCode, vendors.accountNumber] })
       .returning();
     return row ?? null;
+  },
+
+  async findManyByIds(db: DbOrTx, ids: readonly string[]): Promise<VendorRow[]> {
+    if (ids.length === 0) return [];
+    return db
+      .select()
+      .from(vendors)
+      .where(inArray(vendors.id, [...ids]));
+  },
+
+  /**
+   * Ops search. `q` matches the display name (case-insensitive substring) or the public code
+   * exactly, which is what an operator has in hand: a shop name from a call, or a code from a
+   * sticker. Newest promotions first, capped at 200 like the claim queue.
+   */
+  async search(
+    db: DbOrTx,
+    opts: { status?: VendorRow['status']; q?: string },
+  ): Promise<VendorRow[]> {
+    const clauses: (SQL | undefined)[] = [];
+    if (opts.status) clauses.push(eq(vendors.status, opts.status));
+    if (opts.q) {
+      const term = opts.q.trim();
+      clauses.push(
+        or(ilike(vendors.displayName, `%${term}%`), eq(vendors.publicCode, term.toUpperCase())),
+      );
+    }
+    return db
+      .select()
+      .from(vendors)
+      .where(clauses.length ? and(...clauses) : undefined)
+      .orderBy(desc(vendors.promotedAt))
+      .limit(200);
   },
 
   async listByCategorySource(db: DbOrTx, source: VendorCategorySource): Promise<VendorRow[]> {

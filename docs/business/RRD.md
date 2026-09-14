@@ -202,7 +202,7 @@
 
 ---
 
-### 1.15 Admin portal & IAM *(added 2026-09-09)*
+### 1.15 Admin portal & IAM *(added 2026-09-09; amended 2026-09-14 for A1 Task 5, the portal)*
 
 Sub-plan A1. The fourth actor kind, and the first who is Amana staff rather than a customer.
 Flow: [`APP-FLOW.md` §9](./APP-FLOW.md).
@@ -221,11 +221,14 @@ Flow: [`APP-FLOW.md` §9](./APP-FLOW.md).
 | IAM-10 | Every removal (role revoke, vendor suspend, consent revoke) must remain UNGATED, so a dangerous state is never held open waiting for a second admin | ✓ |
 | IAM-11 | An approver must be a different admin from the proposer; the maker may cancel their own proposal | ✓ |
 | IAM-12 | Pending approvals must expire at a 7-day TTL WRITTEN as a status transition by an hourly sweep, never computed at read time | ✓ |
-| IAM-13 | The shared `x-admin-api-key` must be DELETED rather than deprecated, with all 13 ops endpoints cut over to staff sessions | ✓ |
+| IAM-13 | The shared `x-admin-api-key` must be DELETED rather than deprecated, with every ops endpoint cut over to staff sessions — 13 at the Task 4 cutover, 15 since Task 5 added two vendor reads, and the cutover test refuses the old key on each | ✓ |
 | IAM-14 | There must be NO fallback between session auth and the old shared key — a fallback is the original vulnerability with extra steps | ✓ |
 | IAM-15 | The session middleware must AUTHENTICATE only; permission checks belong in the service layer, because a check a route performs is a check the next caller can forget | ✓ |
 | IAM-16 | Consent must be recorded as append-only logs (`user_consents`, `vendor_consents`) with `termsVersion` per grant, never a mutable flag | ✓ |
-| IAM-17 | There is no admin client application; the surface is `/admin/*` API routes carrying a session cookie | ✓ `[NO UI]` |
+| IAM-17 | The staff client must be `apps/admin-portal`, a web app holding no secrets, which answers `/admin/*`, `/vendors-admin/*` and `/retailers/*` on its own host through a same-origin proxy — because the staff session cookie is host-only — and renders every screen from the permissions `/admin/me` returns, never from a role name. *(Rewritten 2026-09-14: until the portal merged this read "there is no admin client application", `[NO UI]`.)* | ✓ |
+| IAM-18 | The approvals inbox must be scoped per kind — a role grant visible to `iam.read`/`iam.write`, a vendor claim to `vendor.read`/`vendor.write`, and a maker's own proposals always — and no matching permission must return an empty list, not a 403 | ✓ |
+| IAM-19 | Declining an approval must require the same permission as approving that kind (`iam.write` for a role grant, `vendor.write` for a vendor claim); an `auditor` must not be able to close what `ops` cannot | ✓ |
+| IAM-20 | Ops vendor reads — the claim queue, vendor search and the vendor page — must mask the payout account number to its last four digits | ✓ |
 
 
 ## 2. Technical Requirements

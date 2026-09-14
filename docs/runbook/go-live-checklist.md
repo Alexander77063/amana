@@ -204,7 +204,8 @@ every time someone reads one. Preload is what covers that first hit.
 
 **Pre-flight before submitting item 2:** `includeSubDomains` commits every `amana-ng.com`
 subdomain to HTTPS-only in shipped browsers, and de-listing propagates on browser-release
-timescales. Confirm no subdomain needs plain HTTP first.
+timescales. Confirm no subdomain needs plain HTTP first — including `admin.amana-ng.com` in §6b,
+which is HTTPS-only by design and so is a confirmation rather than a conflict.
 
 **Until this closes:** SP-V3 still ships and is testable. `GET /vendors/code/:code` needs no
 public hostname, the agent scanner accepts the bare `AMNV-…` form, and the page is reachable
@@ -213,6 +214,42 @@ on the API hostname. Only printing is blocked.
 Nothing in code can enforce this. The API returns a bare `publicCode` and never a URL, so the
 `pay.amana-ng.com/v/…` wrapper is added by whoever prepares the print run — this checklist item is
 the only control.
+
+## 6b. Admin portal hostname — `admin.amana-ng.com` *(added 2026-09-07)*
+
+Separate from the §6 gate above and blocking a different thing: §6 blocks **printing vendor codes**,
+this blocks **staff using the portal at all**. The portal (`apps/admin-portal`, sub-plan A1 Task 5)
+must live on its own hostname because the staff session cookie is **host-only** and the Google OAuth
+redirect URI is already registered against the portal host, not the API's. Full sequence and
+reasoning: [`admin-portal.md`](./admin-portal.md).
+
+- [ ] **1. Fly app `amana-admin`** created in `jnb`, deployed with `fly deploy --config
+      fly.admin.toml`. **No Fly secrets at all** — the only configuration is
+      `BACKEND_ORIGIN=https://api.amana-ng.com`, a plain `[env]` value. If anyone finds themselves
+      running `fly secrets set` on this app, something has gone wrong with the design, not with the
+      deploy.
+- [ ] **2. DNS at Namecheap** — CNAME `admin` → `amana-admin.fly.dev`. **Namecheap, not Bluehost and
+      not Cloudflare**; getting this wrong wastes a propagation wait. Then
+      `fly certs add admin.amana-ng.com --app amana-admin` and wait for validation.
+- [x] **3. Google OAuth already points here.** `https://admin.amana-ng.com/admin/auth/callback` is a
+      registered redirect URI on the Workspace OAuth client, and the backend's
+      `ADMIN_OIDC_REDIRECT_URI` and `ADMIN_PORTAL_URL` secrets already name that host — see
+      [`google-workspace-setup.md`](./google-workspace-setup.md). **This is why items 1 and 2 are not
+      optional:** the hostname staff sign in through was decided before the app existed, and until
+      it resolves, every production sign-in ends at `/sign-in?error=sign_in_failed`, which by design
+      says nothing about why.
+- [ ] **4. Turn CI on** once 1–3 hold: repository **variable** `ADMIN_PORTAL_DEPLOY=true` and
+      repository **secret** `FLY_API_TOKEN_ADMIN` (app-scoped, not the org token). The `deploy-admin`
+      job is gated on both precisely so it does not fail every push during the window between
+      merging the config and doing these ops steps.
+- [ ] **5. Stand the break-glass account down** — after the first real sign-in, david@ onboards a
+      second admin and *that* admin revokes david@'s `admin` role from `/people/<david's id>`. This
+      is the one item here that is not infrastructure, and it is the one that restores segregation
+      of duties.
+
+**Cloudflare Access is not configured and is not an item here.** The sub-plan lists it as a second
+independent gate in front of the app; it cannot be set up while DNS lives at Namecheap. Record it as
+a deliberate gap rather than a checkbox nobody can tick.
 
 ## 7. Cosmetic cleanups
 

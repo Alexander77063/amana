@@ -15,7 +15,7 @@ export type AdminActorVariables = { adminActor: AdminActor };
  * Authenticate a member of staff from their session cookie.
  *
  * This replaced `admin-auth.ts`'s shared `x-admin-api-key`. **Task 4 completed that cutover:**
- * the 13 ops endpoints now authenticate here, `admin-auth.ts` is deleted and `ADMIN_API_KEY` is
+ * every ops endpoint now authenticates here, `admin-auth.ts` is deleted and `ADMIN_API_KEY` is
  * gone from `env.ts` rather than deprecated. There is deliberately no fallback between the two
  * paths, and none should be added — a fallback would be the original vulnerability with extra
  * steps.

@@ -236,7 +236,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
       ANCHOR_WEBHOOK_SECRET: parsed.data.ANCHOR_WEBHOOK_SECRET,
       TERMII_API_KEY: parsed.data.TERMII_API_KEY,
       // Moved in by the Task 4 cutover, exactly as the note that used to sit here promised.
-      // `ADMIN_API_KEY` is gone: the 13 ops endpoints now authenticate with a Google Workspace
+      // `ADMIN_API_KEY` is gone: every ops endpoint now authenticates with a Google Workspace
       // session, so a missing OAuth app means no ops access AT ALL — no claim queue, no retailer
       // KYB, no suspensions. That is worth refusing to boot for, where before it was not.
       GOOGLE_OAUTH_CLIENT_ID: parsed.data.GOOGLE_OAUTH_CLIENT_ID,

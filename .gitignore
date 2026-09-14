@@ -69,3 +69,8 @@ android/build/
 # Claude Code: machine-local state (settings.local.json already listed above)
 .claude/scheduled_tasks.lock
 .claude/worktrees/
+
+# Agent scratch. .serena/ and .superpowers/ are wholly machine-local.
+# .claude/ is deliberately NOT blanket-ignored: shared agents and
+# skills stay tracked; only machine-local state is excluded.
+.serena/

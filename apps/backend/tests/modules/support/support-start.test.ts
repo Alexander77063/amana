@@ -132,6 +132,35 @@ describe('supportVerificationService.start', () => {
     expect('capped' in twentyFirst).toBe(true);
   });
 
+  // The per-phone cap is global across operators, so one member of staff can burn a customer's
+  // quota and leave them unverifiable. The cap stays — it is what stops an SMS-spend vector — so
+  // the mitigation is visibility: the breach names who did it and to which number.
+  it('audits a cap breach rather than refusing silently', async () => {
+    const a = await signedInAdmin('s9@amana-ng.com', ['support']);
+    const phone = '+2348017766554';
+    for (let i = 0; i < 5; i++) {
+      await supportVerificationService.start(testDb, {
+        actorAdminUserId: a.adminUserId,
+        phoneE164: phone,
+      });
+    }
+
+    const capped = await supportVerificationService.start(testDb, {
+      actorAdminUserId: a.adminUserId,
+      phoneE164: phone,
+    });
+    expect('capped' in capped).toBe(true);
+
+    const { auditRepo } = await import('../../../src/modules/audit');
+    const breaches = await auditRepo.listByAction(testDb, 'support.verification.capped');
+
+    expect(breaches).toHaveLength(1);
+    expect(breaches[0]?.actorAdminUserId).toBe(a.adminUserId);
+    const payload = JSON.stringify(breaches[0]?.payloadJson);
+    expect(payload).toContain('phone_daily');
+    expect(payload).toContain(phone);
+  });
+
   it('writes an audit row that does not record whether the phone matched', async () => {
     const { adminUserId } = await signedInAdmin('s8@amana-ng.com', ['support']);
     const result = await supportVerificationService.start(testDb, {

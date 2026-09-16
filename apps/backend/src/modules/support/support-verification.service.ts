@@ -62,6 +62,33 @@ function shuffle(values: number[]): number[] {
   return out;
 }
 
+/**
+ * A cap breach is an event, not a silent refusal.
+ *
+ * The per-phone cap is deliberately global across operators, which means one member of staff can
+ * burn a customer's daily quota and leave them unable to be verified — a denial of service on
+ * support, by an insider. The cap still earns its place (it is what stops an SMS-spend vector
+ * pointed at arbitrary numbers), so the mitigation is visibility rather than removal: every breach
+ * names the operator and the number, so the pattern is answerable from the audit log.
+ */
+async function auditCapBreach(
+  db: DbOrTx,
+  input: { actorAdminUserId: string; phoneE164: string },
+  cap: 'operator_hourly' | 'phone_daily',
+): Promise<void> {
+  await auditRepo.append(db, {
+    actorKind: 'ops',
+    actorAdminUserId: input.actorAdminUserId,
+    action: 'support.verification.capped',
+    // `audit_log.subject_id` is a uuid column, so the SUBJECT is the operator who breached the
+    // cap and the number travels in the payload — which is also the more useful shape, since the
+    // question this row answers is "who is burning quota", not "what happened to this number".
+    subjectKind: 'admin_user',
+    subjectId: input.actorAdminUserId,
+    payloadJson: { cap, phoneE164: input.phoneE164 },
+  });
+}
+
 export const supportVerificationService = {
   /**
    * Begin a verification. ALWAYS succeeds unless a cap is breached, and always writes a row —
@@ -80,6 +107,7 @@ export const supportVerificationService = {
       new Date(now - 3_600_000),
     );
     if (perOperator >= env.SUPPORT_STARTS_PER_OPERATOR_HOUR) {
+      await auditCapBreach(db, input, 'operator_hourly');
       return { capped: true, retryAfterSeconds: 3600 };
     }
 
@@ -89,6 +117,7 @@ export const supportVerificationService = {
       new Date(now - 86_400_000),
     );
     if (perPhone >= env.SUPPORT_STARTS_PER_PHONE_DAY) {
+      await auditCapBreach(db, input, 'phone_daily');
       return { capped: true, retryAfterSeconds: 86_400 };
     }
 
@@ -213,7 +242,15 @@ export const supportVerificationService = {
     if (!row || row.adminUserId !== input.actorAdminUserId) return 'not_found';
     if (row.status !== 'pending') return row.status === 'verified' ? 'verified' : 'denied';
     if (row.expiresAt.getTime() <= Date.now()) return 'expired';
-    if (!row.codeHash) return 'denied';
+
+    // A code typed against a PUSH verification has no hash to compare. Spend an attempt anyway
+    // rather than returning a bare denial: without this the row never terminates, and an operator
+    // could sit typing codes at a verification that can only ever be answered by a tap.
+    if (!row.codeHash) {
+      const attempts = await supportVerificationsRepo.incrementAttempts(db, row.id);
+      if (attempts >= SMS_MAX_ATTEMPTS) await supportVerificationsRepo.markDenied(db, row.id);
+      return 'denied';
+    }
 
     if (!codeMatches(input.code, row.codeHash)) {
       const attempts = await supportVerificationsRepo.incrementAttempts(db, row.id);

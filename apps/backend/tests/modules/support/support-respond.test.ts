@@ -159,6 +159,33 @@ describe('responding to a verification', () => {
       ).toBe('denied');
     });
 
+    // Without spending an attempt, an operator could sit typing codes at a push verification for
+    // the whole pending window and the row would never terminate.
+    it('spends an attempt when a code is typed against a push verification', async () => {
+      const { adminUserId } = await signedInAdmin('c5@amana-ng.com', ['support']);
+      const { id: userId } = await seedPrincipal();
+      const row = await startPush(adminUserId, userId);
+      const typeCode = () =>
+        supportVerificationService.confirmCode(testDb, {
+          verificationId: row.id,
+          actorAdminUserId: adminUserId,
+          code: '111111',
+        });
+
+      expect(await typeCode()).toBe('denied');
+      expect(await typeCode()).toBe('denied');
+      expect(await typeCode()).toBe('denied');
+
+      // Terminated, so the customer's tap can no longer verify it either.
+      expect(
+        await supportVerificationService.respondFromCustomer(testDb, {
+          verificationId: row.id,
+          userId,
+          chosenNumber: 42,
+        }),
+      ).toBe('denied');
+    });
+
     it('refuses a code typed by an operator who did not start the verification', async () => {
       const owner = await signedInAdmin('c3@amana-ng.com', ['support']);
       const other = await signedInAdmin('c4@amana-ng.com', ['support']);

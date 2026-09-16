@@ -30,3 +30,6 @@ export { CoinSealMark } from './brand/CoinSealMark';
 export { CoinSealWordmark } from './brand/CoinSealWordmark';
 
 export { formatNaira } from './format/money';
+
+export { SupportApproveView } from './support/SupportApproveView';
+export type { SupportApproveOutcome, SupportApproveViewProps } from './support/SupportApproveView';

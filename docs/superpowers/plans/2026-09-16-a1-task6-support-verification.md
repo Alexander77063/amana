@@ -825,6 +825,7 @@ git commit -m "feat(support): start a verification, and answer the same for a st
 
 **Files:**
 - Modify: `apps/backend/src/modules/support/support-verification.service.ts`
+- Modify: `apps/backend/src/modules/support/index.ts`
 - Test: `apps/backend/tests/modules/support/support-respond.test.ts`
 
 **Interfaces:**
@@ -855,9 +856,24 @@ requireLiveSession(db: DbOrTx, input: {
 ```ts
 // apps/backend/tests/modules/support/support-respond.test.ts
 import { beforeEach, describe, expect, it } from 'vitest';
+import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { supportVerificationService, supportVerificationsRepo } from '../../../src/modules/support';
 import { signedInAdmin } from '../../helpers/admin-session';
+import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
+
+/**
+ * `support_verifications.user_id` has a foreign key to `users.id`, so a random UUID here is a
+ * constraint violation, not a convenient stand-in. Seed a real customer.
+ */
+const seedPrincipal = async () =>
+  usersRepo.insert(testDb, {
+    role: 'principal',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '2',
+    bvn: factories.bvn(),
+  });
 
 const startPush = async (adminUserId: string, userId: string) =>
   supportVerificationsRepo.create(testDb, {
@@ -877,7 +893,7 @@ describe('responding to a verification', () => {
 
   it('verifies when the customer taps the number the operator read', async () => {
     const { adminUserId } = await signedInAdmin('r1@amana-ng.com', ['support']);
-    const userId = crypto.randomUUID();
+    const { id: userId } = await seedPrincipal();
     const row = await startPush(adminUserId, userId);
 
     const outcome = await supportVerificationService.respondFromCustomer(testDb, {
@@ -891,7 +907,7 @@ describe('responding to a verification', () => {
 
   it('denies immediately on a wrong tap — a one-in-three guess is not retryable', async () => {
     const { adminUserId } = await signedInAdmin('r2@amana-ng.com', ['support']);
-    const userId = crypto.randomUUID();
+    const { id: userId } = await seedPrincipal();
     const row = await startPush(adminUserId, userId);
 
     const first = await supportVerificationService.respondFromCustomer(testDb, {
@@ -911,11 +927,13 @@ describe('responding to a verification', () => {
 
   it('refuses a response from a different customer than the one it was sent to', async () => {
     const { adminUserId } = await signedInAdmin('r3@amana-ng.com', ['support']);
-    const row = await startPush(adminUserId, crypto.randomUUID());
+    const addressee = await seedPrincipal();
+    const someoneElse = await seedPrincipal();
+    const row = await startPush(adminUserId, addressee.id);
 
     const outcome = await supportVerificationService.respondFromCustomer(testDb, {
       verificationId: row.id,
-      userId: crypto.randomUUID(),
+      userId: someoneElse.id,
       chosenNumber: 42,
     });
 
@@ -924,7 +942,7 @@ describe('responding to a verification', () => {
 
   it('expires rather than verifying once the pending window has passed', async () => {
     const { adminUserId } = await signedInAdmin('r4@amana-ng.com', ['support']);
-    const userId = crypto.randomUUID();
+    const { id: userId } = await seedPrincipal();
     const row = await supportVerificationsRepo.create(testDb, {
       adminUserId,
       phoneE164: '+2348012222222',
@@ -1052,6 +1070,20 @@ export class SupportSessionError extends Error {
 
 Import `codeMatches` from `./code-hash` and `SupportVerificationRow` from the repo.
 
+- [ ] **Step 3a: Export the new surface from the barrel**
+
+Tasks 6 and 7 import `SupportSessionError` and the new methods from `../../src/modules/support`, so the barrel must carry them. In `apps/backend/src/modules/support/index.ts`, extend the service export:
+
+```ts
+export {
+  supportVerificationService,
+  SupportSessionError,
+  type CapBreach,
+  type RespondOutcome,
+  type StartResult,
+} from './support-verification.service';
+```
+
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm --filter @amana/backend exec vitest run tests/modules/support/support-respond.test.ts`
@@ -1071,6 +1103,7 @@ git commit -m "feat(support): number matching, one attempt, bound to the operato
 
 **Files:**
 - Create: `apps/backend/src/routes/admin/support.ts`
+- Modify: `apps/backend/src/modules/support/support-verification.service.ts` (adds `readStatus`)
 - Modify: `apps/backend/src/server.ts` (mount at `/admin/support`)
 - Modify: `docs/business/RRD.md` (§1.15, IAM-21 onward)
 - Test: `apps/backend/tests/routes/admin/support.test.ts`
@@ -1292,9 +1325,21 @@ git commit -m "feat(support): operator routes, and the five requirements they cr
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createServer } from '../../src/server';
 import { supportVerificationsRepo } from '../../src/modules/support';
-import { bearerFor } from '../helpers/bearer';
+import { usersRepo } from '../../src/modules/identity/users.repo';
+import { bearerHeaders } from '../helpers/bearer';
 import { signedInAdmin } from '../helpers/admin-session';
+import { factories } from '../helpers/factories';
 import { testDb, truncateAll } from '../helpers/test-db';
+
+// `bearerHeaders` takes a UserRow; it does not create one. The FK on user_id is real.
+const seedPrincipal = async () =>
+  usersRepo.insert(testDb, {
+    role: 'principal',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '2',
+    bvn: factories.bvn(),
+  });
 
 const app = createServer();
 
@@ -1305,11 +1350,11 @@ describe('POST /support/verifications/:id/respond', () => {
 
   it('verifies when the signed-in customer taps the right number', async () => {
     const { adminUserId } = await signedInAdmin('c1@amana-ng.com', ['support']);
-    const { token, userId } = await bearerFor('principal');
+    const customer = await seedPrincipal();
     const row = await supportVerificationsRepo.create(testDb, {
       adminUserId,
       phoneE164: '+2348016666666',
-      userId,
+      userId: customer.id,
       rail: 'push',
       matchNumber: 42,
       codeHash: null,
@@ -1318,7 +1363,7 @@ describe('POST /support/verifications/:id/respond', () => {
 
     const res = await app.request(`/support/verifications/${row.id}/respond`, {
       method: 'POST',
-      headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+      headers: await bearerHeaders(customer),
       body: JSON.stringify({ chosenNumber: 42 }),
     });
 
@@ -1338,7 +1383,7 @@ describe('POST /support/verifications/:id/respond', () => {
 });
 ```
 
-Check `tests/helpers/bearer.ts` for its real exported signature before writing this test and adjust the call to match; the helper exists and is used by every other customer-route test.
+`bearerHeaders(user: UserRow)` returns `{ Authorization, 'content-type' }` — it signs an existing user in and does **not** create one, which is why the fixture seeds a principal first. Follow `tests/routes/me-bumps.test.ts` for the seeding shape.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -1386,9 +1431,19 @@ git commit -m "feat(support): the customer's half of number matching"
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createServer } from '../../../src/server';
 import { supportVerificationsRepo } from '../../../src/modules/support';
+import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { signedInAdmin } from '../../helpers/admin-session';
-import { bearerFor } from '../../helpers/bearer';
+import { factories } from '../../helpers/factories';
 import { testDb, truncateAll } from '../../helpers/test-db';
+
+const seedPrincipal = async () =>
+  usersRepo.insert(testDb, {
+    role: 'principal',
+    phone: factories.phone(),
+    nin: factories.nin(),
+    kycTier: '2',
+    bvn: factories.bvn(),
+  });
 
 const app = createServer();
 
@@ -1413,7 +1468,7 @@ describe('support reads', () => {
 
   it('never returns bvn, nin, name, address or a full account number', async () => {
     const { cookie, adminUserId } = await signedInAdmin('rd1@amana-ng.com', ['support']);
-    const { userId } = await bearerFor('principal');
+    const { id: userId } = await seedPrincipal();
     const row = await verifiedSession(adminUserId, userId);
 
     const res = await app.request(`/admin/support/verifications/${row.id}/overview`, {
@@ -1430,7 +1485,7 @@ describe('support reads', () => {
 
   it('refuses the read once the session has expired', async () => {
     const { cookie, adminUserId } = await signedInAdmin('rd2@amana-ng.com', ['support']);
-    const { userId } = await bearerFor('principal');
+    const { id: userId } = await seedPrincipal();
     const row = await supportVerificationsRepo.create(testDb, {
       adminUserId,
       phoneE164: '+2348018888881',
@@ -1452,7 +1507,7 @@ describe('support reads', () => {
   it('refuses a different operator holding the same verification id', async () => {
     const owner = await signedInAdmin('rd3@amana-ng.com', ['support']);
     const other = await signedInAdmin('rd4@amana-ng.com', ['support']);
-    const { userId } = await bearerFor('principal');
+    const { id: userId } = await seedPrincipal();
     const row = await verifiedSession(owner.adminUserId, userId);
 
     const res = await app.request(`/admin/support/verifications/${row.id}/overview`, {
@@ -1464,7 +1519,7 @@ describe('support reads', () => {
 
   it('writes an audit row naming the operator and the verification', async () => {
     const { cookie, adminUserId } = await signedInAdmin('rd5@amana-ng.com', ['support']);
-    const { userId } = await bearerFor('principal');
+    const { id: userId } = await seedPrincipal();
     const row = await verifiedSession(adminUserId, userId);
 
     await app.request(`/admin/support/verifications/${row.id}/transactions`, {

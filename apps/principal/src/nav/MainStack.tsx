@@ -17,6 +17,7 @@ import { QuietHoursScreen } from '../screens/QuietHoursScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { SubWalletDetailScreen } from '../screens/SubWalletDetailScreen';
 import { SubWalletsListScreen } from '../screens/SubWalletsListScreen';
+import { SupportApproveScreen } from '../screens/SupportApproveScreen';
 import { TransactionDetailScreen } from '../screens/TransactionDetailScreen';
 
 export type MainStackParamList = {
@@ -38,6 +39,8 @@ export type MainStackParamList = {
   QuietHours: undefined;
   TransactionDetail: { transactionId: string };
   FeeCoverInfo: undefined;
+  /** Raised by a support-verification push; `options` are the three numbers to choose between. */
+  SupportApprove: { verificationId: string; options: number[] };
 };
 
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -59,6 +62,11 @@ export function MainStack(): JSX.Element {
       <Stack.Screen
         name="EnableNotifications"
         component={EnableNotificationsScreen}
+        options={{ presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="SupportApprove"
+        component={SupportApproveScreen}
         options={{ presentation: 'modal' }}
       />
       <Stack.Screen name="Settings" component={SettingsScreen} />

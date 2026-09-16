@@ -96,6 +96,8 @@ async function subWalletsFor(
   userId: string,
 ): Promise<{
   masterWalletId: string | null;
+  /** True when this user is the household's principal, not an agent within it. */
+  isPrincipal: boolean;
   subs: Array<{ id: string; name: string; status: string }>;
 }> {
   const [owned] = await db
@@ -110,7 +112,7 @@ async function subWalletsFor(
       .select({ id: subWallets.id, name: subWallets.name, status: subWallets.status })
       .from(subWallets)
       .where(eq(subWallets.masterWalletId, owned.id));
-    return { masterWalletId: owned.id, subs };
+    return { masterWalletId: owned.id, isPrincipal: true, subs };
   }
 
   const agentSubs = await db
@@ -125,6 +127,7 @@ async function subWalletsFor(
 
   return {
     masterWalletId: agentSubs[0]?.masterWalletId ?? null,
+    isPrincipal: false,
     subs: agentSubs.map((s) => ({ id: s.id, name: s.name, status: s.status })),
   };
 }
@@ -150,10 +153,14 @@ export const supportReadService = {
   },
 
   async transactions(db: DbOrTx, userId: string, limit = 50): Promise<SupportTransaction[]> {
-    const { masterWalletId, subs } = await subWalletsFor(db, userId);
+    const { masterWalletId, isPrincipal, subs } = await subWalletsFor(db, userId);
     if (!masterWalletId) return [];
 
-    // A principal sees the household's spend; an agent sees only their own sub-wallet's.
+    // A principal sees EVERYTHING on the household wallet; an agent sees only their own
+    // sub-wallets'. The distinction matters more than it looks: a top-up carries NO sub-wallet
+    // (`topup.service` inserts it against the master alone), so scoping a principal by sub-wallet
+    // ids would hide every top-up — and "my transfer hasn't arrived" is the commonest reason
+    // anyone phones support at all.
     const subIds = subs.map((s) => s.id);
     const scope = await db
       .select({
@@ -168,12 +175,12 @@ export const supportReadService = {
       })
       .from(transactions)
       .where(
-        subIds.length > 0
-          ? and(
+        isPrincipal || subIds.length === 0
+          ? eq(transactions.masterWalletId, masterWalletId)
+          : and(
               eq(transactions.masterWalletId, masterWalletId),
               inArray(transactions.subWalletId, subIds),
-            )
-          : eq(transactions.masterWalletId, masterWalletId),
+            ),
       )
       .orderBy(desc(transactions.createdAt))
       .limit(limit);

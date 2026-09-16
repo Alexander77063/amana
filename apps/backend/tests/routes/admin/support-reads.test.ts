@@ -6,6 +6,7 @@ import { rulesRepo } from '../../../src/modules/rules/rules.repo';
 import { supportVerificationsRepo } from '../../../src/modules/support';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
+import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { createServer } from '../../../src/server';
 import { signedInAdmin } from '../../helpers/admin-session';
 import { factories } from '../../helpers/factories';
@@ -177,6 +178,29 @@ describe('support reads', () => {
     expect(raw).not.toContain('0123456789');
     expect(raw).not.toContain('0987654321');
     expect(JSON.parse(raw).rules[0].kind).toBe('allowlist');
+  });
+
+  // A top-up carries NO sub-wallet, so scoping a principal's reads by sub-wallet ids hides every
+  // one of them — and "my transfer hasn't arrived" is the commonest reason anyone phones support.
+  it('shows a principal their top-ups, which belong to no sub-wallet', async () => {
+    const { cookie, adminUserId } = await signedInAdmin('rd9@amana-ng.com', ['support']);
+    const { principal, masterWallet } = await seedHousehold();
+    await transactionsRepo.insert(testDb, {
+      masterWalletId: masterWallet.id,
+      kind: 'topup',
+      amountKobo: 500000n,
+      idempotencyKey: factories.idempotencyKey(),
+    });
+    const row = await verifiedSessionFor(adminUserId, principal.id);
+
+    const res = await app.request(`/admin/support/verifications/${row.id}/transactions`, {
+      headers: { cookie },
+    });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.transactions).toHaveLength(1);
+    expect(body.transactions[0].kind).toBe('topup');
   });
 
   it('lists the household sub-wallets on the overview', async () => {

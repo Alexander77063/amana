@@ -12,6 +12,22 @@ export type ChannelPreference = 'real_time' | 'threshold' | 'digest' | 'silent';
 
 export type NotificationStatus = 'pending' | 'sent' | 'failed' | 'skipped' | 'read';
 
+/**
+ * The little the PROVIDERS actually need: who to reach, and a label for logs. `NotificationIntent`
+ * satisfies this structurally, so every existing caller is unaffected.
+ *
+ * It exists so a sender that must NOT be preference-resolved — support verification (sub-plan A1
+ * Task 6) — can use the push and SMS rails without being forced to become a `NotificationKind`.
+ * That union is backed by the `notification_kind` Postgres enum on `notifications.kind` and
+ * `notification_preferences.kind`; adding a member to it would mean a migration AND would make the
+ * new kind preference-able, which for a security challenge is precisely wrong.
+ */
+export type NotificationTarget = {
+  recipientUserId: string;
+  /** Free-form label for logs only. Not persisted, not matched against preferences. */
+  kind: string;
+};
+
 /** What dispatchers pass in. The service resolves recipient prefs + fans out. */
 export type NotificationIntent = {
   kind: NotificationKind;

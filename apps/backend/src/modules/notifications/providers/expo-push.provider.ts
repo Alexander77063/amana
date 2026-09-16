@@ -3,7 +3,7 @@ import { Expo, type ExpoPushMessage, type ExpoPushTicket } from 'expo-server-sdk
 import { env } from '../../../env';
 import { logger } from '../../../lib/logger';
 import { deviceTokensRepo } from '../device-tokens.repo';
-import type { NotificationIntent, RenderedNotification } from '../types';
+import type { NotificationTarget, RenderedNotification } from '../types';
 
 const expo = new Expo({
   accessToken: env.EXPO_ACCESS_TOKEN,
@@ -19,7 +19,7 @@ export type ExpoSendResult = {
 export const expoPushProvider = {
   async send(
     db: PostgresJsDatabase,
-    intent: NotificationIntent,
+    intent: NotificationTarget,
     rendered: RenderedNotification,
   ): Promise<ExpoSendResult> {
     const tokens = await deviceTokensRepo.listByUser(db, intent.recipientUserId);

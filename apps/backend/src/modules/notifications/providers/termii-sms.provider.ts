@@ -4,7 +4,7 @@ import { users } from '../../../db/schema';
 import { env } from '../../../env';
 import { TermiiClient } from '../../../integrations/termii';
 import { logger } from '../../../lib/logger';
-import type { NotificationIntent, RenderedNotification } from '../types';
+import type { NotificationTarget, RenderedNotification } from '../types';
 
 const client = env.TERMII_API_KEY ? new TermiiClient(env.TERMII_BASE_URL) : null;
 
@@ -17,7 +17,7 @@ export type SmsSendResult =
 export const termiiSmsProvider = {
   async send(
     db: PostgresJsDatabase,
-    intent: NotificationIntent,
+    intent: NotificationTarget,
     rendered: RenderedNotification,
   ): Promise<SmsSendResult> {
     if (!client || !env.TERMII_API_KEY) {

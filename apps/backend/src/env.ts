@@ -54,6 +54,17 @@ const EnvSchema = z
       .default(60 * 60 * 24 * 30),
     OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
     OTP_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
+    // Support verification (sub-plan A1 Task 6). All four have safe defaults and are deliberately
+    // NOT in the production `required` block: absence changes a tuning value, not correctness.
+    // Long enough to read a number aloud and have it tapped; short enough that an unanswered
+    // fishing attempt dies during the same call.
+    SUPPORT_PENDING_SECONDS: z.coerce.number().int().positive().default(180),
+    SUPPORT_SESSION_SECONDS: z.coerce.number().int().positive().default(900),
+    // Caps are counted in the DATABASE, not in the in-memory rate limiter: a daily cap that resets
+    // on every deploy is not a cap. Per-phone is counted across ALL operators, because a limit one
+    // member of staff can walk around by asking a colleague is not a limit.
+    SUPPORT_STARTS_PER_OPERATOR_HOUR: z.coerce.number().int().positive().default(20),
+    SUPPORT_STARTS_PER_PHONE_DAY: z.coerce.number().int().positive().default(5),
     PAIRING_TOKEN_TTL_SECONDS: z.coerce
       .number()
       .int()

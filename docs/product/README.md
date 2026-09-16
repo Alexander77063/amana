@@ -94,7 +94,7 @@ them did. Until that holds, expect a fourth instance.
 
 The cheap partial guard already exists and works:
 [`tools/docs/validate-tables.py`](../../tools/docs/validate-tables.py) catches malformed tables
-across 94 files. **A comparable check for the schema doc is mechanisable** — the table count and
+across every Markdown file under `docs/`. **A comparable check for the schema doc is mechanisable** — the table count and
 names can be diffed against `apps/backend/src/db/schema/*.ts` in CI, which would have caught this
 one the day A1 merged.
 

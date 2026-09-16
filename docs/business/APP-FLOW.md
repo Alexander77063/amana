@@ -681,7 +681,7 @@ scope rather than a bolt-on. The SQL workaround is in the runbook.
 
 ---
 
-## 9. Admin & ops arc — staff identity, roles, maker-checker and the admin portal *(IAM model added 2026-09-09; portal flows 2026-09-07; merged 2026-09-14)*
+## 9. Admin & ops arc — staff identity, roles, maker-checker and the admin portal *(IAM model added 2026-09-09; portal flows 2026-09-07; merged 2026-09-14; support verification §9.8 added 2026-09-16)*
 
 The fourth actor, and the first who is **Amana staff rather than a customer**. Sub-plan A1 built
 it in two layers and this section follows them: Tasks 1–4 are the model underneath — Workspace
@@ -947,3 +947,61 @@ access to someone you have decided should not have it. The break-glass stand-dow
 [`runbook/google-workspace-setup.md`](../runbook/google-workspace-setup.md) is exactly this
 asymmetry being used on purpose: the newly onboarded admin revokes the bootstrap account's `admin`
 role, alone, from this screen.
+
+### 9.8 Support verification — verify the caller, see almost nothing *(added 2026-09-16, A1 Task 6)*
+
+A customer phones support. Before any help, support proves the caller controls the number they
+claim — and afterwards still cannot see who they are. Verification unlocks *helping*, not *looking*.
+
+```
+CUSTOMER phones support, states a number
+  └── operator types it into /support
+        └── ALWAYS "verification sent" · 202 · a row is written either way
+              │
+              ├── number belongs to a principal or agent WITH a device token
+              │     └── PUSH: three two-digit numbers, shuffled (Fisher-Yates, CSPRNG)
+              │           operator reads ONE aloud → customer taps the match
+              │           ONE attempt. A wrong tap denies outright.
+              │
+              ├── number belongs to a principal or agent with NO device token
+              │     └── SMS: six-digit code → customer reads it TO the operator
+              │           operator types it in · THREE attempts, then denied
+              │
+              └── number belongs to nobody, or to a RETAILER
+                    └── nothing dispatched · row expires after 3 min
+                          ↓
+              ╔═══════════════════════════════════════════════════════════╗
+              ║ The operator's screen CANNOT tell these apart while they  ║
+              ║ are pending, and an expired stranger's number looks       ║
+              ║ EXACTLY like a customer who did not answer. That is the   ║
+              ║ security property, not an accident of the UI. Do not      ║
+              ║ "improve" it by reporting "no such customer".             ║
+              ╚═══════════════════════════════════════════════════════════╝
+
+  └── VERIFIED → session runs 15 min, bound to THIS operator
+        ├── masked account ••••1234 · sub-wallet names and statuses
+        ├── recent spend: amount, time, status, why it failed
+        └── rule summaries — allowlisted accounts COUNTED, never listed
+        and absent entirely: name, address, date of birth, BVN, NIN,
+        the full account number, anything from before this verification
+        ↓
+        every read writes audit_log(actorAdminUserId, verificationId)
+
+  └── EXPIRED / DENIED → start a new verification; a session is never reused
+        for the next caller, and a colleague cannot pick up this one
+```
+
+**The operator's screen never says which rail was used.** It shows the match number and a code field
+together — *"read them this number and ask them to tap it; if they got a text instead, ask them to
+read you the code"* — because naming the rail would tell staff whether the customer has the app
+installed. The caller says which they received; the system does not.
+
+**Caps are counted in the database**, not in the in-memory limiter: 20 starts per operator per hour,
+5 per number per day across *all* operators. A breach is an explicit `429` whose copy says the limit
+is Amana's, not the caller's — the no-oracle rule protects whether a *customer* exists, and an
+operator's own quota reveals nothing about that.
+
+**On the customer's phone**, both apps show the same screen and the same warning: *"Only approve if
+you called Amana support and they read you this number"*, closing with *"if nobody read you a
+number, close this and tap nothing."* That copy is the mechanism. Number matching defeats a fished
+approval only if the person understands that approving unprompted **is** the attack.

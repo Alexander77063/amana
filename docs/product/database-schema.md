@@ -148,7 +148,26 @@ checks reachability. Two known drizzle-kit sharp edges, both hit in practice:
 
 ## Keeping this current
 
-Regenerate the inventory with:
+**CI now checks this document against the code on every push** —
+[`tools/docs/validate_schema_doc.py`](../../tools/docs/validate_schema_doc.py), in the `docs` job:
+
+```bash
+python3 tools/docs/validate_schema_doc.py     # the check CI runs
+python3 -m unittest discover -s tools/docs    # its own 18 tests
+```
+
+It fails the build when the count claim at the top of this file disagrees with the code, when a
+`pgTable` exists that is named nowhere here, or when this file lists a table that no longer exists.
+So the counts above cannot go stale silently any more, and neither can a missing table. What it
+**cannot** see is a prose claim that has quietly become false — that still needs a reader.
+
+> **The guard's first catch was in this very section, 2026-09-16.** The paragraph below said the
+> multiline regex "gives 30" and that a single-line grep "undercounts by eight". Both numbers were
+> from the 2026-08-25 draft and survived the 2026-09-09 refresh that corrected the header to 40 —
+> a stale figure sitting directly underneath the sentence warning about stale figures. It is
+> **40**, and the single-line shape undercounts by **15**.
+
+Regenerate the inventory by hand with:
 
 ```bash
 node -e "
@@ -160,9 +179,11 @@ console.log(names.size, [...names].sort().join(' '));
 "
 ```
 
-Deliberately not a grep. Eight tables are declared with the name on the line *after* `pgTable(`,
-so a single-line grep undercounts by eight — which is exactly what the first draft of this document
+Deliberately not a grep. **15** tables are declared with the name on the line *after* `pgTable(`,
+so a single-line grep undercounts by 15 — which is exactly what the first draft of this document
 did — and a `-A1` grep over-counts by picking up column names from the following line. Both were
-tried here; only the multiline regex gives 30.
+tried here; only the multiline regex gives 40. The CI guard matches the name after the paren for
+the same reason, and refuses to run at all if it meets a `pgTable(` call it cannot read.
 
-If the count no longer matches, this document is stale — say so rather than trusting it.
+If the count no longer matches, this document is stale — say so rather than trusting it. CI will
+now say so first.

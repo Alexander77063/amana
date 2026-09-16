@@ -91,6 +91,26 @@ across 92 files. **A comparable check for the schema doc is mechanisable** — t
 names can be diffed against `apps/backend/src/db/schema/*.ts` in CI, which would have caught this
 one the day A1 merged.
 
+> **Built 2026-09-16 — the sentence above is no longer a suggestion.**
+> [`tools/docs/validate_schema_doc.py`](../../tools/docs/validate_schema_doc.py) runs on every push
+> in the `docs` CI job and fails the build when `database-schema.md` and the code disagree. It
+> checks three things: the **count claim** (`**N tables, N enums, N migrations.**`) against what is
+> measured; every `pgTable` in the schema appearing as a backticked name **somewhere** in the doc —
+> the check that catches the recorded defect; and every table the "Tables by domain" lists actually
+> existing, so a dropped one cannot linger. It has 18 tests of its own, which CI runs first, because
+> a guard nobody tests can pass while checking nothing.
+>
+> Two deliberate properties. A `pgTable(` call whose name is not a literal string **fails the
+> build** rather than being skipped — silently under-counting would make the guard worse than
+> none. And if the count sentence is reworded away or duplicated, that **also** fails, rather than
+> the check quietly switching itself off.
+>
+> **What it does not close.** This is the table-shaped hole only. The 2026-09-14 instance below was
+> a false *sentence* — "There is no admin client application … `[NO UI]`" — merging cleanly into
+> the branch that builds that client. No table was involved and no count moved, so this guard would
+> have said nothing. Grepping the merged tree for the claims an incoming branch falsifies is still
+> a human job. **Three of the four recorded instances are now mechanised; the fourth is not.**
+
 ### One code comment corrected while auditing
 
 `apps/backend/src/middleware/admin-session.ts` still said the session auth and the shared

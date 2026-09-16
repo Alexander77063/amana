@@ -79,11 +79,19 @@ jobs:
   docs:
     # Cheap and independent of the build — a broken Markdown table renders as literal pipe text,
     # which is invisible in an editor and obvious in a browser, so it needs a machine to catch.
+    # The schema check is here for the same reason: docs/product/README.md records four instances
+    # of a subsystem shipping while the document describing it stayed still, and a dated audit is
+    # not a mechanism. This one runs on every push, which is the difference.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
+      - name: Test the docs tooling
+        # A guard nobody tests is a guard that can pass while checking nothing.
+        run: python3 -m unittest discover -s tools/docs
       - name: Validate Markdown tables
         run: python3 tools/docs/validate-tables.py
+      - name: Validate the schema doc against the schema
+        run: python3 tools/docs/validate_schema_doc.py
 
   deploy:
     needs: build-and-test

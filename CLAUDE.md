@@ -123,5 +123,12 @@ Fly.io app `amana-api`, region `jnb`. Two process groups: `app` (web, `/health` 
 Node repo; its own CI job). A pipe table missing its `|---|` delimiter row renders as literal pipe
 text — invisible in an editor, obvious in a browser — so it needs a machine, not a reader.
 
+**Add or drop a `pgTable`, then run `python3 tools/docs/validate_schema_doc.py`** — same CI job. It
+fails if `docs/product/database-schema.md` does not name the table, or if its `**N tables, N enums,
+N migrations.**` claim has gone stale. Update that document *in the same commit as the migration*;
+this check exists because four separate subsystems shipped without it and the index
+(`docs/product/README.md`) records every one. Its own tests: `python3 -m unittest discover -s
+tools/docs`. On Windows use `py -3` where `python3` is not on PATH.
+
 **Before adding "just a note" to a requirement doc, diff the section against the code.** The design
 brief's entire palette and typeface turned out never to have shipped.

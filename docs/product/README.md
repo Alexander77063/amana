@@ -18,6 +18,13 @@ the schema doc. The 2026-08-25 refresh was real and its work stands; what it cou
 true through a subsystem that landed after it. All four are now corrected — see *The 2026-09-09
 re-audit*, below.
 
+**Amended 2026-09-16 — the first of these is now a machine.** `tools/docs/validate_schema_doc.py`
+runs in CI on every push and fails the build when `database-schema.md` disagrees with
+`apps/backend/src/db/schema/*.ts`. Row 6 is therefore the only row here that can no longer go stale
+quietly; the other nine still depend on someone updating them in the same commit. The guard's first
+catch was a stale figure inside the schema doc's own section warning about stale figures. See
+*The mechanised check*, below.
+
 **Re-checked 2026-09-14, at the PR #65 merge — and the fourth instance was already written.**
 The admin portal's branch predated that re-audit and carried its own docs; merging `main` into it
 turned up a requirement that said the portal does not exist. See *The 2026-09-14 merge*, below.
@@ -35,7 +42,7 @@ from scratch. See *What refreshing them involved*, below.
 | 3 | **MVP scope** | [`mvp-scope.md`](./mvp-scope.md) | ✅ **CURRENT** — rewritten 2026-08-25. The MVP shipped; this now states what is in, what is deliberately out, and where the cut line moved. |
 | 4 | **User flow** | [`docs/business/APP-FLOW.md`](../business/APP-FLOW.md) | ✅ **CURRENT** — refreshed 2026-08-25, amended 2026-08-26, 08-27, 09-07, 09-09 and **09-14**. **§9 is one section written on two branches and merged 2026-09-14**: the 2026-09-09 audit's admin & ops arc (staff SSO, the five roles, the append-only grant log, maker-checker) underneath the 2026-09-07 staff portal flows (A1 Task 5 — sign-in, the two-seat approval, claim → propose → approve, the retailer lifecycle, onboarding and role grants). The audit had documented it "as an API surface because `apps/` contains no admin client" — true of `main` that day, false once PR #65 merged; removed. The portal pass also found two **false** passages and fixed them in place: §8.4 claimed the ops surfaces used `ADMIN_API_KEY` and had "no UI" (the secret was deleted in A1 Task 4 and a UI now exists), and §7.1's ops column said the same. **§8 vendor arc added 2026-08-27**: the passive registry, the claim rail (post-Gate-3 two-step shape) and the payable code — SP-V1/V2/V3 had shipped with no flow documented at all, and §7.1 covers a different rail with a different actor. Added §3.6 VAS, §6 marketplace incl. the control fusion drawn as a two-column sequence, §7 retailer portal; SP-V3's vendor-code scan branch added to §3.2. **Correction:** the 2026-08-25 note claimed the principal *and* agent wallet flows were accurate. The agent ones were. §1.1's `PayTab` and all of §2.5 (principal direct spend) describe screens that do not exist in `apps/principal/src/`; both are now marked NOT BUILT in place. |
 | 5 | **Design system** | [`packages/ui`](../../packages/ui) (source of truth) + [`UI-UX-DESIGN-BRIEF.md`](../business/UI-UX-DESIGN-BRIEF.md) + [`brand.md`](../brainstorm/brand.md) | ✅ **CURRENT** — v1.1, refreshed 2026-08-25, extended 2026-09-07. The brief's palette and typeface were **wrong**, not merely incomplete — §3 and §4 are corrected to the shipped tokens, and §9 covers the retailer portal. Details below. **§10 added 2026-09-07** for the admin portal (A1 Task 5): the two-seat approval line, gold spent in exactly three places, every action naming its consequence. §9.2's drift table now tracks **two** duplicated token copies rather than one — the admin portal's differs from the retailer portal's by a single line, `--serif: Georgia`. |
-| 6 | **Database schema** | [`database-schema.md`](./database-schema.md) | ✅ **CURRENT** — rewritten 2026-08-25, **refreshed 2026-09-09**: it had gone from 30 tables to 40 with **ten undocumented**, and 35 migrations to 49. It superseded `BACKEND-SCHEMA.md` for predating five schema files, then came to predate ten itself in fifteen days. |
+| 6 | **Database schema** | [`database-schema.md`](./database-schema.md) | ✅ **CURRENT — and now machine-checked.** Rewritten 2026-08-25, **refreshed 2026-09-09**: it had gone from 30 tables to 40 with **ten undocumented**, and 35 migrations to 49. It superseded `BACKEND-SCHEMA.md` for predating five schema files, then came to predate ten itself in fifteen days. **Amended 2026-09-16**: `tools/docs/validate_schema_doc.py` now fails CI when this document and `apps/backend/src/db/schema/*.ts` disagree, so its counts and its table list can no longer drift silently. That guard's first catch was in this file's own "Keeping this current" section — it still said the inventory regex "gives 30" and that a single-line grep "undercounts by eight", 2026-08-25 figures that survived the 09-09 refresh which corrected the header to 40. Now 40 and 15. |
 | 7 | **Monetisation** | [`docs/business/PRICING.md`](../business/PRICING.md) | ✅ **CURRENT** — 2026-07-01, confirmed against Anchor's real pricing schedule. The most load-bearing document here. **§8 added 2026-08-27** — adjacent revenue from operational by-products (the merchant cash-flow graph, category codes, verified-payee identity), explicitly marked strategy rather than model, with the `observed`/`claimed` consent boundary written down. |
 | 8 | **Launch plan** | [`launch-plan.md`](./launch-plan.md) | ✅ **NEW** — 2026-08-25. Was a genuine gap; `go-live-checklist.md` covers ops readiness only, not sequence, gates or rollback. |
 | 9 | **User acquisition** | [`user-acquisition.md`](./user-acquisition.md) | ✅ **NEW** — 2026-08-25, building on [`embedded-distribution-strategy.md`](../business/embedded-distribution-strategy.md). |
@@ -87,9 +94,37 @@ them did. Until that holds, expect a fourth instance.
 
 The cheap partial guard already exists and works:
 [`tools/docs/validate-tables.py`](../../tools/docs/validate-tables.py) catches malformed tables
-across 92 files. **A comparable check for the schema doc is mechanisable** — the table count and
+across 94 files. **A comparable check for the schema doc is mechanisable** — the table count and
 names can be diffed against `apps/backend/src/db/schema/*.ts` in CI, which would have caught this
 one the day A1 merged.
+
+### The mechanised check — built 2026-09-16
+
+**The sentence above is no longer a suggestion.**
+[`tools/docs/validate_schema_doc.py`](../../tools/docs/validate_schema_doc.py) runs on every push in
+the `docs` CI job and fails the build when `database-schema.md` and the code disagree. It checks
+three things: the **count claim** (`**N tables, N enums, N migrations.**`) against what is measured;
+every `pgTable` in the schema appearing as a backticked name **somewhere** in the doc — the check
+that catches the recorded defect; and every table the "Tables by domain" lists actually existing, so
+a dropped one cannot linger. It has 18 tests of its own, which CI runs first, because a guard nobody
+tests can pass while checking nothing.
+
+Two deliberate properties. A `pgTable(` call whose name is not a literal string **fails the build**
+rather than being skipped — silently under-counting would make the guard worse than none. And if the
+count sentence is reworded away or duplicated, that **also** fails, rather than the check quietly
+switching itself off.
+
+**It caught something on its first run**, in the one place that is almost funny: the schema doc's
+"Keeping this current" section, the paragraph that exists to warn about stale numbers, said the
+inventory regex "gives 30" and a single-line grep "undercounts by eight". Both were 2026-08-25
+figures that survived the 2026-09-09 refresh which corrected the header to 40. It is 40, and the
+undercount is 15.
+
+**What it does not close.** This is the table-shaped hole only. The 2026-09-14 instance below was a
+false *sentence* — "There is no admin client application … `[NO UI]`" — merging cleanly into the
+branch that builds that client. No table was involved and no count moved, so this guard would have
+said nothing. Grepping the merged tree for the claims an incoming branch falsifies is still a human
+job. **Three of the four recorded instances are now mechanised; the fourth is not.**
 
 ### One code comment corrected while auditing
 

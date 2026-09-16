@@ -74,3 +74,7 @@ android/build/
 # .claude/ is deliberately NOT blanket-ignored: shared agents and
 # skills stay tracked; only machine-local state is excluded.
 .serena/
+
+# Python bytecode from the docs tooling (tools/docs/*.py) — the only Python here.
+__pycache__/
+*.pyc

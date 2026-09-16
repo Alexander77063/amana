@@ -53,3 +53,4 @@ export { MeApi } from './me-api';
 export * from './vas-api';
 export * from './retailer-api';
 export * from './marketplace-api';
+export { SupportApi, type SupportRespondResult } from './support-api';

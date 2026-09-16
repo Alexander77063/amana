@@ -6,10 +6,13 @@ Workspace OIDC (verified against a stub; see the caveat under Task 1), server-si
 seeded first owner, the `audit_log` attribution column, the role model with its invariants,
 maker-checker on role grants, and **the cutover: the shared `ADMIN_API_KEY` is deleted and all 13
 ops endpoints now require a named staff session.** **Task 5 built 2026-09-07** — `apps/admin-portal`,
-the staff UI, plus two backend permission corrections it forced. Remaining: Tasks 6–7.
+the staff UI, plus two backend permission corrections it forced. **Task 6 built 2026-09-16** —
+support verification by number matching, the three gated reads, the admin-portal screen and the
+approve surface in both Expo apps. Remaining: **Task 7** (JIT elevation and money operations).
 
-Six changes to this plan were made during Tasks 2–5; all are recorded in the decision tables below
-rather than absorbed silently.
+Twelve changes to this plan were made during Tasks 2–6; all are recorded in the decision tables and
+blocks below rather than absorbed silently. Task 6's are the largest — including that its own
+sketch of a plain "Approve" was superseded before any code was written.
 **Decisions locked with Alex before planning** (see "Decisions" below) — do not re-litigate them
 mid-build; raise a change instead.
 
@@ -289,7 +292,16 @@ documentation is [`docs/runbook/admin-portal.md`](../../runbook/admin-portal.md)
 | Vendor read surface | New `GET /vendors-admin/vendors` (status + text search, limit 200), `GET /vendors-admin/vendors/:id`, and the claim queue joins a **vendor summary** with the account number **masked** (`••••1234`) | The queue returned bare `vendorId`s and no admin route reads a vendor, so the claim screen could show nothing about the business being claimed. Ops never needs the full account number; the claim carries the bank identity already. The cutover test now enumerates 15 endpoints, not 13. |
 | API layer | Portal-local `lib/api.ts` (relative `fetch`, `credentials: 'same-origin'`), **not** `@amana/api-client` | The shared client requires a `tokenStore` and never sends credentials; a cookie-authenticated same-origin portal needs neither. Adding a cookie mode to a client the two mobile apps depend on is risk with no mobile benefit. This is an explicit exception to sp4b's "the portal consumes only the client" rule, and it is written down here. |
 
-### Task 6 — Support: verify the customer *before* the conversation, and see almost nothing
+### Task 6 — Support: verify the customer *before* the conversation, and see almost nothing ✅ built 2026-09-16
+
+> **Superseded in part, 2026-09-16.** This section described a plain "Approve" tap. That is
+> fishable: a customer not on a call can still tap it, so a rogue or socially-engineered operator
+> can farm approvals and the audit log records something that looks legitimate. The design is now
+> **number matching** — approving requires hearing a number the operator reads aloud. The sketch
+> below is corrected; the full design, including why the SMS rail must work differently, is
+> [`specs/2026-09-16-support-verification-design.md`](../specs/2026-09-16-support-verification-design.md),
+> with the task breakdown in
+> [`plans/2026-09-16-a1-task6-support-verification.md`](./2026-09-16-a1-task6-support-verification.md).
 
 Reframed from "support lookup" on Alex's instruction, and it is a materially better design.
 
@@ -302,9 +314,10 @@ CUSTOMER phones support
         └── ALWAYS answers "verification sent" — never "no such customer"
               (a staff-facing enumeration oracle is still an enumeration oracle;
                same reasoning as PRE-LAUNCH GATE 3)
-        ├── push to the customer's app: "Are you speaking to Amana support? Approve"
-        │     (expo-push.provider.ts — the rail already exists)
-        └── falls back to an SMS code they read back
+        ├── push to the customer's app: THREE numbers; the operator reads ONE aloud
+        │     and the customer taps the match. ONE attempt — a 1-in-3 guess
+        │     must not be retryable. (expo-push.provider.ts — the rail exists)
+        └── falls back to an SMS code they read back, three attempts
               (termii-sms.provider.ts — likewise)
 
   └── support's screen flips to: ✅ VERIFIED · session expires in 15 min
@@ -330,6 +343,35 @@ data is itself an event.
 
 **Verification expires** (15 min, tunable). A new call is a new verification — support cannot hold a
 session open and reuse it for the next caller.
+
+### Decided during Task 6 (2026-09-16) — including three changes to the plan itself
+
+1. **Number matching replaces plain approve.** A push saying "are you speaking to support?" is
+   fishable by an operator who is not on a call, and the audit log would record something that
+   looks legitimate. Approving now requires hearing a two-digit number read aloud. **Push gets ONE
+   attempt** — a one-in-three guess must not be retryable.
+2. **The rails cannot share a mechanic.** There is nothing to tap in an SMS, so SMS is a six-digit
+   read-back with three attempts. The operator's screen shows both affordances and **never states
+   which rail was used**, because naming it leaks whether the customer has the app installed.
+3. **`support_verification` did NOT become a `NotificationKind`.** That union is backed by the
+   `notification_kind` Postgres enum on `notifications.kind` and `notification_preferences.kind`;
+   widening it would have needed a migration *and* made a security challenge preference-able. The
+   providers turned out to need only `recipientUserId`, so a narrow `NotificationTarget` type was
+   added and the providers now take that. Dispatch bypasses `notificationService.dispatch`
+   entirely: a customer who has silenced push, or who calls at 23:00, must still receive the
+   challenge they are on the phone asking for.
+4. **Caps are counted in the database**, not in the in-memory `rateLimit` middleware — a daily cap
+   that resets on every deploy is not a cap. The per-phone cap counts across *all* operators. A
+   breach returns an explicit **429**, never a silent 202: the no-oracle rule protects whether a
+   *customer* exists, and an operator's own quota reveals nothing about that.
+5. **Rules are summarised, never echoed.** An `allowlist` config holds vendor bank accounts
+   (`{ bankCode, accountNumber }[]`). Returning `configJson` would have leaked account numbers to
+   the exact role this task exists to keep away from customer detail. Each kind gets a sentence,
+   with counts where the detail is sensitive.
+6. **The read model is smaller than the sketch implied, on purpose.** `sub_wallets` has no limit
+   columns, `rules` has no `name`, and no `denialReason` field exists anywhere — so support sees
+   `transactions.errorMessage` as `failureReason`, and balance returns `null` rather than an
+   approximation. A wrong number on a support screen is worse than no number.
 
 ### Task 7 — JIT elevation and money operations
 Elevation request/approve/expire, then the money surfaces behind it. Last deliberately: it is the

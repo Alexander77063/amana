@@ -210,6 +210,29 @@ That ceremony is written there as `curl`. It is now doable from the portal: the 
 second person; only *granting* is maker-checked, because a grant creates standing and a revocation
 removes it, and delay is harmful in only one of those directions.
 
+## Support verification *(added 2026-09-16, A1 Task 6)*
+
+`/support`, visible to anyone holding `support.verify`. What the operator does:
+
+1. Types the number the caller states. The screen **always** says a verification was sent — it says
+   the same thing for a number belonging to nobody, and that is deliberate (PRE-LAUNCH GATE 3: a
+   staff-facing enumeration oracle is still an enumeration oracle).
+2. Reads the two-digit number aloud, or takes a code read back. The screen shows both affordances
+   and never states which rail was used.
+3. On **Verified**, three panels appear for 15 minutes: masked account and wallets, recent spend
+   with failure reasons, and rule summaries.
+
+What support sees: masked account (`••••1234`), sub-wallet names and statuses, transaction amounts,
+times, status and failure reason, and a one-line summary per rule.
+
+What support never sees: full name, address, date of birth, **BVN or NIN** (absent from the
+response, not masked), the full account number, and the account numbers inside an allowlist rule —
+those are counted, never listed.
+
+Caps are counted in the database, not in the in-memory limiter: 20 starts per operator per hour and
+5 per phone per day, the latter across all operators. A breach is an explicit `429` whose copy says
+the limit is ours rather than the caller's.
+
 ## Known limits
 
 - **No pagination, anywhere — and the lists do not even fail the same way.** The vendor search, the
@@ -231,6 +254,11 @@ removes it, and delay is harmful in only one of those directions.
   list, onboard, read roles, grant and revoke, and nothing else. Suspension is still a database
   write. Removing someone urgently is done in Google Workspace, which is the identity boundary
   anyway; this is a gap in the portal, not in the control.
+- **The support reads this feature audits cannot be read in the portal.** Every support read writes
+  an `audit_log` row naming the operator and the verification, which is the whole point of the
+  design — and there is still no endpoint that serves `audit_log`, so answering "which operator read
+  this customer's data" means querying Postgres directly. A1 Task 6 makes this gap more conspicuous
+  rather than less.
 - **No audit-log screen.** `audit.read` exists in the permission matrix and `auditor` holds it, but
   no endpoint consumes it, so there is nothing for the portal to render. The `audit_log` table is
   immutable and complete — it is only unreachable over HTTP.

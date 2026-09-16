@@ -4,7 +4,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 import { HomeScreen } from '../screens/HomeScreen';
 import { HistoryStack } from './HistoryStack';
 import { PayStack, type PayStackParamList } from './PayStack';
-import { SettingsStack } from './SettingsStack';
+import { SettingsStack, type SettingsStackParamList } from './SettingsStack';
 
 export type MainTabParamList = {
   Home: undefined;
@@ -12,7 +12,9 @@ export type MainTabParamList = {
   // Home links straight into the marketplace this way.
   Pay: NavigatorScreenParams<PayStackParamList>;
   History: undefined;
-  Settings: undefined;
+  // Nested for the same reason as Pay: a tapped support-verification push must be able to land on
+  // SettingsStack's SupportApprove screen, which means naming both the tab and the screen.
+  Settings: NavigatorScreenParams<SettingsStackParamList>;
 };
 
 const Tab = createBottomTabNavigator<MainTabParamList>();

@@ -11,6 +11,12 @@ import type {
   RetailerStatus,
   Role,
   RoleGrant,
+  SupportOutcome,
+  SupportOverview,
+  SupportRule,
+  SupportStart,
+  SupportStatus,
+  SupportTransaction,
   VendorStatus,
   VendorSummary,
 } from './types';
@@ -125,6 +131,28 @@ export const api = {
       post<{ ok: true }>(`/vendors-admin/vendors/${id}/consents/revoke`, { purpose }),
     setEnforcement: (householdId: string, enforced: boolean | null) =>
       post<{ ok: true }>(`/vendors-admin/households/${householdId}/enforcement`, { enforced }),
+  },
+
+  support: {
+    start: (phone: string) =>
+      request<SupportStart>('/admin/support/verifications', {
+        method: 'POST',
+        body: JSON.stringify({ phone }),
+      }),
+    status: (id: string) => request<SupportStatus>(`/admin/support/verifications/${id}`),
+    confirmCode: (id: string, code: string) =>
+      request<SupportOutcome>(`/admin/support/verifications/${id}/code`, {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+      }),
+    overview: (id: string) =>
+      request<SupportOverview>(`/admin/support/verifications/${id}/overview`),
+    transactions: (id: string) =>
+      request<{ transactions: SupportTransaction[] }>(
+        `/admin/support/verifications/${id}/transactions`,
+      ),
+    rules: (id: string) =>
+      request<{ rules: SupportRule[] }>(`/admin/support/verifications/${id}/rules`),
   },
 
   retailers: {

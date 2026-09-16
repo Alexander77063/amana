@@ -53,6 +53,10 @@ const TABLES_TO_TRUNCATE = [
   'admin_role_grants',
   'admin_approvals',
   'admin_users',
+  // Sub-plan A1 Task 6. Without this the table's rows survive every beforeEach and leak across
+  // tests — the per-phone and per-operator caps are counted from these rows, so pollution here
+  // silently changes what a cap test proves.
+  'support_verifications',
 ] as const;
 
 export async function truncateAll(): Promise<void> {

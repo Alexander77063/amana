@@ -4,8 +4,15 @@
 **Supersedes** [`BACKEND-SCHEMA.md`](../business/BACKEND-SCHEMA.md), which predates the VAS,
 marketplace, sticker and recents schema files.
 
-Current as of 2026-09-09: **40 tables, 40 enums, 49 migrations.** Where this document
+Current as of 2026-09-16: **41 tables, 42 enums, 50 migrations.** Where this document
 and the code disagree, the code is right — but tell someone, because that means this drifted.
+
+> **2026-09-16 — the first change made under the CI guard.** Sub-plan A1 Task 6 added
+> `support_verifications` (migration `0049`). The guard
+> ([`tools/docs/validate_schema_doc.py`](../../tools/docs/validate_schema_doc.py)) failed the build
+> on all four counts — three stale numbers and one undocumented table — before this paragraph was
+> written. That is the intended workflow: the document moves in the same commit as the migration
+> because CI will not accept it otherwise.
 
 > **Refresh, 2026-09-09 — this document had drifted in exactly the way it warns about.**
 > The 2026-08-25 version said *30 tables, 29 enums, 35 migrations*. Ten tables were missing:
@@ -86,6 +93,8 @@ because a sold voucher must still be able to name what was bought.
 **Admin & IAM** (added 2026-08-28 → 09-09, sub-plan A1) — `admin_users`, `admin_sessions`,
 `admin_auth_requests`, `admin_role_grants`, `admin_approvals`
 
+**Support** (added 2026-09-16, sub-plan A1 Task 6) — `support_verifications`
+
 **Consent** — `user_consents`, `vendor_consents`
 
 **Vendor registry** — `vendors`, `vendor_observations`, `vendor_claim_attempts`
@@ -111,6 +120,24 @@ and vendor claim approvals — the two actions that create authority, one over t
 a bank account. Every *removal* is ungated: revoking a role, suspending a vendor and revoking a
 merchant's consent all take one person, because requiring two would leave the dangerous state in
 place while a second admin is found.
+
+### Support verification — two decisions the columns encode
+
+**`user_id` is nullable, and that is the security property.** A row is written for every verification
+attempt, including one against a number that matches no customer — nothing is dispatched, the row
+simply expires, and the operator sees *waiting… expired*, which is exactly what a real customer who
+did not answer looks like. A table that only held rows for real customers would be an enumeration
+oracle in storage, the same failure the API refuses at PRE-LAUNCH GATE 3. Do not "tidy" this to
+NOT NULL.
+
+**`code_hash`, never the code.** The SMS rail sends a six-digit code the customer reads back. Storing
+it readable would let anyone with database access pass verification without the customer ever being
+on the phone — which defeats the entire point of verifying. It is an HMAC under a subkey derived
+from `FIELD_ENCRYPTION_KEY`, domain-separated so this use cannot collide with at-rest field
+encryption.
+
+`admin_user_id` is nullable only so the schema test can insert without a staff fixture; every
+production write sets it, and a verified session is bound to the operator who started it.
 
 ### Consent — append-only, for the same reason twice
 
@@ -179,10 +206,10 @@ console.log(names.size, [...names].sort().join(' '));
 "
 ```
 
-Deliberately not a grep. **15** tables are declared with the name on the line *after* `pgTable(`,
-so a single-line grep undercounts by 15 — which is exactly what the first draft of this document
+Deliberately not a grep. **16** tables are declared with the name on the line *after* `pgTable(`,
+so a single-line grep undercounts by 16 — which is exactly what the first draft of this document
 did — and a `-A1` grep over-counts by picking up column names from the following line. Both were
-tried here; only the multiline regex gives 40. The CI guard matches the name after the paren for
+tried here; only the multiline regex gives 41. The CI guard matches the name after the paren for
 the same reason, and refuses to run at all if it meets a `pgTable(` call it cannot read.
 
 If the count no longer matches, this document is stale — say so rather than trusting it. CI will

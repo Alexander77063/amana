@@ -67,7 +67,7 @@ describe('POST /support/verifications/:id/respond', () => {
 
   it('rejects an unauthenticated response', async () => {
     const res = await app.request(
-      `/support/verifications/00000000-0000-0000-0000-000000000000/respond`,
+      '/support/verifications/00000000-0000-0000-0000-000000000000/respond',
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

@@ -7,8 +7,11 @@ import { deviceTokensRepo } from '../notifications/device-tokens.repo';
 import { expoPushProvider } from '../notifications/providers/expo-push.provider';
 import { termiiSmsProvider } from '../notifications/providers/termii-sms.provider';
 import type { NotificationTarget } from '../notifications/types';
-import { hashCode } from './code-hash';
-import { supportVerificationsRepo } from './support-verifications.repo';
+import { codeMatches, hashCode } from './code-hash';
+import {
+  type SupportVerificationRow,
+  supportVerificationsRepo,
+} from './support-verifications.repo';
 
 type DbOrTx = PostgresJsDatabase;
 
@@ -20,6 +23,19 @@ export type StartResult = {
 };
 
 export type CapBreach = { capped: true; retryAfterSeconds: number };
+
+export type RespondOutcome = 'verified' | 'denied' | 'expired' | 'not_found';
+
+/** Thrown by `requireLiveSession`. Every read endpoint turns this into a 403. */
+export class SupportSessionError extends Error {
+  constructor() {
+    super('no live verified support session');
+    this.name = 'SupportSessionError';
+  }
+}
+
+/** SMS codes get three attempts; a misheard digit over a bad line is ordinary. Push gets one. */
+const SMS_MAX_ATTEMPTS = 3;
 
 /** Three DISTINCT two-digit numbers. Distinct because two equal options make the choice a lie. */
 function threeNumbers(): { match: number; decoys: [number, number] } {
@@ -138,5 +154,121 @@ export const supportVerificationService = {
     });
 
     return { verificationId: row.id, matchNumber: match, decoys };
+  },
+
+  /**
+   * The customer's half of number matching. One attempt: a one-in-three guess must not be
+   * retryable, so a wrong tap denies the verification outright rather than costing an attempt.
+   */
+  async respondFromCustomer(
+    db: DbOrTx,
+    input: { verificationId: string; userId: string; chosenNumber: number },
+  ): Promise<RespondOutcome> {
+    const row = await supportVerificationsRepo.findById(db, input.verificationId);
+    // A verification addressed to somebody else is "not found", never "wrong customer" — the
+    // caller must not learn that the id exists.
+    if (!row || row.userId !== input.userId) return 'not_found';
+    if (row.status !== 'pending') return row.status === 'verified' ? 'verified' : 'denied';
+    if (row.expiresAt.getTime() <= Date.now()) return 'expired';
+
+    if (row.matchNumber !== input.chosenNumber) {
+      await supportVerificationsRepo.markDenied(db, row.id);
+      await auditRepo.append(db, {
+        actorKind: 'user',
+        actorUserId: input.userId,
+        action: 'support.verification.denied',
+        subjectKind: 'support_verification',
+        subjectId: row.id,
+        payloadJson: { reason: 'wrong_number' },
+      });
+      return 'denied';
+    }
+
+    const verified = await supportVerificationsRepo.markVerified(
+      db,
+      row.id,
+      new Date(Date.now() + env.SUPPORT_SESSION_SECONDS * 1000),
+    );
+    // Null means somebody else moved this row between the read and the write. Losing that race is
+    // a denial, not a silent success.
+    if (!verified) return 'denied';
+
+    await auditRepo.append(db, {
+      actorKind: 'user',
+      actorUserId: input.userId,
+      action: 'support.verification.verified',
+      subjectKind: 'support_verification',
+      subjectId: row.id,
+      payloadJson: { rail: row.rail },
+    });
+    return 'verified';
+  },
+
+  /** The SMS half: the customer reads a code out, the operator types it in. Three attempts. */
+  async confirmCode(
+    db: DbOrTx,
+    input: { verificationId: string; actorAdminUserId: string; code: string },
+  ): Promise<RespondOutcome> {
+    const row = await supportVerificationsRepo.findById(db, input.verificationId);
+    if (!row || row.adminUserId !== input.actorAdminUserId) return 'not_found';
+    if (row.status !== 'pending') return row.status === 'verified' ? 'verified' : 'denied';
+    if (row.expiresAt.getTime() <= Date.now()) return 'expired';
+    if (!row.codeHash) return 'denied';
+
+    if (!codeMatches(input.code, row.codeHash)) {
+      const attempts = await supportVerificationsRepo.incrementAttempts(db, row.id);
+      if (attempts >= SMS_MAX_ATTEMPTS) await supportVerificationsRepo.markDenied(db, row.id);
+      return 'denied';
+    }
+
+    const verified = await supportVerificationsRepo.markVerified(
+      db,
+      row.id,
+      new Date(Date.now() + env.SUPPORT_SESSION_SECONDS * 1000),
+    );
+    if (!verified) return 'denied';
+
+    await auditRepo.append(db, {
+      actorKind: 'ops',
+      actorAdminUserId: input.actorAdminUserId,
+      action: 'support.verification.verified',
+      subjectKind: 'support_verification',
+      subjectId: row.id,
+      payloadJson: { rail: row.rail },
+    });
+    return 'verified';
+  },
+
+  /** Status for the operator's screen. Null when the row belongs to somebody else. */
+  async readStatus(
+    db: DbOrTx,
+    input: { verificationId: string; actorAdminUserId: string },
+  ): Promise<{ status: string; expiresAt: string; sessionExpiresAt: string | null } | null> {
+    const row = await supportVerificationsRepo.findById(db, input.verificationId);
+    if (!row || row.adminUserId !== input.actorAdminUserId) return null;
+    // Report a lapsed pending row as expired without waiting for a sweep to write it.
+    const lapsed = row.status === 'pending' && row.expiresAt.getTime() <= Date.now();
+    return {
+      status: lapsed ? 'expired' : row.status,
+      expiresAt: row.expiresAt.toISOString(),
+      sessionExpiresAt: row.sessionExpiresAt?.toISOString() ?? null,
+    };
+  },
+
+  /**
+   * The gate every support read goes through. Bound to the operator who started the verification:
+   * a verified session is not a token a second member of staff can pick up.
+   */
+  async requireLiveSession(
+    db: DbOrTx,
+    input: { verificationId: string; actorAdminUserId: string },
+  ): Promise<SupportVerificationRow> {
+    const row = await supportVerificationsRepo.findById(db, input.verificationId);
+    if (!row || row.adminUserId !== input.actorAdminUserId) throw new SupportSessionError();
+    if (row.status !== 'verified' || !row.userId) throw new SupportSessionError();
+    if (!row.sessionExpiresAt || row.sessionExpiresAt.getTime() <= Date.now()) {
+      throw new SupportSessionError();
+    }
+    return row;
   },
 };

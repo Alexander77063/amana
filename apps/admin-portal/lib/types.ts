@@ -130,3 +130,33 @@ export const SPEND_CATEGORIES: ReadonlyArray<{ value: string; label: string }> =
 ];
 
 export const ROLES: readonly Role[] = ['owner', 'admin', 'ops', 'support', 'auditor'];
+
+/** Support verification (A1 Task 6). The operator never receives the decoys or the rail. */
+export type SupportStart = { verificationId: string; matchNumber: number };
+
+export type SupportStatus = {
+  status: 'pending' | 'verified' | 'denied' | 'expired';
+  expiresAt: string;
+  sessionExpiresAt: string | null;
+};
+
+export type SupportOutcome = { outcome: 'verified' | 'denied' | 'expired' | 'not_found' };
+
+export type SupportOverview = {
+  maskedAccount: string | null;
+  masterBalanceKobo: string | null;
+  subWallets: Array<{ id: string; name: string; status: string }>;
+};
+
+export type SupportTransaction = {
+  id: string;
+  amountKobo: string;
+  kind: string;
+  status: string;
+  occurredAt: string;
+  vendorName: string | null;
+  category: string | null;
+  failureReason: string | null;
+};
+
+export type SupportRule = { id: string; kind: string; priority: number; summary: string };

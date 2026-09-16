@@ -77,9 +77,9 @@ export const adminSupportRoute = new Hono<{ Variables: AdminActorVariables }>()
   })
 
   .get('/verifications/:id/transactions', async (c) => {
-    return readEndpoint(c, 'transactions', (db, userId) =>
-      supportReadService.transactions(db, userId),
-    );
+    return readEndpoint(c, 'transactions', async (database, userId) => ({
+      transactions: await supportReadService.transactions(database, userId),
+    }));
   })
 
   .get('/verifications/:id/rules', async (c) => {

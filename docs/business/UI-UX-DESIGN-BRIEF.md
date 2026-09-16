@@ -595,6 +595,32 @@ rule survives intact.
 - **Gold is spent in exactly three places**: the count of things waiting for you, the primary action
   of a screen, and focus. A dark navy dashboard with gold accents could be any fintech's admin; gold
   meaning *"this needs you"* and nothing else is what makes it this one.
+
+### 10.5 Support verification *(added 2026-09-16, A1 Task 6)*
+
+`/support` is one input and one button until a caller is verified, and almost nothing afterwards.
+
+**`.code` gains a second use, and it is the same use.** The match number — the two digits the
+operator reads down the phone — is rendered exactly like the minted `AMNV-…` voucher code: serif,
+24px, gold, letter-spaced. That is not a fourth spend of gold. Both are *a value you must read aloud
+to another person, shown once*, and giving them one treatment is what makes the treatment mean
+something. If a third such value ever appears, it gets `.code` too.
+
+**The screen never names the rail.** The copy is *"Read them this number and ask them to tap it. If
+they got a text instead, ask them to read you the code"* — both affordances, always, with the match
+number and a code field on screen together. Saying which one was sent would tell the operator
+whether the customer has the app installed, and that is a fact about the customer they have no
+business learning. The caller says which they got; the interface does not. A test asserts the words
+"push" and "SMS" never reach the page.
+
+**Every panel states its omissions.** Under *Account*: "Not showing: name, address, date of birth,
+BVN, NIN, or the full account number." Under *Rules*: "Allowlisted account numbers are counted,
+never listed." An operator who cannot see a field must know it was withheld rather than missing,
+or they will go looking for it somewhere worse.
+
+**A rate limit says whose limit it is.** The generic 429 copy — "Too many attempts, wait a minute" —
+is wrong here twice: the per-number cap is a day, and an operator told only "too many attempts"
+concludes the caller did something. The support copy names it as ours.
 - **Every action names its consequence, in plain words.** "Give CORNER SHOP's account to +234 803
   ••• 4567", not "Approve claim". "Make ada@ an admin", not "Grant role". The sentence is built from
   the approval's own payload, so it cannot describe a different action than the one the button

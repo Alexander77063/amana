@@ -27,6 +27,7 @@ import { retailerAuthRoute } from './routes/retailer-auth';
 import { retailerPortalRoute } from './routes/retailer-portal';
 import { retailersRoute } from './routes/retailers';
 import { subWalletsRoute } from './routes/sub-wallets';
+import { supportRespondRoute } from './routes/support-respond';
 import { transactionsRoute } from './routes/transactions';
 import { vasRoute } from './routes/vas';
 import { vendorClaimRoute } from './routes/vendor-claim';
@@ -276,6 +277,8 @@ export function createServer(options: CreateServerOptions = {}): Hono {
   // IAM rather than inside it.
   app.route('/admin/approvals', adminApprovalsRoute);
   app.route('/admin/support', adminSupportRoute);
+  // Customer-facing, bearer-authenticated: the other half of number matching.
+  app.route('/', supportRespondRoute);
   app.route('/admin', adminMeRoute);
   // MOUNTED LAST, AND IT IS A CATCH-ALL. Every router inside `buildMeRouter()` calls
   // `.use(jwtAuth())` with no path, which at a `/` mount means `/*` — so this does not only

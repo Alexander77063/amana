@@ -1,10 +1,15 @@
-import { Hono } from 'hono';
+import { type Context, Hono } from 'hono';
 import { z } from 'zod';
 import { db } from '../../db/client';
 import { parseBody, parseParams } from '../../lib/validate';
 import { type AdminActorVariables, adminSession } from '../../middleware/admin-session';
 import { adminIamService } from '../../modules/admin/admin-iam.service';
-import { supportVerificationService } from '../../modules/support';
+import { auditRepo } from '../../modules/audit';
+import {
+  SupportSessionError,
+  supportReadService,
+  supportVerificationService,
+} from '../../modules/support';
 
 const StartBody = z.object({ phone: z.string().regex(/^\+\d{8,15}$/) });
 const CodeBody = z.object({ code: z.string().regex(/^\d{6}$/) });
@@ -64,6 +69,25 @@ export const adminSupportRoute = new Hono<{ Variables: AdminActorVariables }>()
     return c.json({ outcome });
   })
 
+  // The three reads. Each one: support.read, then a LIVE session for this operator, then audit.
+  // The session gate is what makes these safe; the permission alone is not enough, because
+  // `support.read` without a verified customer must show nothing at all.
+  .get('/verifications/:id/overview', async (c) => {
+    return readEndpoint(c, 'overview', (db, userId) => supportReadService.overview(db, userId));
+  })
+
+  .get('/verifications/:id/transactions', async (c) => {
+    return readEndpoint(c, 'transactions', (db, userId) =>
+      supportReadService.transactions(db, userId),
+    );
+  })
+
+  .get('/verifications/:id/rules', async (c) => {
+    return readEndpoint(c, 'rules', async (db, userId) => ({
+      rules: await supportReadService.rules(db, userId),
+    }));
+  })
+
   .get('/verifications/:id', async (c) => {
     const actor = c.get('adminActor');
     await adminIamService.requirePermission(db, actor.adminUserId, 'support.verify');
@@ -77,3 +101,44 @@ export const adminSupportRoute = new Hono<{ Variables: AdminActorVariables }>()
     if (!status) return c.json({ error: 'not_found' }, 404);
     return c.json(status);
   });
+
+/**
+ * Shared shape for the three reads. Kept as one helper rather than repeated three times so the
+ * gate and the audit write cannot drift apart between endpoints — a read that forgot to audit
+ * would be invisible precisely when it mattered.
+ */
+async function readEndpoint(
+  c: Context<{ Variables: AdminActorVariables }>,
+  what: 'overview' | 'transactions' | 'rules',
+  read: (database: typeof db, userId: string) => Promise<unknown>,
+): Promise<Response> {
+  const actor = c.get('adminActor');
+  await adminIamService.requirePermission(db, actor.adminUserId, 'support.read');
+  const params = parseParams(c, IdParams);
+  if (params instanceof Response) return params;
+
+  let verification: Awaited<ReturnType<typeof supportVerificationService.requireLiveSession>>;
+  try {
+    verification = await supportVerificationService.requireLiveSession(db, {
+      verificationId: params.id,
+      actorAdminUserId: actor.adminUserId,
+    });
+  } catch (e) {
+    if (e instanceof SupportSessionError) return c.json({ error: 'no_live_session' }, 403);
+    throw e;
+  }
+
+  const body = await read(db, verification.userId as string);
+
+  // Reading customer financial data is itself an event.
+  await auditRepo.append(db, {
+    actorKind: 'ops',
+    actorAdminUserId: actor.adminUserId,
+    action: `support.read.${what}`,
+    subjectKind: 'support_verification',
+    subjectId: verification.id,
+    payloadJson: {},
+  });
+
+  return c.json(body as Record<string, unknown>);
+}

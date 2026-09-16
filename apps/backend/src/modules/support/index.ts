@@ -12,3 +12,9 @@ export {
   type StartResult,
 } from './support-verification.service';
 export { codeMatches, hashCode } from './code-hash';
+export {
+  supportReadService,
+  type SupportOverview,
+  type SupportRule,
+  type SupportTransaction,
+} from './support-read.service';

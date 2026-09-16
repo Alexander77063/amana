@@ -164,6 +164,12 @@ shape here would give every operator one shared bucket — and an endpoint that 
 "verification sent" is, without a working limiter, an SMS-spend vector pointed at arbitrary Nigerian
 phone numbers.
 
+**Counted in the database, not in the existing `rateLimit` middleware.** That middleware keeps an
+in-memory bucket store, which is right for a short login window and wrong here: a *daily* per-phone
+cap that resets on every deploy is not a cap. `support_verifications` already holds one row per
+start, with the operator and the phone on it, so the caps are a `count(*)` over a time window on a
+table we are creating anyway — durable, exact, and auditable after the fact.
+
 Two caps, both tunable by env var, with these defaults:
 
 | Cap | Default | Guards against |

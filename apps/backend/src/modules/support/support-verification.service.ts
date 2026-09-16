@@ -1,6 +1,7 @@
 import { randomInt } from 'node:crypto';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { env } from '../../env';
+import { logger } from '../../lib/logger';
 import { auditRepo } from '../audit';
 import { usersRepo } from '../identity/users.repo';
 import { deviceTokensRepo } from '../notifications/device-tokens.repo';
@@ -31,6 +32,26 @@ export class SupportSessionError extends Error {
   constructor() {
     super('no live verified support session');
     this.name = 'SupportSessionError';
+  }
+}
+
+/**
+ * Map a non-pending status to an outcome EXPLICITLY.
+ *
+ * This was a `status === 'verified' ? 'verified' : 'denied'` ternary, which is right only while
+ * nothing ever writes `'expired'` — nothing does today, because there is no sweep job. The moment
+ * anyone adds one, the ternary starts reporting expired rows as `denied`, the apps' "that request
+ * timed out" copy goes dead, and customers are told "that did not match" instead. Enumerating the
+ * statuses means the compiler will object when a new one appears rather than silently mislabelling.
+ */
+function settledOutcome(status: 'verified' | 'denied' | 'expired'): RespondOutcome {
+  switch (status) {
+    case 'verified':
+      return 'verified';
+    case 'expired':
+      return 'expired';
+    case 'denied':
+      return 'denied';
   }
 }
 
@@ -87,6 +108,78 @@ async function auditCapBreach(
     subjectId: input.actorAdminUserId,
     payloadJson: { cap, phoneE164: input.phoneE164 },
   });
+}
+
+/**
+ * Send the challenge. Never awaited by `start` — see the comment at its call site.
+ *
+ * Push is attempted first when the customer has a device token, but a token row proves nothing
+ * about deliverability: `device_tokens` has no revoked column and nothing prunes it, so a
+ * reinstalled or replaced phone leaves a dead row behind for ever. If Expo accepts NOTHING we fall
+ * through to SMS rather than leaving the customer waiting on a notification that cannot arrive.
+ */
+async function dispatch(input: {
+  db: DbOrTx;
+  userId: string;
+  rail: 'push' | 'sms';
+  verificationId: string;
+  options: number[];
+  code: string | null;
+}): Promise<void> {
+  const target: NotificationTarget = {
+    recipientUserId: input.userId,
+    kind: 'support_verification',
+  };
+  const smsBody = (code: string) =>
+    `code ${code}. Only read this to an agent YOU called. It expires in 3 minutes.`;
+
+  try {
+    if (input.rail === 'push') {
+      const result = await expoPushProvider.send(input.db, target, {
+        title: 'Amana support',
+        body: 'Tap the number your support agent reads to you.',
+        data: {
+          kind: 'support_verification',
+          verificationId: input.verificationId,
+          options: input.options,
+        },
+      });
+      if (result.accepted > 0) return;
+
+      // Nothing was accepted — stale tokens. Fall back so the verification is still answerable.
+      logger.warn(
+        { verificationId: input.verificationId, attempted: result.attempted },
+        'support: push accepted by nobody, falling back to sms',
+      );
+      const fallback = String(randomInt(100000, 1000000));
+      await supportVerificationsRepo.attachSmsFallback(input.db, input.verificationId, {
+        codeHash: hashCode(fallback),
+      });
+      await termiiSmsProvider.send(input.db, target, {
+        title: 'Amana support',
+        body: smsBody(fallback),
+        data: {},
+      });
+      return;
+    }
+
+    if (input.code) {
+      await termiiSmsProvider.send(input.db, target, {
+        title: 'Amana support',
+        body: smsBody(input.code),
+        // Required on RenderedNotification; SMS carries nothing structured.
+        data: {},
+      });
+    }
+  } catch (e) {
+    // A dispatch failure must not take down the request that already returned 202. The
+    // verification simply expires, which is indistinguishable from an unanswered call — the same
+    // shape the no-match path produces.
+    logger.error(
+      { err: (e as Error).message, verificationId: input.verificationId },
+      'support: verification dispatch failed',
+    );
+  }
 }
 
 export const supportVerificationService = {
@@ -146,29 +239,20 @@ export const supportVerificationService = {
     // wrong here. A customer who has silenced push, or who calls at 23:00, must still receive the
     // challenge they are on the phone asking for. A security check a preference can suppress fails
     // closed against the user. Do not "tidy" this back through the service.
+    //
+    // And NOT awaited. Awaiting a live HTTP call to Expo or Termii makes response latency the
+    // enumeration oracle this whole feature is built to deny: a number matching nobody returns in
+    // milliseconds, a real customer's waits on the network, and five samples separate those
+    // distributions comfortably. Dispatch is fire-and-forget with failures logged.
     if (eligible && rail !== 'none') {
-      const target: NotificationTarget = {
-        recipientUserId: eligible.id,
-        kind: 'support_verification',
-      };
-      if (rail === 'push') {
-        await expoPushProvider.send(db, target, {
-          title: 'Amana support',
-          body: 'Tap the number your support agent reads to you.',
-          data: {
-            kind: 'support_verification',
-            verificationId: row.id,
-            options: shuffle([match, ...decoys]),
-          },
-        });
-      } else if (code) {
-        await termiiSmsProvider.send(db, target, {
-          title: 'Amana support',
-          body: `code ${code}. Only read this to an agent YOU called. It expires in 3 minutes.`,
-          // Required on RenderedNotification; SMS carries nothing structured.
-          data: {},
-        });
-      }
+      void dispatch({
+        db,
+        userId: eligible.id,
+        rail,
+        verificationId: row.id,
+        options: shuffle([match, ...decoys]),
+        code,
+      });
     }
 
     await auditRepo.append(db, {
@@ -197,7 +281,7 @@ export const supportVerificationService = {
     // A verification addressed to somebody else is "not found", never "wrong customer" — the
     // caller must not learn that the id exists.
     if (!row || row.userId !== input.userId) return 'not_found';
-    if (row.status !== 'pending') return row.status === 'verified' ? 'verified' : 'denied';
+    if (row.status !== 'pending') return settledOutcome(row.status);
     if (row.expiresAt.getTime() <= Date.now()) return 'expired';
 
     if (row.matchNumber !== input.chosenNumber) {
@@ -240,7 +324,7 @@ export const supportVerificationService = {
   ): Promise<RespondOutcome> {
     const row = await supportVerificationsRepo.findById(db, input.verificationId);
     if (!row || row.adminUserId !== input.actorAdminUserId) return 'not_found';
-    if (row.status !== 'pending') return row.status === 'verified' ? 'verified' : 'denied';
+    if (row.status !== 'pending') return settledOutcome(row.status);
     if (row.expiresAt.getTime() <= Date.now()) return 'expired';
 
     // A code typed against a PUSH verification has no hash to compare. Spend an attempt anyway

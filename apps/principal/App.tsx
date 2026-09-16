@@ -53,8 +53,26 @@ function navigateForResponse(response: Notifications.NotificationResponse) {
   if (!data) return;
   const kind = data.kind;
   if (typeof kind !== 'string') return;
-  const link = deepLinkFor(kind as Parameters<typeof deepLinkFor>[0], data);
   if (!navigationRef.isReady()) return;
+
+  // Support verification is handled BEFORE deepLinkFor, and deliberately not inside it:
+  // `deepLinkFor` is typed against `NotificationKind`, which is the `notification_kind` Postgres
+  // enum, and support verification is deliberately NOT a member of it (it must never be
+  // preference-able). Without this branch the tap is a silent no-op and the whole push rail is
+  // dead — which is exactly what happened before review caught it.
+  if (kind === 'support_verification') {
+    const verificationId = data.verificationId;
+    const options = data.options;
+    if (typeof verificationId === 'string' && Array.isArray(options)) {
+      navigationRef.navigate('SupportApprove', {
+        verificationId,
+        options: options.filter((n): n is number => typeof n === 'number'),
+      });
+    }
+    return;
+  }
+
+  const link = deepLinkFor(kind as Parameters<typeof deepLinkFor>[0], data);
   if (link.kind === 'bump') {
     navigationRef.navigate('BumpsInbox');
   } else if (link.kind === 'transaction') {

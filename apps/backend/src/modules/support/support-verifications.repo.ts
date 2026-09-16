@@ -31,6 +31,24 @@ export const supportVerificationsRepo = {
     return row;
   },
 
+  /**
+   * Switch a still-pending PUSH verification onto the SMS rail, after Expo accepted none of the
+   * customer's tokens. Pending-only, so a verification already answered by a tap is never reopened
+   * by a late fallback.
+   */
+  async attachSmsFallback(
+    db: DbOrTx,
+    id: string,
+    input: { codeHash: string },
+  ): Promise<SupportVerificationRow | null> {
+    const [row] = await db
+      .update(supportVerifications)
+      .set({ rail: 'sms', codeHash: input.codeHash, matchNumber: null })
+      .where(and(eq(supportVerifications.id, id), eq(supportVerifications.status, 'pending')))
+      .returning();
+    return row ?? null;
+  },
+
   async findById(db: DbOrTx, id: string): Promise<SupportVerificationRow | null> {
     const [row] = await db
       .select()

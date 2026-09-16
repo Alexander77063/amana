@@ -202,6 +202,46 @@ describe('responding to a verification', () => {
     });
   });
 
+  // A dead device_tokens row (reinstalled phone, new handset — nothing prunes them) would have
+  // left the customer waiting on a push that can never arrive, with no SMS ever sent.
+  it('falls the rail over to sms and makes the verification answerable by code', async () => {
+    const { adminUserId } = await signedInAdmin('f1@amana-ng.com', ['support']);
+    const { id: userId } = await seedPrincipal();
+    const row = await startPush(adminUserId, userId);
+
+    await supportVerificationsRepo.attachSmsFallback(testDb, row.id, {
+      codeHash: hashCode('998877'),
+    });
+
+    const after = await supportVerificationsRepo.findById(testDb, row.id);
+    expect(after?.rail).toBe('sms');
+    expect(after?.matchNumber).toBeNull();
+    expect(
+      await supportVerificationService.confirmCode(testDb, {
+        verificationId: row.id,
+        actorAdminUserId: adminUserId,
+        code: '998877',
+      }),
+    ).toBe('verified');
+  });
+
+  it('never reopens an already-answered verification with a late fallback', async () => {
+    const { adminUserId } = await signedInAdmin('f2@amana-ng.com', ['support']);
+    const { id: userId } = await seedPrincipal();
+    const row = await startPush(adminUserId, userId);
+    await supportVerificationService.respondFromCustomer(testDb, {
+      verificationId: row.id,
+      userId,
+      chosenNumber: 42,
+    });
+
+    expect(
+      await supportVerificationsRepo.attachSmsFallback(testDb, row.id, {
+        codeHash: hashCode('111111'),
+      }),
+    ).toBeNull();
+  });
+
   describe('requireLiveSession', () => {
     it('returns the row while the session is live', async () => {
       const { adminUserId } = await signedInAdmin('q1@amana-ng.com', ['support']);

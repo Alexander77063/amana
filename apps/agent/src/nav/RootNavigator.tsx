@@ -3,11 +3,13 @@ import * as Linking from 'expo-linking';
 import { useCallback, useEffect, useState } from 'react';
 import { Text, View } from 'react-native';
 import { api } from '../lib/api';
+import { setupResponseListener } from '../lib/push';
 import { secureTokenStore } from '../lib/secure-token-store';
 import { useAgentStore } from '../state/agent.store';
 import { AuthStack } from './AuthStack';
 import { MainTabs } from './MainTabs';
 import { PairingStack } from './PairingStack';
+import { navigationRef } from './navigationRef';
 
 type AppState = 'booting' | 'logged_out' | 'unpaired' | 'paired';
 
@@ -68,10 +70,34 @@ export function RootNavigator(): JSX.Element {
     return () => sub.remove();
   }, []);
 
+  // A tapped support-verification push had nowhere to go: this app registered the screen but wired
+  // no response listener at all, so the whole push rail was dead. `SupportApprove` lives inside the
+  // Settings tab's stack, so the navigate has to name both.
+  useEffect(() => {
+    const sub = setupResponseListener((response) => {
+      const data = response.notification.request.content.data as
+        | Record<string, unknown>
+        | undefined;
+      if (data?.kind !== 'support_verification') return;
+      const verificationId = data.verificationId;
+      const options = data.options;
+      if (typeof verificationId !== 'string' || !Array.isArray(options)) return;
+      if (!navigationRef.isReady()) return;
+      navigationRef.navigate('Settings', {
+        screen: 'SupportApprove',
+        params: {
+          verificationId,
+          options: options.filter((n): n is number => typeof n === 'number'),
+        },
+      });
+    });
+    return () => sub.remove();
+  }, []);
+
   if (appState === 'booting') return <SplashScreen />;
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       {appState === 'logged_out' && <AuthStack onLoggedIn={onLoggedIn} />}
       {appState === 'unpaired' && <PairingStack onPaired={onPaired} pendingToken={pendingToken} />}
       {appState === 'paired' && <MainTabs />}

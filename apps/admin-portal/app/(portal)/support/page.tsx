@@ -86,6 +86,10 @@ export default function SupportPage() {
   const begin = async (e: FormEvent) => {
     e.preventDefault();
     setMsg({});
+    // `status` must be cleared too. Without it, `setStarted(res)` commits one render with the NEW
+    // verification id and the OLD verified status, the reads fire against a pending row, and the
+    // operator gets three 403s that self-correct a beat later.
+    setStatus(null);
     setOverview(null);
     setTransactions([]);
     setRules([]);

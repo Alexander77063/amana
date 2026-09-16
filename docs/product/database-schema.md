@@ -206,10 +206,10 @@ console.log(names.size, [...names].sort().join(' '));
 "
 ```
 
-Deliberately not a grep. **15** tables are declared with the name on the line *after* `pgTable(`,
-so a single-line grep undercounts by 15 — which is exactly what the first draft of this document
+Deliberately not a grep. **16** tables are declared with the name on the line *after* `pgTable(`,
+so a single-line grep undercounts by 16 — which is exactly what the first draft of this document
 did — and a `-A1` grep over-counts by picking up column names from the following line. Both were
-tried here; only the multiline regex gives 40. The CI guard matches the name after the paren for
+tried here; only the multiline regex gives 41. The CI guard matches the name after the paren for
 the same reason, and refuses to run at all if it meets a `pgTable(` call it cannot read.
 
 If the count no longer matches, this document is stale — say so rather than trusting it. CI will

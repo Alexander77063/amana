@@ -141,9 +141,27 @@ Only while a verified session is live, and only for the `user_id` on that verifi
 | Visible | Absent |
 |---|---|
 | Masked account (`••••1234`) | Full account number |
-| Wallet balances, sub-wallet limits | **BVN, NIN** — not masked, *absent from the response* |
+| Sub-wallet names and statuses | **BVN, NIN** — not masked, *absent from the response* |
 | Transaction amounts, times, status | Full name, address, date of birth |
-| Denial reasons, and which rule denied a spend | Anything from before this verification |
+| Why a spend failed, and a summary of each rule | Anything from before this verification |
+
+> **Amended 2026-09-16, at build.** Three lines above were written from the sketch and did not
+> survive contact with the schema, so they now say what exists:
+>
+> - **"sub-wallet limits"** → names and statuses. `sub_wallets` has no limit columns; limits live in
+>   `rules.configJson`, and they reach support through the rule summaries instead.
+> - **"wallet balances"** → **omitted entirely.** Balance returns `null` rather than an
+>   approximation: the ledger is the source of truth and a wrong number on a support screen is worse
+>   than no number. A visible gap beats a silent lie.
+> - **"denial reasons, and which rule denied a spend"** → `failureReason`, from
+>   `transactions.errorMessage`. There is no `denialReason` column and no link from a transaction to
+>   the rule that stopped it; claiming otherwise would have been a response shape that lies about
+>   what the system knows.
+>
+> And one addition the schema forced: **rules are summarised, never echoed.** An `allowlist` config
+> holds `{ bankCode, accountNumber }[]`, so returning raw config would leak vendor account numbers
+> to the role this document exists to keep away from customer detail. Each kind gets a sentence,
+> with counts where the detail is sensitive.
 
 "Absent" is precise and deliberate: BVN and NIN are not returned masked, because a masked field
 still tells the reader the value exists and how long it is, and because a masking bug leaks the

@@ -229,6 +229,12 @@ Flow: [`APP-FLOW.md` §9](./APP-FLOW.md).
 | IAM-18 | The approvals inbox must be scoped per kind — a role grant visible to `iam.read`/`iam.write`, a vendor claim to `vendor.read`/`vendor.write`, and a maker's own proposals always — and no matching permission must return an empty list, not a 403 | ✓ |
 | IAM-19 | Declining an approval must require the same permission as approving that kind (`iam.write` for a role grant, `vendor.write` for a vendor claim); an `auditor` must not be able to close what `ops` cannot | ✓ |
 | IAM-20 | Ops vendor reads — the claim queue, vendor search and the vendor page — must mask the payout account number to its last four digits | ✓ |
+| IAM-21 | Starting a support verification must return `202` with a verification id and a match number **whether or not the phone resolves to a customer**; when it resolves to nobody, nothing is dispatched and the row expires, so the two outcomes are indistinguishable to the operator | ✓ |
+| IAM-22 | Push verification must be **number matching** — three distinct two-digit numbers, the operator reads one aloud, the customer taps it — with **one** attempt, a wrong tap denying outright; SMS verification is a six-digit read-back with **three** attempts | ✓ |
+| IAM-23 | A verified support session must be bound to the operator who started it and must expire after `SUPPORT_SESSION_SECONDS` (default 900); a second member of staff must not be able to use another's verification | ✓ |
+| IAM-24 | Support starts must be capped per operator per hour and per phone per day, **counted in the database** rather than an in-memory limiter, with the per-phone cap counted across all operators; a breach must return an explicit `429`, never a silent `202` | ✓ |
+| IAM-25 | Support may verify **principals and agents only**; a retailer's phone must behave exactly like a number matching nobody | ✓ |
+| IAM-26 | The support start response must not carry the decoy numbers, the rail, or the resolved user — an operator gets one number and nothing that reveals whether the customer has the app | ✓ |
 
 
 ## 2. Technical Requirements

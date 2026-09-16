@@ -10,6 +10,7 @@ import type { OidcProvider } from './modules/admin/oidc/types';
 import { adminApprovalsRoute } from './routes/admin/approvals';
 import { adminMeRoute, createAdminAuthRoute } from './routes/admin/auth';
 import { adminIamRoute } from './routes/admin/iam';
+import { adminSupportRoute } from './routes/admin/support';
 import { authRoute, logoutRoute, meRoute } from './routes/auth';
 import { bumpsRoute } from './routes/bumps';
 import { devicesRoute } from './routes/devices';
@@ -274,6 +275,7 @@ export function createServer(options: CreateServerOptions = {}): Hono {
   // The maker-checker inbox spans domains (role grants, vendor claims), so it is mounted beside
   // IAM rather than inside it.
   app.route('/admin/approvals', adminApprovalsRoute);
+  app.route('/admin/support', adminSupportRoute);
   app.route('/admin', adminMeRoute);
   // MOUNTED LAST, AND IT IS A CATCH-ALL. Every router inside `buildMeRouter()` calls
   // `.use(jwtAuth())` with no path, which at a `/` mount means `/*` — so this does not only

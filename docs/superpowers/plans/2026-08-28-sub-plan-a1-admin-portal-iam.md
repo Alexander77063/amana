@@ -291,6 +291,15 @@ documentation is [`docs/runbook/admin-portal.md`](../../runbook/admin-portal.md)
 
 ### Task 6 — Support: verify the customer *before* the conversation, and see almost nothing
 
+> **Superseded in part, 2026-09-16.** This section described a plain "Approve" tap. That is
+> fishable: a customer not on a call can still tap it, so a rogue or socially-engineered operator
+> can farm approvals and the audit log records something that looks legitimate. The design is now
+> **number matching** — approving requires hearing a number the operator reads aloud. The sketch
+> below is corrected; the full design, including why the SMS rail must work differently, is
+> [`specs/2026-09-16-support-verification-design.md`](../specs/2026-09-16-support-verification-design.md),
+> with the task breakdown in
+> [`plans/2026-09-16-a1-task6-support-verification.md`](./2026-09-16-a1-task6-support-verification.md).
+
 Reframed from "support lookup" on Alex's instruction, and it is a materially better design.
 
 **The customer is verified electronically; support never sees who they are.** Support asks for a
@@ -302,9 +311,10 @@ CUSTOMER phones support
         └── ALWAYS answers "verification sent" — never "no such customer"
               (a staff-facing enumeration oracle is still an enumeration oracle;
                same reasoning as PRE-LAUNCH GATE 3)
-        ├── push to the customer's app: "Are you speaking to Amana support? Approve"
-        │     (expo-push.provider.ts — the rail already exists)
-        └── falls back to an SMS code they read back
+        ├── push to the customer's app: THREE numbers; the operator reads ONE aloud
+        │     and the customer taps the match. ONE attempt — a 1-in-3 guess
+        │     must not be retryable. (expo-push.provider.ts — the rail exists)
+        └── falls back to an SMS code they read back, three attempts
               (termii-sms.provider.ts — likewise)
 
   └── support's screen flips to: ✅ VERIFIED · session expires in 15 min

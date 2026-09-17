@@ -49,13 +49,12 @@ NODE_ENV=development PORT=3100 \
 DEV_OTP_BYPASS_CODE=123456 \
 ANCHOR_API_BASE_URL=http://localhost:3200 ANCHOR_API_KEY=stub-key \
 ANCHOR_WEBHOOK_SECRET=whsec_demo_local \
-ADMIN_API_KEY=demo-admin-key-000000000000000000 \
 CORS_ALLOWED_ORIGINS=http://localhost:19006,http://localhost:19007,http://localhost:19100 \
 pnpm --filter @amana/backend dev
 
-# 3. The two apps on web
-EXPO_PUBLIC_BACKEND_URL=http://localhost:3100 pnpm --filter @amana/principal exec expo start --web --port 19006
-EXPO_PUBLIC_BACKEND_URL=http://localhost:3100 pnpm --filter @amana/agent     exec expo start --web --port 19007
+# 3. The two apps on web  (--offline: see "If Expo crashes on startup" below)
+EXPO_OFFLINE=1 EXPO_PUBLIC_BACKEND_URL=http://localhost:3100 pnpm --filter @amana/principal exec expo start --web --port 19006 --offline
+EXPO_OFFLINE=1 EXPO_PUBLIC_BACKEND_URL=http://localhost:3100 pnpm --filter @amana/agent     exec expo start --web --port 19007 --offline
 
 # 4. Record
 node tools/demo/record.mjs           # full pacing, ~2.5 min of video
@@ -178,6 +177,46 @@ the SP4b retailer portal outright.
 already-used one-shot token — which is just a double-tap on "resume".
 
 ---
+
+## Before it will run at all (learned the hard way, 2026-09-17)
+
+**Ops calls use a real admin session, not a shared key.** The marketplace chapter creates and
+approves two retailers. It used to send `x-admin-api-key`; sub-plan A1 Task 4 **deleted that
+secret** (`env.ts`: "GONE, not deprecated"), so every create silently 401'd and the chapter failed
+with `could not create Mama Nkechi Kitchen`, taking four downstream steps with it. `record.mjs` now
+mints an `ops` session straight into Postgres — the same trick `probe-admin-portal.mjs` uses —
+so **Postgres must be up and migrated before recording**, not just before the backend starts.
+`adminPost` now throws with the status instead of returning null, so the next such break names
+itself.
+
+**Stale per-app `node_modules` will break the apps in ways that look like app bugs.** `.npmrc` sets
+`node-linker=hoisted`, so dependencies belong in the ROOT `node_modules`. Leftovers from an older
+isolated-linker install survive there and *shadow* the correct versions — this produced a bundle
+that 500'd on `zod/v4/core` in the agent, and a blank white principal screen from two copies of
+React. **`pnpm install` does not clear them**; pnpm only rewrites what its state file owns. The fix:
+
+```bash
+rm -rf apps/<app>/node_modules && pnpm install --frozen-lockfile
+```
+
+A duplicate React shows up as `Invalid hook call` / `Cannot read properties of null (reading
+'useState')` in the browser console, and the bundle is noticeably larger (4.83 MB vs 4.15 MB).
+
+## If Expo crashes on startup
+
+`@expo/cli@0.18.31` throws `Cannot read properties of undefined (reading 'bodyStream')` on Node 24,
+inside its **network** dependency-version check. Start with `--offline` (and `EXPO_OFFLINE=1`),
+as the commands above do; it prints `Skipping dependency validation in offline mode` and works.
+Node 20.18.0 (`.nvmrc`) does not hit this, but nvm is not installed on the current machine.
+
+## Memory
+
+The full stack — two Metro bundlers, Playwright's Chromium, the backend, the stub and Postgres —
+needs roughly **3 GB free**. On a 16 GB machine with Chrome open (easily 3.8 GB across 30+
+processes) it gets OOM-killed mid-record. **Close Chrome first**, warm the two bundles
+**sequentially** rather than in parallel, and check for orphaned `expo start` processes from a
+killed run before starting another — they hold ~700 MB each and outlive the shell that spawned them.
+Cold web bundles take 5-10 minutes each; warm ones seconds.
 
 ## Known issues
 

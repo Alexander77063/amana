@@ -7,6 +7,8 @@
 // Prereqs (see tools/demo/README.md): backend :3100 (CORS allowlisted, pointed at the
 // Anchor stub), stub :3200, principal web :19006, agent web :19007.
 
+import { execFileSync } from 'node:child_process';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join } from 'node:path';
@@ -18,7 +20,7 @@ const AGENT = process.env.AGENT_URL ?? 'http://localhost:19007';
 const STUB = process.env.STUB_URL ?? 'http://localhost:3200';
 const OUT = process.env.OUT_DIR ?? 'tools/demo/out';
 const BACKEND = process.env.BACKEND_URL ?? 'http://localhost:3100';
-const ADMIN_KEY = process.env.ADMIN_API_KEY ?? 'demo-admin-key-000000000000000000';
+const ADMIN_EMAIL = process.env.DEMO_ADMIN_EMAIL ?? 'demo-ops@amana-ng.com';
 
 /**
  * Put one item on a retailer's storefront.
@@ -732,13 +734,74 @@ await cap(
 
 // Seed a live retailer the way ops onboard one: admin key, then approve. Doing it through the
 // real API keeps the "no mock branch anywhere" property this whole harness rests on.
+const psql = (sql) =>
+  execFileSync('docker', [
+    'exec',
+    'amana-postgres',
+    'psql',
+    '-U',
+    'amana',
+    '-d',
+    'amana_dev',
+    // `-q` matters: without it psql prints the `INSERT 0 1` command tag on stdout too, and a
+    // `RETURNING id` read would come back as a uuid with a second line stuck to it.
+    '-qtA',
+    '-c',
+    sql,
+  ])
+    .toString()
+    .trim();
+
+/**
+ * Mint an ops session straight into Postgres — the row `adminIdentityService` writes after a
+ * Google callback.
+ *
+ * **Why this exists.** The marketplace chapter used to authenticate with a shared
+ * `x-admin-api-key`. Sub-plan A1 Task 4 **deleted that secret** — `env.ts` says "GONE, not
+ * deprecated" and every ops endpoint now requires a signed-in admin. So every retailer create
+ * silently 401'd, `adminPost` returned null, and the chapter died with "could not create Mama
+ * Nkechi Kitchen", taking the four steps after it with it.
+ *
+ * Sign-in is Google's and no script can drive it, so the session is minted directly, exactly as
+ * `probe-admin-portal.mjs` already does. Everything past this point is real: the session
+ * middleware, the permission check, and the endpoints themselves.
+ *
+ * `ops` is the role that holds `retailer.write`, which both creating and approving a retailer
+ * require.
+ */
+function mintAdminSession() {
+  const id = psql(`INSERT INTO admin_users (email, status, provisioning_source)
+    VALUES ('${ADMIN_EMAIL}', 'active', 'admin')
+    ON CONFLICT (email) DO UPDATE SET status = 'active' RETURNING id`);
+  // Re-granting on a re-run is harmless: the log is folded by `seq`, latest row per (admin, role).
+  psql(`INSERT INTO admin_role_grants (admin_user_id, role, granted, source, reason)
+    VALUES ('${id}', 'ops', true, 'config', 'demo recording')`);
+  const token = randomBytes(32).toString('base64url');
+  // Stored digest is plain SHA-256 **hex** — what `resolveSession` looks the row up by. Anything
+  // else 401s and this would look broken for the wrong reason.
+  const hash = createHash('sha256').update(token).digest('hex');
+  psql(`INSERT INTO admin_sessions (id, admin_user_id, token_hash, expires_at)
+    VALUES ('${randomUUID()}', '${id}', '${hash}', now() + interval '2 hours')`);
+  return token;
+}
+
+const adminToken = mintAdminSession();
+
 const adminPost = async (path, body) => {
   const res = await fetch(`${BACKEND}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-admin-api-key': ADMIN_KEY },
+    headers: {
+      'content-type': 'application/json',
+      cookie: `amana_admin_session=${adminToken}`,
+    },
     body: JSON.stringify(body ?? {}),
   });
-  return res.ok ? res.json() : null;
+  // Surface the status rather than swallowing it. Returning null on failure is what turned an
+  // auth error into the misleading "could not create <name>" for three weeks.
+  if (!res.ok) {
+    throw new Error(`admin POST ${path} → ${res.status} ${(await res.text()).slice(0, 200)}`);
+  }
+  return res.json();
 };
 
 let retailerId = null;

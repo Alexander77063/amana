@@ -8,10 +8,10 @@
 // actually reach them — the demo work found nine bugs that only this kind of pass catches.
 
 import { chromium } from 'playwright';
+import { adminCookie } from './lib.mjs';
 
 const BACKEND = process.env.BACKEND_URL ?? 'http://localhost:3100';
 const PORTAL = process.env.PORTAL_URL ?? 'http://localhost:3300';
-const ADMIN = process.env.ADMIN_API_KEY ?? 'demo-admin-key-000000000000000000';
 
 const tag = String(Date.now()).slice(-7);
 const PHONE = `+2349${tag}11`;
@@ -19,7 +19,7 @@ const PHONE = `+2349${tag}11`;
 const j = async (path, init = {}) => {
   const res = await fetch(`${BACKEND}${path}`, {
     ...init,
-    headers: { 'content-type': 'application/json', 'x-admin-api-key': ADMIN, ...init.headers },
+    headers: { 'content-type': 'application/json', ...adminCookie(), ...init.headers },
   });
   const text = await res.text();
   return { status: res.status, body: text ? JSON.parse(text) : null };

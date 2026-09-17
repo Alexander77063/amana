@@ -1,9 +1,72 @@
 // Shared helpers for the demo driver.
 
+import { execFileSync } from 'node:child_process';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+// The built artifact, by path, because workspace packages are not linked at the repo root and the
+// dist barrel uses extensionless imports Node's ESM loader will not resolve. Imported rather than
+// retyped so a version bump reaches these scripts too — a private copy per caller is exactly how
+// the apps came to be refused at signup for three weeks.
+// Requires `pnpm --filter @amana/types build` first.
+import { AGENT_TERMS_VERSION, PRINCIPAL_TERMS_VERSION } from '../../packages/types/dist/auth.js';
+
 export const API = process.env.API_URL ?? 'http://localhost:3100';
 export const STUB = process.env.STUB_URL ?? 'http://localhost:3200';
-export const ADMIN_KEY = process.env.ADMIN_API_KEY ?? 'demo-admin-key-000000000000000000';
 export const OTP = process.env.DEV_OTP_BYPASS_CODE ?? '123456';
+export const ADMIN_EMAIL = process.env.DEMO_ADMIN_EMAIL ?? 'demo-ops@amana-ng.com';
+
+const psql = (sql) =>
+  execFileSync('docker', [
+    'exec',
+    'amana-postgres',
+    'psql',
+    '-U',
+    'amana',
+    '-d',
+    'amana_dev',
+    // `-q` or the `INSERT 0 1` command tag lands on stdout too and `RETURNING id` comes back as a
+    // uuid with a second line stuck to it.
+    '-qtA',
+    '-c',
+    sql,
+  ])
+    .toString()
+    .trim();
+
+let cachedToken = null;
+
+/**
+ * An `ops` session, minted straight into Postgres — the row `adminIdentityService` writes after a
+ * Google callback.
+ *
+ * **Why this replaced a header.** These scripts used to send a shared `x-admin-api-key`. Sub-plan
+ * A1 Task 4 **deleted that secret** — `env.ts` says "GONE, not deprecated" — so every ops call
+ * here 401'd and each script failed somewhere downstream of the real cause. Google sign-in cannot
+ * be driven by a script, so the session is created directly; everything after it is real, including
+ * the session middleware and the permission checks.
+ *
+ * `ops` holds `vendor.*` and `retailer.*`, which is what these probes exercise. Cached so repeated
+ * calls in one run reuse a single session rather than piling up rows.
+ */
+export function adminSessionToken() {
+  if (cachedToken) return cachedToken;
+  const id = psql(`INSERT INTO admin_users (email, status, provisioning_source)
+    VALUES ('${ADMIN_EMAIL}', 'active', 'admin')
+    ON CONFLICT (email) DO UPDATE SET status = 'active' RETURNING id`);
+  // Idempotent in effect: the grant log folds by `seq`, latest row per (admin, role) wins.
+  psql(`INSERT INTO admin_role_grants (admin_user_id, role, granted, source, reason)
+    VALUES ('${id}', 'ops', true, 'config', 'demo probe')`);
+  const token = randomBytes(32).toString('base64url');
+  // Plain SHA-256 **hex** is what `resolveSession` looks the row up by; anything else 401s and the
+  // script would look broken for the wrong reason.
+  const hash = createHash('sha256').update(token).digest('hex');
+  psql(`INSERT INTO admin_sessions (id, admin_user_id, token_hash, expires_at)
+    VALUES ('${randomUUID()}', '${id}', '${hash}', now() + interval '2 hours')`);
+  cachedToken = token;
+  return token;
+}
+
+/** Header pair for an authenticated ops call. Requires Postgres to be up and migrated. */
+export const adminCookie = () => ({ cookie: `amana_admin_session=${adminSessionToken()}` });
 
 const C = {
   reset: '\x1b[0m',
@@ -45,7 +108,8 @@ export function bad(label, detail = '') {
 export async function call(path, { method = 'GET', token, admin, body, base = API } = {}) {
   const headers = { 'content-type': 'application/json' };
   if (token) headers.authorization = `Bearer ${token}`;
-  if (admin) headers['x-admin-api-key'] = ADMIN_KEY;
+  // A real ops session. The shared `x-admin-api-key` this used to send was deleted in A1 Task 4.
+  if (admin) Object.assign(headers, adminCookie());
   const res = await fetch(`${base}${path}`, {
     method,
     headers,
@@ -100,6 +164,11 @@ export async function login(phone, { nin, bvn, pairingCode } = {}) {
     body: {
       phone,
       code: OTP,
+      // Required whenever this call CREATES a user, which is every signup these scripts perform.
+      // A `pairingCode` means an agent is being paired; anything else that creates is a principal.
+      // Omitting it returns `terms_not_accepted`, and the probe then fails several steps later
+      // reading `.user.id` off a body that never existed.
+      acceptedTermsVersion: pairingCode ? AGENT_TERMS_VERSION : PRINCIPAL_TERMS_VERSION,
       ...(nin && { nin }),
       ...(bvn && { bvn }),
       ...(pairingCode && { pairingCode }),

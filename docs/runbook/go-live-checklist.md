@@ -32,6 +32,35 @@ that.
 | **Blocks a real *user* signing up** | §8b — **there are no principal or agent terms at all**, and agents are location-monitored with no notice |
 | **Migrations** | local DB at `0040`; **production at `0038`** until the next successful deploy |
 
+## Re-checked 2026-09-17 — four rows above are now wrong
+
+The section above is kept as written, because it is the record of what was true on 2026-08-27.
+Measured against production and the repo today:
+
+| Claim above | Actually |
+|---|---|
+| "there are no principal or agent terms at all" | **False since the same day it was written.** `b411bb7` added both, and `docs/legal/{principal,agent}-terms/2026-08-27.v1.md` exist with a test that fails if either is missing. See §8b. |
+| "production at `0038`" | **Production is at 48 of 51.** Measured by connecting, 2026-09-17. Three pending: `0048`, `0049` (support verification), `0050` (money elevations). |
+| "local DB at `0040`" | Local and repo are both at **51**. |
+| §1 `DATABASE_URL` "repaired 2026-08-27" | **It broke again, differently, and was repaired 2026-09-17.** See §1. |
+
+**Still true, and still the whole blocker:** the two Anchor secrets. One clarification that changes
+how hard that is — `ANCHOR_API_KEY` only needs to be a **sandbox** key while `ANCHOR_API_BASE_URL`
+points at sandbox (§2), and a sandbox key is normally self-serve from the Anchor dashboard. Booting
+production is therefore a smaller task than "obtain live banking credentials".
+
+**But do not confuse the two.** With a sandbox key, production runs real infrastructure and **no
+real money moves**. Anything that requires paying an actual person — a field demo, a pilot, the
+real-market investor film (`docs/business/investor-video/`) — needs the **real-money go-live** in
+§2 and §5, which is a materially bigger gate than setting two secrets.
+
+**A live signup now works end to end.** The server has required `acceptedTermsVersion` at signup
+since `b411bb7`; **no client ever sent it**, so every new principal and agent was refused with
+`terms_not_accepted` for three weeks. Fixed 2026-09-17 (PR #72) — the version is now a single
+shared constant in `@amana/types`, both apps send it, and both display the clickwrap line. Found by
+running `tools/demo/` against the real API; no unit test could catch it, because each side was
+internally consistent.
+
 ## 1. Secrets & environment (per Fly app: staging + prod)
 
 Set as **Fly secrets** (`fly secrets set …`), never committed. The backend **refuses to boot** in
@@ -47,6 +76,23 @@ Set as **Fly secrets** (`fly secrets set …`), never committed. The backend **r
       character that breaks URL parsing. Use the Supavisor **session** pooler on **5432**, and
       percent-encode the password — `#`, `?`, `/` all produce `TypeError: Invalid URL`; `%` gives
       `URI malformed`.
+      - **It broke again, and differently. Repaired 2026-09-17, staged but NOT yet deployed** —
+        it lands with the next successful deploy, which is still blocked on the Anchor secrets.
+        **Third fault: the wrong pooler region.** The URL pointed at
+        `aws-0-eu-west-2.pooler.supabase.com`; the project lives in **eu-west-1**. A Supavisor
+        pooler only knows tenants in its own region, so it answered
+        `Migration failed: (ENOTFOUND) tenant/user postgres.<ref> not found` — which reads like a
+        deleted project and cost a long diagnosis chasing one. **The project was healthy the whole
+        time**; `db.<ref>.supabase.co` publishing no A record (IPv6 only, as noted above) made the
+        wrong theory look confirmed.
+      - Get the host from the horse's mouth rather than by eye:
+        `GET /v1/projects/{ref}/config/database/pooler` returns `db_host`, `db_user` and the exact
+        connection string shape.
+      - **Use the session pooler on 5432, not the transaction pooler on 6543** — the API returns
+        6543 by default. Neither `db/client.ts` nor `bin/migrate.mjs` sets `prepare: false`, and
+        postgres-js uses prepared statements, which transaction-mode pooling does not support.
+      - The database password was **rotated 2026-09-17** (40-char alphanumeric; the previous one
+        had been exposed in a chat transcript). The new value is inside the staged `DATABASE_URL`.
 - [ ] **`ANCHOR_API_KEY`** — ⚠️ **blocking.** Sandbox key while `ANCHOR_API_BASE_URL` points at
       sandbox (§2); usually self-serve from the Anchor dashboard rather than issued on request.
 - [ ] **`ANCHOR_WEBHOOK_SECRET`** — ⚠️ **blocking.** HMAC verify on `/webhooks/anchor`. A wrong
@@ -293,7 +339,41 @@ left cannot be enforced by a test.
       if it is ever pursued, record the decision next to that gate in `vendor-claim.md` so the two
       are read together.
 
-### 8b. Principal and agent terms — **neither exists**
+### 8b. Principal and agent terms — **written and now captured; one gap left**
+
+> **Superseded 2026-09-17.** The heading below said *"neither exists"* and was already false the day
+> it was written. Kept because the analysis under it is still correct and still worth reading — the
+> three things that make the agent document hard have not changed.
+
+**Where this actually stands:**
+
+- [x] **Principal terms + privacy notice** — `docs/legal/principal-terms/2026-08-27.v1.md` (120
+      lines), added by `b411bb7`.
+- [x] **Agent terms + privacy notice** — `docs/legal/agent-terms/2026-08-27.v1.md` (111 lines).
+      Addresses all three hard points in the analysis below: location is disclosed
+      (*"where you were when you paid"*, and explicitly *"we do not track you when you are not
+      paying"*), children and NDPA 2023 guardian consent, and the staff-cannot-freely-consent
+      problem.
+- [x] **Acceptance is captured at signup** — `user_consents`, append-only, recorded against the
+      version, enforced server-side. `tests/modules/identity/user-terms-text.test.ts` fails the
+      build if either document goes missing.
+- [ ] ⚠️ **Guardian acceptance is still not recorded separately.** `recordAcceptance` stores the
+      **agent's own** acceptance. The agent document tells a child to read it with a parent, but
+      the system has no record of the guardian agreeing — which is exactly the evidence NDPA would
+      ask for, and exactly what the open item further down anticipated. Still open.
+- [ ] **Tell the agent in-app what the principal can see** — the document says it; the app does
+      not surface it at pairing.
+
+> **The three-week hole this left, worth remembering.** The server began requiring
+> `acceptedTermsVersion` at signup on 2026-08-27 and **no client ever sent it**, so every new
+> principal and agent was refused with `terms_not_accepted` until 2026-09-17 (PR #72). Nothing
+> caught it: each side was internally consistent, returning users log in on a branch that never
+> reaches the check, and no unit test spans the two. It surfaced only by driving the real apps
+> against the real API with `tools/demo/`.
+
+---
+
+**Original entry, 2026-08-27 — analysis still valid, status line no longer true:**
 
 Checked 2026-08-27: `docs/legal/` contains **one** document, the vendor one. There is no terms text,
 privacy notice or consent capture anywhere in the principal or agent flow — not at OTP signup, not

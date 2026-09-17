@@ -235,6 +235,14 @@ Flow: [`APP-FLOW.md` §9](./APP-FLOW.md).
 | IAM-24 | Support starts must be capped per operator per hour and per phone per day, **counted in the database** rather than an in-memory limiter, with the per-phone cap counted across all operators; a breach must return an explicit `429`, never a silent `202` | ✓ |
 | IAM-25 | Support may verify **principals and agents only**; a retailer's phone must behave exactly like a number matching nobody | ✓ |
 | IAM-26 | The support start response must not carry the decoy numbers, the rail, or the resolved user — an operator gets one number and nothing that reveals whether the customer has the app | ✓ |
+| IAM-27 | `money.operate` must not be standing power: every money operation must require a just-in-time elevation carrying a mandatory reason and an expiry (`MONEY_ELEVATION_SECONDS`, default 900) | ✓ |
+| IAM-28 | An elevation must **unlock** a permission the operator already holds and must never grant one — an `admin`, which does not hold `money.operate`, must be refused even when a valid elevation row exists for the transaction | ✓ |
+| IAM-29 | Each elevation must be bound to a **single transaction id** and be single-use; a second operation must require a fresh elevation with a fresh reason, while a *failed* attempt must leave the elevation live until it expires | ✓ |
+| IAM-30 | The operator must supply authority and a reason but **never the outcome**: the service must re-query Anchor and apply its answer, settling on `COMPLETED`, reversing on `FAILED`, and refusing on `PENDING` | ✓ |
+| IAM-31 | A failed Anchor call must never be treated as an absent record — only a definitive 404 may be read as "no record", and a transport error, 5xx or open circuit breaker must refuse as `anchor_unreachable` | ✓ |
+| IAM-32 | Where Anchor has no record, a force path may **reverse but never settle**, only past `STUCK_TXN_FORCE_REVERSE_AGE_SECONDS` (default 24h), and must be audited distinctly from an ordinary reversal | ✓ |
+| IAM-33 | Money operations must write no ledger entries of their own — settlement and reversal must go through the same services the reconciliation sweep calls | ✓ |
+| IAM-34 | Every money branch must be audited **including refusals**, and the operator's free-text justification must never be written onto the customer's transaction record | ✓ |
 
 
 ## 2. Technical Requirements

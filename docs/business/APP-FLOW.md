@@ -1005,3 +1005,57 @@ operator's own quota reveals nothing about that.
 you called Amana support and they read you this number"*, closing with *"if nobody read you a
 number, close this and tap nothing."* That copy is the mechanism. Number matching defeats a fished
 approval only if the person understands that approving unprompted **is** the attack.
+
+### 9.9 Resolving a stuck transaction — JIT elevation *(added 2026-09-17, A1 Task 7)*
+
+`money.operate` is held by `owner` alone, and holding it is permission to *request* money power,
+not to wield it. Task 7 puts the permission behind a just-in-time elevation, and gives it exactly
+one thing to do.
+
+**What is stuck.** An `in_flight` spend whose money has already been debited into suspense —
+neither spendable by the customer nor delivered to the vendor. The reconciliation sweep clears
+almost all of these within minutes. The ones that reach an operator are the ones the sweep
+*abandoned*: it counts a transfer Anchor has no record of as `unknown` and then skips it on every
+subsequent pass, for ever. Nothing automated will ever move that money again.
+
+**The flow.** The owner opens **Money → Stuck** and sees `in_flight` spends older than
+`STUCK_TXN_MIN_AGE_SECONDS` (default 900 — deliberately above the sweep's own 5-minute threshold,
+so automation gets several passes first). Reading the queue needs `money.operate` but **no
+elevation**: reading is not operating. To act, the operator raises an elevation against **one**
+transaction with a mandatory reason, then resolves it.
+
+**The operator never chooses the outcome.** The service re-queries Anchor by the transaction's
+`idempotency_key` and applies the answer: `COMPLETED` settles, `FAILED` reverses, `PENDING` is
+refused because the transfer is not stuck. Both outcomes run through the same
+`settlementService.finalise` / `reversalService.reverse` the cron uses, so a manually resolved
+transaction is indistinguishable from an automatically resolved one — and there is no second
+ledger-writing path to drift.
+
+**Elevation unlocks; it never grants.** An `admin` holds `iam.write` and not `money.operate`, and
+no elevation changes that: the row opens a window for someone who already holds the permission.
+Segregation of duties therefore survives intact — nobody can both grant roles and move money. Each
+elevation is bound to a single transaction id, so there is never a moment of unscoped money power,
+and it is single-use, so a fifteen-minute window cannot cover a sequence of actions. A *failed*
+attempt leaves it live, because forcing someone to re-type a justification for work that never
+happened protects nothing.
+
+**When Anchor has no record.** Past `STUCK_TXN_FORCE_REVERSE_AGE_SECONDS` (default 24h), the
+operator may force a reverse — and only a reverse. This path can never settle, so no single
+operator can cause money to leave; the worst case is money returned to a customer. The residual
+risk is stated rather than hidden: if Anchor processed the transfer but cannot find it by
+reference, the reverse credits money that also left. Hence the long threshold, the reverse-only
+restriction, and a distinct `money.force_reversed` audit action.
+
+**An unreachable Anchor is never read as absence.** The adapter returns `null` only on a definitive
+404; transport errors, 5xx and an open circuit breaker all throw, and a throw is refused as
+`anchor_unreachable`. Without that distinction an Anchor outage would look exactly like "no record"
+and could trigger reversals for transfers that had in fact completed.
+
+**Every branch is audited, refusals included** — `money.elevation_granted`, `money.resolve_settled`,
+`money.resolve_reversed`, `money.force_reversed`, `money.resolve_refused`. "An owner tried to touch
+this transaction and was stopped" is exactly what an auditor needs to see.
+
+**Not covered:** stuck top-ups, VAS purchases and marketplace orders. The sweep filters
+`kind: 'spend'`, so those are never reconciled at all — a real gap, excluded because "re-query
+Anchor and apply the answer" is the wrong rule for an inbound credit or a third-party fulfilment
+leg.

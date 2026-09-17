@@ -6,11 +6,14 @@ import type {
   ClaimAttempt,
   ConsentPurpose,
   ConsentRow,
+  Elevation,
   Me,
+  ResolveOutcome,
   Retailer,
   RetailerStatus,
   Role,
   RoleGrant,
+  StuckTransaction,
   SupportOutcome,
   SupportOverview,
   SupportRule,
@@ -153,6 +156,14 @@ export const api = {
       ),
     rules: (id: string) =>
       request<{ rules: SupportRule[] }>(`/admin/support/verifications/${id}/rules`),
+  },
+
+  money: {
+    stuck: () => request<{ transactions: StuckTransaction[] }>('/admin/money/stuck'),
+    elevate: (transactionId: string, reason: string) =>
+      post<Elevation>('/admin/money/elevations', { transactionId, reason }),
+    /** No outcome argument, by design: the backend asks Anchor and applies the answer. */
+    resolve: (id: string) => post<ResolveOutcome>(`/admin/money/transactions/${id}/resolve`),
   },
 
   retailers: {

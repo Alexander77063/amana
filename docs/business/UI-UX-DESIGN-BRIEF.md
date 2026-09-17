@@ -644,3 +644,44 @@ concludes the caller did something. The support copy names it as ours.
   `ForbiddenError` to `{ error: 'forbidden' }`, and a helpful UI that reconstructed the reason would
   hand back exactly what the backend withheld.
 
+
+### 10.6 Money operations — the stuck queue *(added 2026-09-17, A1 Task 7)*
+
+One screen, `/money`, behind `money.operate`. It is the only place in the portal that touches money,
+and it is built around a single rule.
+
+**The screen never offers an outcome.** There is no "mark as settled", no "force settle", no
+settle-or-reverse toggle. Resolving re-asks Anchor what happened and applies the answer, and the
+copy says so above the table: *"Anchor decides the outcome, not you."* The operator's contribution
+is authority and a reason. This is not a simplification of the interface — it **is** the control,
+in the same way the support screen's warning copy is the anti-fishing mechanism rather than a
+decoration around it.
+
+**The table earns its columns.** Stuck-for (an age, not a timestamp — "3h" is the number an operator
+reasons about at 02:00), amount, who it was going to, and the two actions. No transaction ids on
+screen; they identify rows nobody is asked to type.
+
+**The elevate dialog will not submit without a real reason.** The button stays disabled below ten
+characters, because "fix" in an audit log is the same as no reason at all. The dialog states the
+three properties that make single-operator money power acceptable: one transaction, fifteen minutes,
+one use.
+
+**Refusals get specific copy, never a generic permission error.** The shared `errorMessage` helper
+answers any 403 with *"You don't have permission for that"* — true and useless here, because the
+operator does hold the permission and what they lack is a live elevation. Each refusal names the
+thing to do instead:
+
+| Refusal | Copy says |
+| --- | --- |
+| `elevation_required` | raise an elevation against this transaction |
+| `too_early` | the automatic sweep still owns it; wait |
+| `still_pending` | Anchor says it is in progress; it is not stuck |
+| `not_stuck` | already resolved; nothing to do |
+| `anchor_unreachable` | **nothing changed; check Anchor status and do not retry in a loop** |
+
+That last one is the one that matters. Retrying is the natural instinct when an action fails, and it
+is the wrong instinct against a partner outage — so the copy contradicts the instinct explicitly
+rather than leaving a bare error and hoping.
+
+**The empty state is the good state.** "Nothing stuck. This is the normal state." An empty stuck
+queue is not a screen that failed to load; it is the system working.

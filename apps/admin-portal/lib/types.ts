@@ -160,3 +160,16 @@ export type SupportTransaction = {
 };
 
 export type SupportRule = { id: string; kind: string; priority: number; summary: string };
+
+/** A1 Task 7 — money operations. */
+export type StuckTransaction = {
+  id: string;
+  amountKobo: string;
+  createdAt: string;
+  vendorResolvedName: string | null;
+};
+
+export type Elevation = { elevationId: string; expiresAt: string };
+
+/** The operator never picks this; Anchor does. */
+export type ResolveOutcome = { outcome: 'settled' | 'reversed' };

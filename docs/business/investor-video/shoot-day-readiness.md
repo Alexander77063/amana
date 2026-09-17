@@ -21,6 +21,21 @@ step before the app boots.
 | `ANCHOR_API_KEY` | ❌ **Unset in production.** Only Alex can supply it. |
 | `ANCHOR_WEBHOOK_SECRET` | ❌ **Unset in production.** Never guess this one — a wrong value silently rejects every inbound settlement webhook, and the failure looks like "payments just stop working" rather than an error. |
 
+> **Corrected 2026-09-17 — this gate is bigger than "set two secrets".** A sandbox
+> `ANCHOR_API_KEY` is enough to make production *boot*, and is normally self-serve from the Anchor
+> dashboard. It is **not** enough to film. `ANCHOR_API_BASE_URL` points at Anchor's sandbox by
+> design, so production-with-a-sandbox-key runs real infrastructure and **moves no real money** —
+> nothing would actually reach a trader's account.
+>
+> A market shoot paying real vendors needs the **real-money go-live**: the production Anchor base
+> URL, a production key, and the compliance work behind it. See §2 and §5 of
+> [`docs/runbook/go-live-checklist.md`](../../runbook/go-live-checklist.md), and note §5's warning
+> that the Anchor adapter **has never run against the real sandbox**, let alone production.
+>
+> Plan the shoot around that, not around a dashboard visit. Everything in the script that does not
+> move money — signup, pairing, sub-wallet creation, rules — can be filmed against sandbox as soon
+> as production boots.
+
 **Pass condition, all four:**
 
 1. `flyctl deploy` completes — release command and health checks both.

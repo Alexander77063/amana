@@ -13,6 +13,15 @@ export type VerifyOtpInput = {
   pairingCode?: string;
   nin?: string;
   bvn?: string;
+  /**
+   * The terms version the app displayed. **Required whenever this call creates a user** — the
+   * server refuses signup with `terms_not_accepted` without it, because a user row with no
+   * recorded acceptance is data held with no lawful basis.
+   *
+   * Optional here only because a returning user's login never creates anything. Send
+   * `requiredTermsVersion(role)` from `@amana/types`; never a retyped literal.
+   */
+  acceptedTermsVersion?: string;
 };
 
 export type RefreshInput = {

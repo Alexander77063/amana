@@ -1,4 +1,5 @@
 import type { StoredAuth } from '@amana/api-client';
+import { PRINCIPAL_TERMS_VERSION } from '@amana/types';
 import type { LoginResponse, User } from '@amana/types';
 import { create } from 'zustand';
 import { api } from '../lib/api';
@@ -64,7 +65,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!phone) throw new Error('verifyOtp called without pendingPhone — call requestOtp first');
     set({ busy: true, errorCode: null });
     try {
-      const r: LoginResponse = await api.auth.verifyOtp({ phone, code, nin, bvn });
+      // Sent on every verify, not only when we think this is a signup: the app cannot tell a new
+      // user from a returning one before the server answers, and the server ignores it unless it
+      // is actually creating a row. Omitting it is what refused every new principal since
+      // 2026-08-27 with `terms_not_accepted`.
+      const r: LoginResponse = await api.auth.verifyOtp({
+        phone,
+        code,
+        nin,
+        bvn,
+        acceptedTermsVersion: PRINCIPAL_TERMS_VERSION,
+      });
       const stored: StoredAuth = {
         tokens: {
           accessToken: r.accessToken,

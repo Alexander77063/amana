@@ -1,4 +1,5 @@
 import type { StoredAuth } from '@amana/api-client';
+import { AGENT_TERMS_VERSION } from '@amana/types';
 import { Body, Button, Screen, SectionHeader, TextInput } from '@amana/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -49,9 +50,14 @@ export function VerifyScreen({ onLoggedIn, route }: Props): JSX.Element {
     setBusy(true);
     setErrorMsg(null);
     try {
+      // Sent on every verify, not only when this looks like a signup: the app cannot tell a new
+      // agent from a returning one before the server answers, and the server ignores it unless it
+      // is actually creating a row. Omitting it refused every new agent since 2026-08-27 with
+      // `terms_not_accepted`.
       const r = await api.auth.verifyOtp({
         phone: pendingPhone,
         code,
+        acceptedTermsVersion: AGENT_TERMS_VERSION,
         ...(pairingCode?.length ? { pairingCode } : {}),
         ...(nin?.length ? { nin } : {}),
       });
@@ -132,6 +138,14 @@ export function VerifyScreen({ onLoggedIn, route }: Props): JSX.Element {
       />
 
       {errorMsg ? <Body muted>{errorMsg}</Body> : null}
+
+      {/*
+        Shown because the app tells the server it displayed this version, and recording acceptance
+        of a document nobody was shown is worse than not recording it at all.
+      */}
+      <Body muted>
+        By verifying, you accept the Amana Terms and Privacy Notice ({AGENT_TERMS_VERSION}).
+      </Body>
       <View style={{ marginTop: 8 }}>
         <Button
           label="VERIFY"

@@ -1,3 +1,4 @@
+import { requiredTermsVersion } from '@amana/types';
 import { and, desc, eq } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { userConsents } from '../../db/schema';
@@ -19,13 +20,24 @@ export type UserConsentRow = typeof userConsents.$inferSelect;
  * version whenever its text changes**, and understand what that means: everyone who accepted the
  * old one has NOT accepted the new one.
  */
-export const PRINCIPAL_TERMS_VERSION = '2026-08-27.v1';
-export const AGENT_TERMS_VERSION = '2026-08-27.v1';
-
-/** The document a given role must accept. Retailers accept the portal's own terms, not these. */
-export function requiredTermsVersion(role: 'principal' | 'agent'): string {
-  return role === 'principal' ? PRINCIPAL_TERMS_VERSION : AGENT_TERMS_VERSION;
-}
+/**
+ * Re-exported from `@amana/types`, which is now the single definition.
+ *
+ * These used to live here, and the apps had no equivalent at all — so when the signup requirement
+ * landed on 2026-08-27 the server started demanding a version no client could name, and every new
+ * signup was refused. The constant moved to the shared package so both sides import the same value
+ * and a bump reaches the apps at compile time instead of at a customer's first launch.
+ *
+ * The text still lives at `docs/legal/{principal,agent}-terms/<version>.md`, and
+ * `tests/modules/identity/user-terms-text.test.ts` still fails if either document is missing.
+ */
+export {
+  AGENT_TERMS_VERSION,
+  PRINCIPAL_TERMS_VERSION,
+  /** The document a given role must accept. Retailers accept the portal's own terms, not these. */
+  requiredTermsVersion,
+} from '@amana/types';
+// Imported above as well, because a re-export creates no local binding and this module uses it.
 
 export const userConsentService = {
   /** Whether the submitted version matches the document this role would have been shown. */

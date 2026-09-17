@@ -43,6 +43,31 @@ const elevateFor = (adminUserId: string, transactionId: string) =>
 const countPostings = async (transactionId: string) =>
   (await postingsRepo.listByTransaction(testDb, transactionId)).length;
 
+describe('moneyOpsService.listStuck', () => {
+  beforeEach(async () => {
+    await truncateAll();
+  });
+
+  // The incident this feature exists for -- a reference fault at Anchor -- produces many stuck rows
+  // at once, so the queue is unbounded exactly when it is most loaded.
+  it('caps how many rows it returns', async () => {
+    await seedStuckTxn(HOUR_OLD);
+    await seedStuckTxn(HOUR_OLD);
+    await seedStuckTxn(HOUR_OLD);
+
+    expect(await moneyOpsService.listStuck(testDb, NOW, 2)).toHaveLength(2);
+  });
+
+  it('returns the oldest first, because those have been stuck longest', async () => {
+    const older = await seedStuckTxn('2026-05-03T09:00:00Z');
+    await seedStuckTxn('2026-05-03T11:00:00Z');
+
+    const rows = await moneyOpsService.listStuck(testDb, NOW);
+
+    expect(rows[0]?.id).toBe(older.txnId);
+  });
+});
+
 describe('moneyOpsService.resolveStuckTransaction', () => {
   beforeEach(async () => {
     await truncateAll();

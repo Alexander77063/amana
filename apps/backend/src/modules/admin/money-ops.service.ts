@@ -22,6 +22,13 @@ type DbOrTx = PostgresJsDatabase;
 const NO_ANCHOR_RECORD_REASON = 'no Anchor record past the force-reverse threshold';
 
 /**
+ * How many stuck transactions the queue returns at once. A human resolves these one at a time with
+ * a typed reason apiece, so a page far beyond this is unreadable anyway — and a queue this long is
+ * itself the signal to call Anchor rather than to start clicking.
+ */
+const STUCK_LIST_LIMIT = 200;
+
+/**
  * The audit actions this surface writes. Collected here rather than scattered as literals, and
  * deliberately not builders in `events.ts`: this service is their only writer, and an indirection
  * layer with one caller is harder to read than the call it hides.
@@ -115,8 +122,14 @@ export const moneyOpsService = {
     return { elevationId: row.id, expiresAt };
   },
 
-  /** The stuck queue: `in_flight` spends old enough that a human may look at them. */
-  async listStuck(db: DbOrTx, now: Date) {
+  /**
+   * The stuck queue: `in_flight` spends old enough that a human may look at them.
+   *
+   * Capped. The incident this whole feature exists for — a reference or reconciliation fault at
+   * Anchor — produces many stuck rows at once, which is precisely when an uncapped query would be
+   * at its most expensive. Oldest first, because those have been stuck longest.
+   */
+  async listStuck(db: DbOrTx, now: Date, limit: number = STUCK_LIST_LIMIT) {
     const cutoff = new Date(now.getTime() - env.STUCK_TXN_MIN_AGE_SECONDS * 1000);
     return db
       .select({
@@ -133,7 +146,8 @@ export const moneyOpsService = {
           lt(transactions.createdAt, cutoff),
         ),
       )
-      .orderBy(asc(transactions.createdAt));
+      .orderBy(asc(transactions.createdAt))
+      .limit(limit);
   },
 
   /**

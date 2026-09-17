@@ -19,6 +19,18 @@ needs the live moment. Shooting them together is cheaper and the footage overlap
 | [`shot-list-and-script.md`](./shot-list-and-script.md) | Scene-by-scene, both cuts, with the real screen names and the spoken lines |
 | [`consent-and-privacy.md`](./consent-and-privacy.md) | Release forms, NDPR, and the list of things that must never be on screen |
 | [`logistics-and-casting.md`](./logistics-and-casting.md) | Market, vendors, cast, devices, schedule, kit |
+| [`animated-explainer.md`](./animated-explainer.md) | A 90-second illustrated film — script and boards. **Needs no shoot and no production**, so it can be made now |
+
+## Three films, not one
+
+| | Made from | Blocked by | Honest claim |
+| --- | --- | --- | --- |
+| **Narrated walkthrough** — `tools/demo/out/amana-walkthrough-narrated.mp4` | The real apps driven through the real API, bank stubbed | Nothing. **Exists today** | "This is how the product works" |
+| **Animated explainer** | Illustration, no footage | Nothing. Needs a designer or a video tool | "This is what the product is for" |
+| **Real-market film** | A market, vendors, real money | **Production being live** | "Real people are doing this" — the only one that can claim it |
+
+Each says something the others cannot. The third is the valuable one, and it is the one that has to
+wait; the first two can go in front of someone this week.
 
 ## The one thing that decides the date
 

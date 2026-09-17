@@ -1,9 +1,25 @@
+import { and, asc, eq, lt } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
+import { transactions } from '../../db/schema';
 import { env } from '../../env';
+import type { AnchorAdapter } from '../../integrations/anchor/adapter';
 import { auditRepo } from '../audit';
+import { reversalService } from '../transactions/reversal.service';
+import { settlementService } from '../transactions/settlement.service';
+import { transactionsRepo } from '../wallet/transactions.repo';
 import { adminElevationsRepo } from './admin-elevations.repo';
 
 type DbOrTx = PostgresJsDatabase;
+
+/**
+ * The reversal reason recorded when Anchor has no record at all.
+ *
+ * A fixed system string, never the operator's words: `reversalService.reverse` writes this onto
+ * the ORIGINAL transaction's `error_message`, so the operator's justification would end up on a
+ * customer's transaction record. That justification belongs on `admin_elevations.reason` and in
+ * the audit payload.
+ */
+const NO_ANCHOR_RECORD_REASON = 'no Anchor record past the force-reverse threshold';
 
 /**
  * The audit actions this surface writes. Collected here rather than scattered as literals, and
@@ -56,6 +72,12 @@ export type GrantElevationInput = {
   now: Date;
 };
 
+export type ResolveInput = {
+  actorAdminUserId: string;
+  transactionId: string;
+  now: Date;
+};
+
 export const moneyOpsService = {
   /**
    * Open a window in which an operator who ALREADY holds `money.operate` may use it against one
@@ -91,5 +113,132 @@ export const moneyOpsService = {
     });
 
     return { elevationId: row.id, expiresAt };
+  },
+
+  /** The stuck queue: `in_flight` spends old enough that a human may look at them. */
+  async listStuck(db: DbOrTx, now: Date) {
+    const cutoff = new Date(now.getTime() - env.STUCK_TXN_MIN_AGE_SECONDS * 1000);
+    return db
+      .select({
+        id: transactions.id,
+        amountKobo: transactions.amountKobo,
+        createdAt: transactions.createdAt,
+        vendorResolvedName: transactions.vendorResolvedName,
+      })
+      .from(transactions)
+      .where(
+        and(
+          eq(transactions.status, 'in_flight'),
+          eq(transactions.kind, 'spend'),
+          lt(transactions.createdAt, cutoff),
+        ),
+      )
+      .orderBy(asc(transactions.createdAt));
+  },
+
+  /**
+   * Resolve one stuck transaction by asking Anchor what happened and applying the answer.
+   *
+   * The operator supplies authority and a reason; Anchor supplies the outcome. Settlement and
+   * reversal go through the SAME functions the reconciliation cron calls, so the manual and
+   * automated paths cannot drift, and concurrency is already handled: both take
+   * `SELECT … FOR UPDATE` and refuse a non-`in_flight` row.
+   */
+  async resolveStuckTransaction(
+    db: DbOrTx,
+    adapter: AnchorAdapter,
+    input: ResolveInput,
+  ): Promise<{ outcome: 'settled' | 'reversed' }> {
+    // Audits the refusal and hands back the error to throw, so every `no` is on the record.
+    // Deliberately writes on `db` rather than inside a transaction: a refusal audit that rolls
+    // back with the refusal is not an audit.
+    const refuse = async (code: MoneyOpsRefusal): Promise<MoneyOpsError> => {
+      await auditRepo.append(db, {
+        actorKind: 'ops',
+        actorAdminUserId: input.actorAdminUserId,
+        action: MONEY_AUDIT.resolveRefused,
+        subjectKind: 'transaction',
+        subjectId: input.transactionId,
+        payloadJson: { code },
+      });
+      return new MoneyOpsError(code);
+    };
+
+    const elevation = await adminElevationsRepo.findLive(
+      db,
+      input.actorAdminUserId,
+      input.transactionId,
+      input.now,
+    );
+    if (!elevation) throw await refuse('elevation_required');
+
+    const txn = await transactionsRepo.findById(db, input.transactionId);
+    if (!txn || txn.status !== 'in_flight') throw await refuse('not_stuck');
+
+    const minAgeCutoff = new Date(input.now.getTime() - env.STUCK_TXN_MIN_AGE_SECONDS * 1000);
+    if (txn.createdAt >= minAgeCutoff) throw await refuse('too_early');
+
+    let remote: Awaited<ReturnType<AnchorAdapter['findTransferByReference']>>;
+    try {
+      remote = await adapter.findTransferByReference(txn.idempotencyKey);
+    } catch {
+      // A failed call is NOT an absent record. The adapter returns null only on a definitive 404;
+      // everything else throws. Treating a throw as absence would let an Anchor outage trigger
+      // reversals for transfers that actually completed.
+      throw await refuse('anchor_unreachable');
+    }
+
+    let action: string;
+    let outcome: 'settled' | 'reversed';
+
+    if (remote === null) {
+      const forceCutoff = new Date(
+        input.now.getTime() - env.STUCK_TXN_FORCE_REVERSE_AGE_SECONDS * 1000,
+      );
+      if (txn.createdAt >= forceCutoff) throw await refuse('too_early');
+      // Reverse ONLY. This path can never settle, so a wrong call here can never pay a vendor
+      // twice — it can only return money to the customer.
+      await reversalService.reverse(db, {
+        transactionId: txn.id,
+        reason: NO_ANCHOR_RECORD_REASON,
+        failedAt: input.now,
+      });
+      action = MONEY_AUDIT.forceReversed;
+      outcome = 'reversed';
+    } else if (remote.status === 'COMPLETED') {
+      await settlementService.finalise(db, {
+        transactionId: txn.id,
+        nibssSessionId: remote.nibssSessionId ?? null,
+        settledAt: input.now,
+      });
+      action = MONEY_AUDIT.resolveSettled;
+      outcome = 'settled';
+    } else if (remote.status === 'FAILED') {
+      // Anchor's reason, not the operator's: a manually resolved reversal must be
+      // indistinguishable from an automatic one on the transaction record.
+      await reversalService.reverse(db, {
+        transactionId: txn.id,
+        reason: remote.failureReason ?? null,
+        failedAt: input.now,
+      });
+      action = MONEY_AUDIT.resolveReversed;
+      outcome = 'reversed';
+    } else {
+      throw await refuse('still_pending');
+    }
+
+    // Only now, after the money has actually moved. A failure above leaves the elevation live, so
+    // a retry needs no fresh justification for work that never happened.
+    await adminElevationsRepo.markConsumed(db, elevation.id, input.now);
+    await auditRepo.append(db, {
+      actorKind: 'ops',
+      actorAdminUserId: input.actorAdminUserId,
+      action,
+      subjectKind: 'transaction',
+      subjectId: txn.id,
+      payloadJson: { elevationId: elevation.id, anchorStatus: remote?.status ?? 'no_record' },
+    });
+
+    return { outcome };
   },
 };

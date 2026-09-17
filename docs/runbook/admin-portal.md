@@ -262,6 +262,52 @@ the limit is ours rather than the caller's.
 - **No audit-log screen.** `audit.read` exists in the permission matrix and `auditor` holds it, but
   no endpoint consumes it, so there is nothing for the portal to render. The `audit_log` table is
   immutable and complete — it is only unreachable over HTTP.
-- **No money and no support surfaces.** JIT elevation for `money.operate` is Task 7 of the sub-plan
-  and support verification is Task 6; neither has a screen here, and the portal displays no money at
-  all.
+- **Stuck non-`spend` transactions are invisible and unreconciled.** The reconciliation sweep
+  filters `kind: 'spend'`, so a stuck top-up, VAS purchase or marketplace order is never swept and
+  never appears in the stuck queue below. This is a real gap, not an oversight: "re-query Anchor and
+  apply the answer" is the wrong rule for an inbound credit or a third-party fulfilment leg, so it
+  needs its own design. Until then, those are found only by querying Postgres.
+
+## Resolving a stuck transaction
+
+**What "stuck" means.** An `in_flight` spend of `kind: 'spend'` older than 15 minutes. The
+customer's money has already been debited and is sitting in suspense — neither spendable nor
+delivered. The reconciliation sweep runs on a 5-minute threshold and clears almost all of these by
+itself, so **a row appearing in this queue means the sweep gave up**, which in practice means Anchor
+returned no record for the reference.
+
+**You do not choose the outcome.** The portal re-queries Anchor and applies what Anchor says. You
+supply the authority and the reason; that is the whole of your input. There is deliberately no
+"mark as settled" button.
+
+**The flow.** Find the row in **Money → Stuck**, elevate against that specific transaction with a
+reason, then resolve. The elevation lasts 15 minutes, covers **one** transaction, and is single-use:
+once a resolve succeeds it is spent, and a further action needs a fresh elevation with a fresh
+reason. If the resolve fails, the elevation stays live — retry without re-typing anything.
+
+**What the refusals mean:**
+
+| Refusal | What to do |
+| --- | --- |
+| `too_early` | The sweep still owns it. Wait. |
+| `still_pending` | Anchor says the transfer is in progress. It is not stuck. Wait. |
+| `not_stuck` | Already settled, failed or reversed — someone or something resolved it. Nothing to do. |
+| `anchor_unreachable` | **Stop.** Anchor is down or erroring. Check Anchor status; do not retry in a loop. This refusal exists precisely so an outage cannot be mistaken for "Anchor has no record". |
+| `elevation_required` | No live elevation, or yours was already spent. Raise a new one. |
+
+**The force path, and when not to use it.** When Anchor has no record of a transfer that is more
+than 24 hours old, resolving reverses it — returns the money to the customer. This is the only
+action in the system where money moves without counterparty confirmation, and it carries a real
+risk: **if Anchor did process the transfer but its by-reference lookup cannot find it, the reverse
+credits the customer for money that also left the account.** That is why the threshold is 24 hours
+rather than minutes, why this path can only reverse and never settle, and why it is audited as
+`money.force_reversed` rather than as an ordinary reversal.
+
+Do not force a reverse to clear the queue. If several ancient rows appear at once, that pattern is
+itself the signal — it suggests a reference or reconciliation fault at Anchor, not many independent
+lost transfers, and it should be raised with Anchor before any of them is reversed.
+
+**Everything is audited, including every refusal.** `money.elevation_granted`,
+`money.resolve_settled`, `money.resolve_reversed`, `money.force_reversed` and
+`money.resolve_refused` all carry the operator and the transaction. As noted above, there is still
+no audit-log screen, so reading them means querying Postgres.

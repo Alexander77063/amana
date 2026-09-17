@@ -10,6 +10,7 @@ import type { OidcProvider } from './modules/admin/oidc/types';
 import { adminApprovalsRoute } from './routes/admin/approvals';
 import { adminMeRoute, createAdminAuthRoute } from './routes/admin/auth';
 import { adminIamRoute } from './routes/admin/iam';
+import { adminMoneyRoute } from './routes/admin/money';
 import { adminSupportRoute } from './routes/admin/support';
 import { authRoute, logoutRoute, meRoute } from './routes/auth';
 import { bumpsRoute } from './routes/bumps';
@@ -277,6 +278,7 @@ export function createServer(options: CreateServerOptions = {}): Hono {
   // IAM rather than inside it.
   app.route('/admin/approvals', adminApprovalsRoute);
   app.route('/admin/support', adminSupportRoute);
+  app.route('/admin/money', adminMoneyRoute);
   // Customer-facing, bearer-authenticated: the other half of number matching.
   app.route('/', supportRespondRoute);
   app.route('/admin', adminMeRoute);

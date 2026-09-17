@@ -15,6 +15,7 @@ const NAV: ReadonlyArray<{ href: string; label: string; needs: Permission[] }> =
   { href: '/ops/vendors', label: 'Vendors', needs: ['vendor.read'] },
   { href: '/ops/retailers', label: 'Retailers', needs: ['retailer.read'] },
   { href: '/support', label: 'Support', needs: ['support.verify'] },
+  { href: '/money', label: 'Money', needs: ['money.operate'] },
   { href: '/people', label: 'People', needs: ['iam.read'] },
 ];
 

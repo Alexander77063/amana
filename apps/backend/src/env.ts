@@ -65,6 +65,16 @@ const EnvSchema = z
     // member of staff can walk around by asking a colleague is not a limit.
     SUPPORT_STARTS_PER_OPERATOR_HOUR: z.coerce.number().int().positive().default(20),
     SUPPORT_STARTS_PER_PHONE_DAY: z.coerce.number().int().positive().default(5),
+    // Sub-plan A1 Task 7. How long a money elevation stays usable. Short enough that walking away
+    // from the desk closes the window, long enough to read the transaction and decide.
+    MONEY_ELEVATION_SECONDS: z.coerce.number().int().positive().default(900),
+    // Below this age a transaction belongs to the reconciliation sweep, whose own threshold is 5
+    // minutes. This MUST stay above it so automation gets several passes before a human may act.
+    STUCK_TXN_MIN_AGE_SECONDS: z.coerce.number().int().positive().default(900),
+    // How old a transaction with NO Anchor record must be before it may be force-reversed. Long on
+    // purpose: this is the only path where money moves without counterparty confirmation, and if
+    // Anchor processed the transfer but cannot find it, reversing credits money that also left.
+    STUCK_TXN_FORCE_REVERSE_AGE_SECONDS: z.coerce.number().int().positive().default(86_400),
     PAIRING_TOKEN_TTL_SECONDS: z.coerce
       .number()
       .int()

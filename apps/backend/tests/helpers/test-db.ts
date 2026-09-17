@@ -57,6 +57,7 @@ const TABLES_TO_TRUNCATE = [
   // tests — the per-phone and per-operator caps are counted from these rows, so pollution here
   // silently changes what a cap test proves.
   'support_verifications',
+  'admin_elevations',
 ] as const;
 
 export async function truncateAll(): Promise<void> {

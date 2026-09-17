@@ -1,4 +1,3 @@
-import { sql } from 'drizzle-orm';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AnchorAdapter } from '../../../src/integrations/anchor/adapter';
 import { AnchorClient } from '../../../src/integrations/anchor/client';
@@ -6,85 +5,13 @@ import { kobo } from '../../../src/lib/kobo';
 import { householdsRepo } from '../../../src/modules/identity/households.repo';
 import { usersRepo } from '../../../src/modules/identity/users.repo';
 import { reconciliationService } from '../../../src/modules/transactions/reconciliation.service';
-import { txnIntentService } from '../../../src/modules/transactions/txn-intent.service';
 import { ledgerAccountsRepo } from '../../../src/modules/wallet/ledger-accounts.repo';
 import { ledgerService } from '../../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
-import { subWalletsRepo } from '../../../src/modules/wallet/sub-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { factories } from '../../helpers/factories';
+import { seedStuckTxn } from '../../helpers/stuck-txn';
 import { testDb, truncateAll } from '../../helpers/test-db';
-
-async function seedStuckTxn(createdAtIso: string) {
-  const principal = await usersRepo.insert(testDb, {
-    role: 'principal',
-    phone: factories.phone(),
-    nin: factories.nin(),
-    kycTier: '2',
-    bvn: factories.bvn(),
-  });
-  const hh = await householdsRepo.insert(testDb, { principalUserId: principal.id, name: 'HH' });
-  const mw = await masterWalletsRepo.provision(testDb, {
-    householdId: hh.id,
-    anchorVirtualAccount: '1234567890',
-    anchorBankCode: '058',
-    anchorAccountId: 'anchor-acct-test',
-  });
-  const agent = await usersRepo.insert(testDb, {
-    role: 'agent',
-    phone: factories.phone(),
-    nin: factories.nin(),
-    kycTier: '1',
-  });
-  const sw = await subWalletsRepo.provision(testDb, {
-    masterWalletId: mw.master.id,
-    agentUserId: agent.id,
-    name: 'Driver',
-  });
-  // Top up
-  const topup = await transactionsRepo.insert(testDb, {
-    masterWalletId: mw.master.id,
-    kind: 'topup',
-    amountKobo: kobo(100_000n),
-    idempotencyKey: factories.idempotencyKey(),
-  });
-  await ledgerService.writeDoubleEntry(testDb, topup.id, [
-    { ledgerAccountId: sw.ledgerAccountId, debitKobo: kobo(100_000n), creditKobo: kobo(0n) },
-    {
-      ledgerAccountId: mw.ledgerAccountIds.suspense,
-      debitKobo: kobo(0n),
-      creditKobo: kobo(100_000n),
-    },
-  ]);
-  // Create spend, force into in_flight, write reservation postings, BACKDATE created_at to make it look stuck
-  const txn = await txnIntentService.create(testDb, {
-    actorUserId: agent.id,
-    masterWalletId: mw.master.id,
-    subWalletId: sw.sub.id,
-    amountKobo: kobo(5_000n),
-    idempotencyKey: factories.idempotencyKey(),
-    vendorBankCode: '058',
-    vendorAccountNumber: '0123456789',
-    vendorResolvedName: 'M',
-    category: null,
-    agentNote: null,
-  });
-  await transactionsRepo.setStatus(testDb, txn.id, 'in_flight');
-  // Reservation postings (so settlement / reverse don't fail)
-  await ledgerService.writeDoubleEntry(testDb, txn.id, [
-    { ledgerAccountId: sw.ledgerAccountId, debitKobo: kobo(5_000n), creditKobo: kobo(0n) },
-    {
-      ledgerAccountId: mw.ledgerAccountIds.suspense,
-      debitKobo: kobo(0n),
-      creditKobo: kobo(5_000n),
-    },
-  ]);
-  // Backdate
-  await testDb.execute(
-    sql`UPDATE transactions SET created_at = ${createdAtIso}::timestamptz WHERE id = ${txn.id}`,
-  );
-  return { txnId: txn.id, idempotencyKey: txn.idempotencyKey };
-}
 
 function makeAdapter(fetchImpl: typeof fetch): AnchorAdapter {
   return new AnchorAdapter({

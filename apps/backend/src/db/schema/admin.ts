@@ -10,6 +10,7 @@ import {
   timestamp,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { transactions } from './transactions';
 
 export const adminUserStatusEnum = pgEnum('admin_user_status', ['active', 'suspended']);
 
@@ -230,3 +231,43 @@ export const adminSessions = pgTable('admin_sessions', {
   lastUsedAt: timestamp('last_used_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * A single-use, transaction-scoped unlock of `money.operate` (sub-plan A1 Task 7).
+ *
+ * This table does NOT grant the permission — `owner` already holds it and `admin` never does.
+ * It records that a holder opened a short window to use it against ONE transaction, and why.
+ * Append-only like `admin_role_grants`: nothing is deleted, and the only update is the one-way
+ * `consumed_at` write.
+ */
+export const adminElevations = pgTable(
+  'admin_elevations',
+  {
+    id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+    adminUserId: uuid('admin_user_id')
+      .notNull()
+      .references(() => adminUsers.id, { onDelete: 'restrict' }),
+    /**
+     * The ONE transaction this elevation authorises. Scoping to a row rather than to a time window
+     * means there is never a moment when an operator holds unscoped money power, and the audit log
+     * answers "why did you have money power" with an id instead of prose.
+     */
+    transactionId: uuid('transaction_id')
+      .notNull()
+      .references(() => transactions.id, { onDelete: 'restrict' }),
+    /** The operator's justification. Mandatory, and never written onto the transaction itself. */
+    reason: text('reason').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    /**
+     * Set only after a settle or reverse SUCCEEDS. A failure leaves the elevation live so a retry
+     * needs no fresh justification — single-use exists to stop one window covering several
+     * actions, not to punish a transport error.
+     */
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+  },
+  (t) => ({
+    // The hot read is "is there a live elevation for this operator and this transaction".
+    byTxnAdmin: index('admin_elevations_by_txn_admin').on(t.transactionId, t.adminUserId),
+  }),
+);

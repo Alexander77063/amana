@@ -4,7 +4,7 @@
 **Supersedes** [`BACKEND-SCHEMA.md`](../business/BACKEND-SCHEMA.md), which predates the VAS,
 marketplace, sticker and recents schema files.
 
-Current as of 2026-09-16: **41 tables, 42 enums, 50 migrations.** Where this document
+Current as of 2026-09-17: **42 tables, 42 enums, 51 migrations.** Where this document
 and the code disagree, the code is right — but tell someone, because that means this drifted.
 
 > **2026-09-16 — the first change made under the CI guard.** Sub-plan A1 Task 6 added
@@ -95,6 +95,16 @@ because a sold voucher must still be able to name what was bought.
 
 **Support** (added 2026-09-16, sub-plan A1 Task 6) — `support_verifications`
 
+**Money operations** (added 2026-09-17, sub-plan A1 Task 7) — `admin_elevations`
+
+`admin_elevations` is a single-use, transaction-scoped unlock of the `money.operate` permission.
+It grants nothing: `owner` already holds that permission and `admin` never does, so the row only
+records that a holder opened a short window to use it against **one** transaction, and why.
+Append-only like `admin_role_grants` — the sole update is the one-way `consumed_at` write, which
+lands only after a settle or reverse actually succeeds, so a failed attempt leaves the
+authorisation usable until it expires. Both foreign keys are `ON DELETE restrict`: a record of who
+authorised a money movement has to stay attached for as long as the record exists.
+
 **Consent** — `user_consents`, `vendor_consents`
 
 **Vendor registry** — `vendors`, `vendor_observations`, `vendor_claim_attempts`
@@ -160,7 +170,7 @@ step could redirect a legitimately-earned OTP at a different vendor.
 
 ## Migrations
 
-49, in `apps/backend/src/db/migrations/`, generated with `drizzle-kit` and applied in production by
+51, in `apps/backend/src/db/migrations/`, generated with `drizzle-kit` and applied in production by
 the Fly `release_command`. **Forward-only** — a rollback across a migration boundary needs a
 hand-written down-migration, which makes any release containing one a release you cannot cheaply
 undo.

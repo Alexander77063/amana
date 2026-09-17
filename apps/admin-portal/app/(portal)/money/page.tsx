@@ -86,15 +86,21 @@ export default function MoneyPage() {
     }
   };
 
-  const resolveOne = async (id: string) => {
+  const resolveOne = async (id: string, kind: StuckTransaction['kind']) => {
     setMsg({});
     try {
       const out = await api.money.resolve(id);
+      const payout = kind === 'redemption';
       setMsg({
         ok:
           out.outcome === 'settled'
-            ? 'Anchor had completed it. The transaction is settled and the vendor was paid.'
-            : 'Anchor had not completed it. The money has been returned to the customer.',
+            ? payout
+              ? 'Anchor had completed it. The retailer has been paid.'
+              : 'Anchor had completed it. The transaction is settled and the vendor was paid.'
+            : payout
+              ? // NOT a refund: the shopper keeps the voucher and the payout is queued to retry.
+                'Anchor had not completed it. The payout is marked failed and will be retried — the retailer still needs paying.'
+              : 'Anchor had not completed it. The money has been returned to the customer.',
       });
       await refresh();
     } catch (e) {
@@ -107,9 +113,15 @@ export default function MoneyPage() {
       <div className="card">
         <h2>Stuck payments</h2>
         <p className="sub">
-          Payments where the customer&apos;s money has left their balance but has not reached the
-          vendor. The automatic sweep clears almost all of these within minutes — anything here is
-          one it gave up on.
+          Money that has left an account but has not arrived: a customer&apos;s payment to a vendor,
+          or a payout owed to a retailer. The automatic sweep clears almost all of these within
+          minutes — anything here is one it gave up on.
+        </p>
+        <p className="sub">
+          The two unwind differently. A customer payment that failed is{' '}
+          <strong>returned to the customer</strong>. A retailer payout that failed is{' '}
+          <strong>not</strong> — the shopper keeps what they bought and the payout is retried, so it
+          means &ldquo;pay this retailer another way&rdquo;.
         </p>
         <p className="sub">
           <strong>Anchor decides the outcome, not you.</strong> Resolving re-asks Anchor what
@@ -126,6 +138,7 @@ export default function MoneyPage() {
             <thead>
               <tr>
                 <th>Stuck for</th>
+                <th>What</th>
                 <th>Amount</th>
                 <th>Going to</th>
                 <th>Action</th>
@@ -136,13 +149,14 @@ export default function MoneyPage() {
                 rows.map((t) => (
                   <tr key={t.id}>
                     <td>{ageOf(t.createdAt)}</td>
+                    <td>{t.kind === 'redemption' ? 'Retailer payout' : 'Customer payment'}</td>
                     <td>{naira(t.amountKobo)}</td>
                     <td>{t.vendorResolvedName ?? '—'}</td>
                     <td>
                       <button type="button" onClick={() => setElevatingId(t.id)}>
                         Elevate
                       </button>{' '}
-                      <button type="button" onClick={() => void resolveOne(t.id)}>
+                      <button type="button" onClick={() => void resolveOne(t.id, t.kind)}>
                         Resolve
                       </button>
                     </td>
@@ -150,7 +164,7 @@ export default function MoneyPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4}>Nothing stuck. This is the normal state.</td>
+                  <td colSpan={5}>Nothing stuck. This is the normal state.</td>
                 </tr>
               )}
             </tbody>

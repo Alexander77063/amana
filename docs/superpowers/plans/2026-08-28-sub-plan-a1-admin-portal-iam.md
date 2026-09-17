@@ -412,6 +412,14 @@ highest-risk surface and should land on an IAM that has been exercised.
   `kind: 'spend'`, so stuck top-ups, VAS purchases and marketplace orders are never reconciled at
   all. Excluded because "re-query Anchor and apply the answer" is the wrong rule for an inbound
   credit or a third-party fulfilment leg. Recommended as the next work after A1.
+  - **Followed up 2026-09-17, and the reasoning above was wrong.** Measuring which kinds actually
+    reach `in_flight`: `topup` and `marketplace_purchase` **never do** (an arrived inbound credit;
+    a hold released by redemption or expiry), so there was nothing to sweep for either. And Anchor
+    *is* the counterparty for both kinds that do — a `redemption` payout is an Anchor transfer, a
+    `vas_purchase` an Anchor bill. `redemption` is now swept; `vas_purchase` is blocked only on
+    confirming Anchor exposes a bill-status lookup, which is a fact to check rather than a design
+    to make. The lesson: "different counterparty" was asserted from the *kind's* name, not measured
+    from the call it makes.
 
 **Sub-plan A1 is complete.** Tasks 1-7 built; 1466 backend tests and 71 admin-portal tests green,
 four typechecks clean, both docs guards green.

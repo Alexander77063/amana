@@ -1,11 +1,14 @@
-import { and, asc, eq, lt } from 'drizzle-orm';
+import { and, asc, eq, inArray, lt } from 'drizzle-orm';
 import type { PostgresJsDatabase } from 'drizzle-orm/postgres-js';
 import { transactions } from '../../db/schema';
 import { env } from '../../env';
 import type { AnchorAdapter } from '../../integrations/anchor/adapter';
 import { auditRepo } from '../audit';
-import { reversalService } from '../transactions/reversal.service';
-import { settlementService } from '../transactions/settlement.service';
+import {
+  TRANSFER_BACKED_KINDS,
+  applyTransferCompleted,
+  applyTransferFailed,
+} from '../transactions/transfer-outcome';
 import { transactionsRepo } from '../wallet/transactions.repo';
 import { adminElevationsRepo } from './admin-elevations.repo';
 
@@ -134,6 +137,9 @@ export const moneyOpsService = {
     return db
       .select({
         id: transactions.id,
+        // The operator must be able to tell a customer payment from a retailer payout: the two
+        // unwind differently, and the runbook's advice is unusable without it on screen.
+        kind: transactions.kind,
         amountKobo: transactions.amountKobo,
         createdAt: transactions.createdAt,
         vendorResolvedName: transactions.vendorResolvedName,
@@ -142,7 +148,7 @@ export const moneyOpsService = {
       .where(
         and(
           eq(transactions.status, 'in_flight'),
-          eq(transactions.kind, 'spend'),
+          inArray(transactions.kind, [...TRANSFER_BACKED_KINDS]),
           lt(transactions.createdAt, cutoff),
         ),
       )
@@ -188,6 +194,12 @@ export const moneyOpsService = {
 
     const txn = await transactionsRepo.findById(db, input.transactionId);
     if (!txn || txn.status !== 'in_flight') throw await refuse('not_stuck');
+    // A kind that does not wait on an Anchor transfer cannot be resolved by asking Anchor about
+    // one. Guarded explicitly: `listStuck` never offers such a row, but an elevation names a
+    // transaction id directly, so nothing else stops one being passed in.
+    if (!TRANSFER_BACKED_KINDS.includes(txn.kind as (typeof TRANSFER_BACKED_KINDS)[number])) {
+      throw await refuse('not_stuck');
+    }
 
     const minAgeCutoff = new Date(input.now.getTime() - env.STUCK_TXN_MIN_AGE_SECONDS * 1000);
     if (txn.createdAt >= minAgeCutoff) throw await refuse('too_early');
@@ -211,17 +223,16 @@ export const moneyOpsService = {
       );
       if (txn.createdAt >= forceCutoff) throw await refuse('too_early');
       // Reverse ONLY. This path can never settle, so a wrong call here can never pay a vendor
-      // twice — it can only return money to the customer.
-      await reversalService.reverse(db, {
-        transactionId: txn.id,
+      // twice — it can only unwind. Routed by kind, like every other outcome here: a redemption
+      // payout does not refund the shopper, it advances its own retry state machine.
+      await applyTransferFailed(db, txn, {
         reason: NO_ANCHOR_RECORD_REASON,
         failedAt: input.now,
       });
       action = MONEY_AUDIT.forceReversed;
       outcome = 'reversed';
     } else if (remote.status === 'COMPLETED') {
-      await settlementService.finalise(db, {
-        transactionId: txn.id,
+      await applyTransferCompleted(db, txn, {
         nibssSessionId: remote.nibssSessionId ?? null,
         settledAt: input.now,
       });
@@ -230,8 +241,7 @@ export const moneyOpsService = {
     } else if (remote.status === 'FAILED') {
       // Anchor's reason, not the operator's: a manually resolved reversal must be
       // indistinguishable from an automatic one on the transaction record.
-      await reversalService.reverse(db, {
-        transactionId: txn.id,
+      await applyTransferFailed(db, txn, {
         reason: remote.failureReason ?? null,
         failedAt: input.now,
       });

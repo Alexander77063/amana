@@ -658,8 +658,17 @@ in the same way the support screen's warning copy is the anti-fishing mechanism 
 decoration around it.
 
 **The table earns its columns.** Stuck-for (an age, not a timestamp — "3h" is the number an operator
-reasons about at 02:00), amount, who it was going to, and the two actions. No transaction ids on
-screen; they identify rows nobody is asked to type.
+reasons about at 02:00), **what** (customer payment or retailer payout), amount, who it was going
+to, and the two actions. No transaction ids on screen; they identify rows nobody is asked to type.
+
+**Amended 2026-09-17: the "what" column, and why it is not decoration.** When the sweep was extended
+to retailer payouts, the queue began mixing two things that **unwind in opposite directions** — a
+failed customer payment returns the money; a failed retailer payout does not, because the shopper
+keeps what they bought and the payout is retried. The runbook tells operators exactly that, and
+without the distinction on screen the advice is unfollowable: there would be no way to tell which
+row it applied to. The outcome message is worded per kind for the same reason — "the money has been
+returned to the customer" is a *false* sentence on a payout, and a reassuring false sentence about
+money is worse than a vague one.
 
 **The elevate dialog will not submit without a real reason.** The button stays disabled below ten
 characters, because "fix" in an audit log is the same as no reason at all. The dialog states the

@@ -164,6 +164,8 @@ export type SupportRule = { id: string; kind: string; priority: number; summary:
 /** A1 Task 7 — money operations. */
 export type StuckTransaction = {
   id: string;
+  /** `spend` is a customer payment; `redemption` is a payout owed to a retailer. */
+  kind: 'spend' | 'redemption';
   amountKobo: string;
   createdAt: string;
   vendorResolvedName: string | null;

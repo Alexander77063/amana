@@ -36,6 +36,7 @@ export const adminMoneyRoute = new Hono<{ Variables: AdminActorVariables }>()
     return c.json({
       transactions: rows.map((r) => ({
         id: r.id,
+        kind: r.kind,
         amountKobo: r.amountKobo.toString(),
         createdAt: r.createdAt.toISOString(),
         vendorResolvedName: r.vendorResolvedName,

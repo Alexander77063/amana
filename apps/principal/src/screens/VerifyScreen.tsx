@@ -1,3 +1,4 @@
+import { PRINCIPAL_TERMS_VERSION } from '@amana/types';
 import { Body, Button, Screen, SectionHeader, TextInput as UITextInput, useTheme } from '@amana/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -123,6 +124,15 @@ export function VerifyScreen({ navigation }: Props): JSX.Element {
       />
 
       {errorCode ? <Body style={{ color: theme.colors.debit }}>Server: {errorCode}</Body> : null}
+
+      {/*
+        Shown because the app tells the server it displayed this version, and recording acceptance
+        of a document nobody was shown is worse than not recording it at all. Placed directly above
+        the action it qualifies — standard clickwrap — rather than buried in a settings screen.
+      */}
+      <Body muted>
+        By verifying, you accept the Amana Terms and Privacy Notice ({PRINCIPAL_TERMS_VERSION}).
+      </Body>
 
       <Button
         label={busy ? 'VERIFYING…' : 'VERIFY'}

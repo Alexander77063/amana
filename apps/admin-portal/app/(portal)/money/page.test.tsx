@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MeProvider } from '../../../lib/me';
-import type { Me } from '../../../lib/types';
+import type { Me, StuckTransaction } from '../../../lib/types';
 import { byLabel, byRole, change, click, flush, render, textContent } from '../../../test/render';
 
 vi.mock('../../../lib/api', async (orig) => {
@@ -32,12 +32,23 @@ const adminUser: Me = {
   permissions: ['iam.read', 'iam.write'],
 };
 
-const oneStuck = [
+const oneStuck: StuckTransaction[] = [
   {
     id: '11111111-1111-1111-1111-111111111111',
+    kind: 'spend',
     amountKobo: '500000',
     createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
     vendorResolvedName: 'Mama Put Kitchen',
+  },
+];
+
+const oneStuckPayout: StuckTransaction[] = [
+  {
+    id: '22222222-2222-2222-2222-222222222222',
+    kind: 'redemption',
+    amountKobo: '1234500',
+    createdAt: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    vendorResolvedName: null,
   },
 ];
 
@@ -75,6 +86,19 @@ describe('money page', () => {
     expect(text).not.toMatch(/mark as settled/i);
     expect(text).not.toMatch(/force settle/i);
     expect(text).toMatch(/Anchor decides/i);
+  });
+
+  // A failed customer payment refunds the customer; a failed retailer payout does not. An operator
+  // cannot follow the runbook without being able to tell which row is which.
+  it('distinguishes a retailer payout from a customer payment', async () => {
+    vi.mocked(api.money.stuck).mockResolvedValue({ transactions: oneStuckPayout });
+
+    const el = mounted(owner);
+    await flush();
+
+    const text = textContent(el);
+    expect(text).toContain('Retailer payout');
+    expect(text).toMatch(/pay this retailer another way/i);
   });
 
   it('refuses the screen to someone without money.operate', async () => {

@@ -10,7 +10,7 @@ import { ledgerService } from '../../../src/modules/wallet/ledger.service';
 import { masterWalletsRepo } from '../../../src/modules/wallet/master-wallets.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { factories } from '../../helpers/factories';
-import { seedStuckTxn } from '../../helpers/stuck-txn';
+import { seedStuckRedemption, seedStuckTxn } from '../../helpers/stuck-txn';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
 function makeAdapter(fetchImpl: typeof fetch): AnchorAdapter {
@@ -96,6 +96,77 @@ describe('reconciliationService.sweep', () => {
       makeAdapter(fetchSpy),
       new Date('2026-05-03T12:00:00Z'),
     );
+    expect(result.inspected).toBe(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  // Redemption payouts are Anchor TRANSFERS with `reference: redeem:<id>`, settled today only by a
+  // `transfer.completed` webhook. A lost webhook stranded a retailer's money in suspense for ever,
+  // because the sweep filtered `kind = 'spend'` and never looked at them.
+  it('settles a stuck retailer payout when Anchor reports COMPLETED', async () => {
+    const stuck = await seedStuckRedemption('2026-05-03T11:50:00Z');
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'tr-9',
+          status: 'COMPLETED',
+          reference: stuck.idempotencyKey,
+          nibssSessionId: '999',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    const result = await reconciliationService.sweep(
+      testDb,
+      makeAdapter(fetchSpy),
+      new Date('2026-05-03T12:00:00Z'),
+    );
+
+    expect(result.settled).toBe(1);
+    expect((await transactionsRepo.findById(testDb, stuck.payoutTransactionId))?.status).toBe(
+      'settled',
+    );
+  });
+
+  // A failed payout does NOT return money to the customer: the voucher stays redeemed and the
+  // payout advances its own retry state machine. The sweep must route to the redemption service,
+  // not to reversalService, or a retailer's failed payout would refund the shopper instead.
+  it('advances a stuck retailer payout to failed when Anchor reports FAILED', async () => {
+    const stuck = await seedStuckRedemption('2026-05-03T11:50:00Z');
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'tr-9',
+          status: 'FAILED',
+          reference: stuck.idempotencyKey,
+          failureReason: 'retailer account closed',
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      ),
+    );
+
+    const result = await reconciliationService.sweep(
+      testDb,
+      makeAdapter(fetchSpy),
+      new Date('2026-05-03T12:00:00Z'),
+    );
+
+    expect(result.reversed).toBe(1);
+    const payout = await transactionsRepo.findById(testDb, stuck.payoutTransactionId);
+    expect(payout?.status).not.toBe('in_flight');
+  });
+
+  it('leaves a fresh retailer payout alone', async () => {
+    await seedStuckRedemption('2026-05-03T11:58:00Z');
+    const fetchSpy = vi.fn();
+
+    const result = await reconciliationService.sweep(
+      testDb,
+      makeAdapter(fetchSpy),
+      new Date('2026-05-03T12:00:00Z'),
+    );
+
     expect(result.inspected).toBe(0);
     expect(fetchSpy).not.toHaveBeenCalled();
   });

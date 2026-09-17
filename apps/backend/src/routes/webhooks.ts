@@ -17,11 +17,13 @@ import { WebhookSignatureError, parseAndVerifyWebhook } from '../integrations/an
 import { kobo } from '../lib/kobo';
 import { logger } from '../lib/logger';
 import { usersRepo } from '../modules/identity/users.repo';
-import { redemptionSettlementService } from '../modules/marketplace/redemption-settlement.service';
 import { retailerOnboardingService } from '../modules/marketplace/retailer-onboarding.service';
 import { reversalService } from '../modules/transactions/reversal.service';
-import { settlementService } from '../modules/transactions/settlement.service';
 import { topupService } from '../modules/transactions/topup.service';
+import {
+  applyTransferCompleted,
+  applyTransferFailed,
+} from '../modules/transactions/transfer-outcome';
 import { vasPurchasesRepo } from '../modules/vas/vas-purchases.repo';
 import { vasSettlementService } from '../modules/vas/vas-settlement.service';
 import { transactionsRepo } from '../modules/wallet/transactions.repo';
@@ -92,19 +94,12 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
         const data = event.data as AnchorTransferEventData;
         const txn = await transactionsRepo.findByIdempotencyKey(tx, data.reference);
         if (txn) {
-          if (txn.kind === 'redemption') {
-            await redemptionSettlementService.finalise(tx, {
-              payoutTransactionId: txn.id,
-              nibssSessionId: data.nibssSessionId ?? null,
-              settledAt: new Date(event.createdAt),
-            });
-          } else {
-            await settlementService.finalise(tx, {
-              transactionId: txn.id,
-              nibssSessionId: data.nibssSessionId ?? null,
-              settledAt: new Date(event.createdAt),
-            });
-          }
+          // Shared with the reconciliation sweep, which exists for when this webhook never
+          // arrives. One decision point, so the two cannot disagree about what a kind means.
+          await applyTransferCompleted(tx, txn, {
+            nibssSessionId: data.nibssSessionId ?? null,
+            settledAt: new Date(event.createdAt),
+          });
         } else {
           logger.warn({ reference: data.reference }, 'transfer.completed: no matching txn');
         }
@@ -112,19 +107,10 @@ export const webhooksRoute = new Hono().post('/anchor', async (c) => {
         const data = event.data as AnchorTransferEventData;
         const txn = await transactionsRepo.findByIdempotencyKey(tx, data.reference);
         if (txn) {
-          if (txn.kind === 'redemption') {
-            await redemptionSettlementService.handlePayoutFailed(tx, {
-              payoutTransactionId: txn.id,
-              reason: data.failureReason ?? null,
-              failedAt: new Date(event.createdAt),
-            });
-          } else {
-            await reversalService.reverse(tx, {
-              transactionId: txn.id,
-              reason: data.failureReason ?? null,
-              failedAt: new Date(event.createdAt),
-            });
-          }
+          await applyTransferFailed(tx, txn, {
+            reason: data.failureReason ?? null,
+            failedAt: new Date(event.createdAt),
+          });
         } else {
           logger.warn({ reference: data.reference }, 'transfer.failed: no matching txn');
         }

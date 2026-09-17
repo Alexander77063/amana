@@ -262,15 +262,23 @@ the limit is ours rather than the caller's.
 - **No audit-log screen.** `audit.read` exists in the permission matrix and `auditor` holds it, but
   no endpoint consumes it, so there is nothing for the portal to render. The `audit_log` table is
   immutable and complete — it is only unreachable over HTTP.
-- **Stuck non-`spend` transactions are invisible and unreconciled.** The reconciliation sweep
-  filters `kind: 'spend'`, so a stuck top-up, VAS purchase or marketplace order is never swept and
-  never appears in the stuck queue below. This is a real gap, not an oversight: "re-query Anchor and
-  apply the answer" is the wrong rule for an inbound credit or a third-party fulfilment leg, so it
-  needs its own design. Until then, those are found only by querying Postgres.
+- **Stuck VAS purchases are unreconciled.** A VAS purchase reaches `in_flight` and is settled only
+  by Anchor's `bills.successful` / `bills.failed` webhooks, so a lost webhook strands one for ever
+  with money in suspense. It is **not** swept, because a VAS purchase is an Anchor *bill*
+  (`POST /bills`), not a transfer — `findTransferByReference` cannot speak to it, and no bill lookup
+  exists on the adapter or in `docs/runbook/vas.md`'s list of the Anchor bill endpoints. Closing
+  this needs a confirmed Anchor bill-status endpoint first. Until then, stuck VAS rows are found
+  only by querying Postgres.
+- **Corrected 2026-09-17:** an earlier version of this list said stuck top-ups and marketplace
+  orders were unreconciled too. They are not — measured, neither ever reaches `in_flight`: a top-up
+  is an inbound credit that has already arrived, and a marketplace purchase is a hold released by
+  redemption or expiry. Retailer payouts (`redemption`) **were** genuinely unswept and now are
+  swept.
 
 ## Resolving a stuck transaction
 
-**What "stuck" means.** An `in_flight` spend of `kind: 'spend'` older than 15 minutes. The
+**What "stuck" means.** An `in_flight` transaction of a kind that waits on an Anchor transfer —
+`spend` or `redemption` (a retailer payout) — older than 15 minutes. The
 customer's money has already been debited and is sitting in suspense — neither spendable nor
 delivered. The reconciliation sweep runs on a 5-minute threshold and clears almost all of these by
 itself, so **a row appearing in this queue means the sweep gave up**, which in practice means Anchor
@@ -306,6 +314,12 @@ rather than minutes, why this path can only reverse and never settle, and why it
 Do not force a reverse to clear the queue. If several ancient rows appear at once, that pattern is
 itself the signal — it suggests a reference or reconciliation fault at Anchor, not many independent
 lost transfers, and it should be raised with Anchor before any of them is reversed.
+
+**A retailer payout unwinds differently.** Resolving a `redemption` row as failed does **not** refund
+the shopper: the voucher stays redeemed, the money stays in suspense, and the payout advances its
+own retry state machine (`failed_retryable`, then terminal `stuck` after three attempts). So a
+failed retailer payout means "pay this retailer another way", never "the customer got their money
+back".
 
 **Everything is audited, including every refusal.** `money.elevation_granted`,
 `money.resolve_settled`, `money.resolve_reversed`, `money.force_reversed` and

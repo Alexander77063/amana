@@ -312,6 +312,27 @@ its three inputs.
 Recommended as the next piece of work after A1 closes, starting with extending the sweep before
 building any manual surface for them.
 
+> **Correction, 2026-09-17 (same day, when the follow-up was actually done).** The section above is
+> kept as written because a spec is a record of what was decided, but its reasoning was wrong and
+> should not be cited.
+>
+> It reasoned from the *names* of the kinds rather than from the calls they make. Measured:
+> **`topup` and `marketplace_purchase` never reach `in_flight` at all** — a top-up is an inbound
+> credit that has already arrived, and a marketplace purchase is a hold released by redemption or
+> expiry — so there was never anything to sweep for either, and "a different counterparty leg" was
+> not the reason they were absent. Of the kinds that *do* reach `in_flight`, **Anchor is the
+> counterparty for both**: a `redemption` payout is an Anchor **transfer** carrying
+> `reference: redeem:<id>`, which `findTransferByReference` reads verbatim, and a `vas_purchase` is
+> an Anchor **bill**.
+>
+> So the real split was never conceptual. `redemption` was swept the same day. `vas_purchase`
+> remains out only because `POST /bills` has no status counterpart on the adapter or in
+> `docs/runbook/vas.md` — a fact to confirm with Anchor, not a design to settle.
+>
+> The general lesson, and the reason this correction is written out rather than quietly patched: a
+> claim about an integration's shape has to be measured against the call, not inferred from the
+> domain word. See `docs/business/APP-FLOW.md` §9.10 for the corrected picture.
+
 ---
 
 ## 12. Open questions

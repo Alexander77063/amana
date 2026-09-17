@@ -1055,7 +1055,60 @@ and could trigger reversals for transfers that had in fact completed.
 `money.resolve_reversed`, `money.force_reversed`, `money.resolve_refused`. "An owner tried to touch
 this transaction and was stopped" is exactly what an auditor needs to see.
 
-**Not covered:** stuck top-ups, VAS purchases and marketplace orders. The sweep filters
-`kind: 'spend'`, so those are never reconciled at all — a real gap, excluded because "re-query
-Anchor and apply the answer" is the wrong rule for an inbound credit or a third-party fulfilment
-leg.
+**Amended 2026-09-17 — this paragraph used to be wrong.** It said stuck top-ups, VAS purchases and
+marketplace orders were all unreconciled, "excluded because re-query Anchor is the wrong rule for an
+inbound credit or a third-party fulfilment leg". Measuring which kinds actually reach `in_flight`
+showed that reasoning was mistaken twice over. `topup` and `marketplace_purchase` never reach
+`in_flight` at all — a top-up is an inbound credit that has already arrived, and a marketplace
+purchase is a *hold* released by redemption or expiry — so there was nothing to sweep. And Anchor
+**is** the counterparty for the two that do: a `redemption` payout is an Anchor transfer with
+`reference: redeem:<id>`, and a `vas_purchase` is an Anchor bill.
+
+**What is covered now:** `spend` **and `redemption`** — every kind that waits on an Anchor
+*transfer*. See §9.10.
+
+**Still not covered:** `vas_purchase`. It reaches `in_flight` and is settled only by the
+`bills.successful` / `bills.failed` webhooks, so a lost webhook strands one. It is an Anchor *bill*
+(`POST /bills`), not a transfer, and neither the adapter nor `docs/runbook/vas.md` has a
+bill-status lookup — so sweeping it is blocked on confirming such an endpoint exists, not on a
+design question.
+
+### 9.10 The reconciliation sweep — what it covers, and why that changed *(added 2026-09-17)*
+
+The sweep is the backstop for a webhook that never arrives. Anchor confirms a transfer by calling
+`transfer.completed` or `transfer.failed`; if that call is lost, the transaction sits `in_flight`
+with the money in suspense and **nothing else ever looks at it**. The sweep runs every few minutes,
+re-queries Anchor for anything `in_flight` past a 5-minute cutoff, and applies the answer.
+
+**It now covers every kind that waits on an Anchor transfer — `spend` and `redemption`.** Until
+2026-09-17 it filtered `kind = 'spend'`, which meant a lost `transfer.completed` on a **retailer
+payout** stranded that retailer's money permanently: nothing swept it, and the Task 7 stuck queue
+did not list it either.
+
+**The webhook and the sweep now share one decision.** `applyTransferCompleted` /
+`applyTransferFailed` in `modules/transactions/transfer-outcome.ts` answer "what does this outcome
+mean for a transaction of this kind", and the webhook, the sweep and the operator's manual resolve
+all call them. The routing previously lived inline in the webhook only; duplicating it into the
+sweep would have put the same money decision in two places, which is exactly where the two would
+eventually disagree.
+
+**Why a redemption routes differently.** A `spend` that fails is *reversed* — the customer's money
+goes back. A `redemption` that fails is a **retailer payout** failing: the voucher stays redeemed,
+the shopper keeps what they bought, the money stays in suspense, and the payout advances its own
+retry state machine. Sending a failed payout to `reversalService` would refund a shopper for a
+purchase they still hold, which is why the kind check has to sit in one shared place rather than be
+re-derived per caller.
+
+**Which kinds are deliberately absent, and why:**
+
+| Kind | Reaches `in_flight`? | Swept? |
+| --- | --- | --- |
+| `spend` | yes | ✅ |
+| `redemption` | yes | ✅ since 2026-09-17 |
+| `vas_purchase` | yes | ❌ an Anchor **bill**, and no bill-status lookup exists to ask |
+| `topup` | no — an inbound credit that has already arrived | n/a |
+| `marketplace_purchase` | no — a hold, released by redemption or expiry | n/a |
+| `refund`, `fee`, `reversal` | no — written settled | n/a |
+
+`TRANSFER_BACKED_KINDS` in `transfer-outcome.ts` is the single list, consumed by the sweep and by
+the operator's stuck queue, so the two cannot disagree about what is sweepable.

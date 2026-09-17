@@ -8,7 +8,7 @@ import { MoneyOpsError, moneyOpsService } from '../../../src/modules/admin/money
 import { postingsRepo } from '../../../src/modules/wallet/postings.repo';
 import { transactionsRepo } from '../../../src/modules/wallet/transactions.repo';
 import { signedInAdmin } from '../../helpers/admin-session';
-import { seedStuckTxn } from '../../helpers/stuck-txn';
+import { seedStuckRedemption, seedStuckTxn } from '../../helpers/stuck-txn';
 import { testDb, truncateAll } from '../../helpers/test-db';
 
 const NOW = new Date('2026-05-03T12:00:00Z');
@@ -359,6 +359,36 @@ describe('moneyOpsService.resolveStuckTransaction', () => {
       );
     expect(audits).toHaveLength(1);
     expect(JSON.stringify(audits[0]?.payloadJson)).toContain('still_pending');
+  });
+
+  // Before the sweep covered redemptions, this path settled ANY in_flight row through
+  // settlementService — so an operator elevating against a retailer payout would have written
+  // spend postings for it. `listStuck` never offered such a row, but an elevation names a
+  // transaction id directly, so nothing stopped it.
+  it('routes a stuck retailer payout to the redemption settlement, not the spend one', async () => {
+    const { adminUserId } = await signedInAdmin('m16@amana-ng.com', ['owner']);
+    const stuck = await seedStuckRedemption('2026-05-03T11:00:00Z');
+    await elevateFor(adminUserId, stuck.payoutTransactionId);
+
+    const out = await moneyOpsService.resolveStuckTransaction(
+      testDb,
+      adapterFor(
+        jsonOnce({
+          id: 'tr-9',
+          status: 'COMPLETED',
+          reference: stuck.idempotencyKey,
+          nibssSessionId: '999',
+        }),
+      ),
+      { actorAdminUserId: adminUserId, transactionId: stuck.payoutTransactionId, now: NOW },
+    );
+
+    expect(out.outcome).toBe('settled');
+    // redemptionSettlementService throws if the redemption row is missing, and settles the payout
+    // only via its own posting shape; reaching `settled` here means the right service ran.
+    expect((await transactionsRepo.findById(testDb, stuck.payoutTransactionId))?.status).toBe(
+      'settled',
+    );
   });
 
   it('never writes the operator reason onto the transaction record', async () => {

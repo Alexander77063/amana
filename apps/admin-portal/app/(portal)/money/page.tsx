@@ -76,7 +76,9 @@ export default function MoneyPage() {
   const raiseElevation = async (id: string) => {
     try {
       await api.money.elevate(id, reason.trim());
-      setMsg({ ok: 'Elevation raised. It covers this transaction only, and expires in 15 minutes.' });
+      setMsg({
+        ok: 'Elevation raised. It covers this transaction only, and expires in 15 minutes.',
+      });
       setElevatingId(null);
       setReason('');
     } catch (e) {

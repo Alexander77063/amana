@@ -150,11 +150,15 @@ describe('moneyOpsService.resolveStuckTransaction', () => {
     await elevateFor(adminUserId, stuck.txnId);
 
     await expect(
-      moneyOpsService.resolveStuckTransaction(testDb, adapterFor(jsonOnce({ error: 'boom' }, 500)), {
-        actorAdminUserId: adminUserId,
-        transactionId: stuck.txnId,
-        now: NOW,
-      }),
+      moneyOpsService.resolveStuckTransaction(
+        testDb,
+        adapterFor(jsonOnce({ error: 'boom' }, 500)),
+        {
+          actorAdminUserId: adminUserId,
+          transactionId: stuck.txnId,
+          now: NOW,
+        },
+      ),
     ).rejects.toMatchObject({ code: 'anchor_unreachable' });
 
     expect((await transactionsRepo.findById(testDb, stuck.txnId))?.status).toBe('in_flight');
@@ -166,14 +170,20 @@ describe('moneyOpsService.resolveStuckTransaction', () => {
     await elevateFor(adminUserId, stuck.txnId);
 
     await expect(
-      moneyOpsService.resolveStuckTransaction(testDb, adapterFor(jsonOnce({ error: 'boom' }, 500)), {
-        actorAdminUserId: adminUserId,
-        transactionId: stuck.txnId,
-        now: NOW,
-      }),
+      moneyOpsService.resolveStuckTransaction(
+        testDb,
+        adapterFor(jsonOnce({ error: 'boom' }, 500)),
+        {
+          actorAdminUserId: adminUserId,
+          transactionId: stuck.txnId,
+          now: NOW,
+        },
+      ),
     ).rejects.toBeInstanceOf(MoneyOpsError);
 
-    expect(await adminElevationsRepo.findLive(testDb, adminUserId, stuck.txnId, NOW)).not.toBeNull();
+    expect(
+      await adminElevationsRepo.findLive(testDb, adminUserId, stuck.txnId, NOW),
+    ).not.toBeNull();
 
     // And the retry succeeds without a fresh elevation.
     const out = await moneyOpsService.resolveStuckTransaction(
@@ -214,11 +224,15 @@ describe('moneyOpsService.resolveStuckTransaction', () => {
     const stuck = await seedStuckTxn(HOUR_OLD);
 
     await expect(
-      moneyOpsService.resolveStuckTransaction(testDb, adapterFor(vi.fn() as unknown as typeof fetch), {
-        actorAdminUserId: adminUserId,
-        transactionId: stuck.txnId,
-        now: NOW,
-      }),
+      moneyOpsService.resolveStuckTransaction(
+        testDb,
+        adapterFor(vi.fn() as unknown as typeof fetch),
+        {
+          actorAdminUserId: adminUserId,
+          transactionId: stuck.txnId,
+          now: NOW,
+        },
+      ),
     ).rejects.toMatchObject({ code: 'elevation_required' });
   });
 
@@ -233,11 +247,15 @@ describe('moneyOpsService.resolveStuckTransaction', () => {
     });
 
     await expect(
-      moneyOpsService.resolveStuckTransaction(testDb, adapterFor(vi.fn() as unknown as typeof fetch), {
-        actorAdminUserId: adminUserId,
-        transactionId: stuck.txnId,
-        now: NOW,
-      }),
+      moneyOpsService.resolveStuckTransaction(
+        testDb,
+        adapterFor(vi.fn() as unknown as typeof fetch),
+        {
+          actorAdminUserId: adminUserId,
+          transactionId: stuck.txnId,
+          now: NOW,
+        },
+      ),
     ).rejects.toMatchObject({ code: 'elevation_required' });
   });
 
@@ -248,11 +266,15 @@ describe('moneyOpsService.resolveStuckTransaction', () => {
     await elevateFor(adminUserId, a.txnId);
 
     await expect(
-      moneyOpsService.resolveStuckTransaction(testDb, adapterFor(vi.fn() as unknown as typeof fetch), {
-        actorAdminUserId: adminUserId,
-        transactionId: b.txnId,
-        now: NOW,
-      }),
+      moneyOpsService.resolveStuckTransaction(
+        testDb,
+        adapterFor(vi.fn() as unknown as typeof fetch),
+        {
+          actorAdminUserId: adminUserId,
+          transactionId: b.txnId,
+          now: NOW,
+        },
+      ),
     ).rejects.toMatchObject({ code: 'elevation_required' });
   });
 
@@ -307,7 +329,9 @@ describe('moneyOpsService.resolveStuckTransaction', () => {
     const audits = await testDb
       .select()
       .from(auditLog)
-      .where(and(eq(auditLog.action, 'money.resolve_refused'), eq(auditLog.subjectId, stuck.txnId)));
+      .where(
+        and(eq(auditLog.action, 'money.resolve_refused'), eq(auditLog.subjectId, stuck.txnId)),
+      );
     expect(audits).toHaveLength(1);
     expect(JSON.stringify(audits[0]?.payloadJson)).toContain('still_pending');
   });

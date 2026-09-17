@@ -191,8 +191,9 @@ optional first would have been worse than the honest null it replaced.
 - The 13 ops routes still record a null operator. Task 4.
 - One admin can still grant `admin` to a second account they control. Invariant 1 blocks *self*-edit
   only; the two-person rule is Task 3's maker-checker.
-- `money.operate` is a permission `owner` holds, but no money surface reads it yet. Task 7 puts it
-  behind JIT elevation, so holding `owner` is permission to *request* power, not to have it.
+- `money.operate` is a permission `owner` holds, and since Task 7 it is read by exactly one surface:
+  resolving a stuck transaction, behind a JIT elevation. Holding `owner` is permission to *request*
+  power, not to have it.
 
 ### Task 3 — Maker-checker ✅ built 2026-08-29
 `admin_approvals`: a proposed action, its payload, its maker, its checker, its outcome. Applied
@@ -373,9 +374,47 @@ session open and reuse it for the next caller.
    `transactions.errorMessage` as `failureReason`, and balance returns `null` rather than an
    approximation. A wrong number on a support screen is worse than no number.
 
-### Task 7 — JIT elevation and money operations
+### Task 7 — JIT elevation and money operations ✅ built 2026-09-17
 Elevation request/approve/expire, then the money surfaces behind it. Last deliberately: it is the
 highest-risk surface and should land on an IAM that has been exercised.
+
+**Spec:** `docs/superpowers/specs/2026-09-17-a1-task7-jit-elevation-design.md`
+**Plan:** `docs/superpowers/plans/2026-09-17-a1-task7-jit-elevation.md`
+
+### Decided during Task 7 (2026-09-17)
+
+- **No approve step, and no second person.** The plan line said "request/approve/expire". Built as
+  *self-elevate with a mandatory reason and expiry* instead. Unsticking a payment is a
+  **correction**, not a disbursement — the money has already left the customer's balance, and the
+  operation either completes what they asked for or gives it back. Requiring a second human at 02:00
+  leaves the customer's money frozen for longer, which is the harm being fixed. Maker-checker is
+  right for granting power and wrong for returning money.
+- **Elevation unlocks a held permission; it never grants one.** This is what preserves invariant 3.
+  `money.operate` stays owner-only, so an `admin` is refused *even with a valid elevation row* — and
+  that is asserted in `tests/routes/admin/money.test.ts`, not assumed. There is no
+  privilege-escalation path to audit because no privilege is ever escalated.
+- **Each elevation binds to one transaction id**, not to a time window. There is therefore never a
+  moment when an operator holds unscoped money power, and the audit log answers "why did you have
+  money power" with a row rather than prose.
+- **Scope is one operation: resolve a stuck transaction.** Chosen from evidence, not convenience.
+  `nip-out.service.ts:106` posts `source → suspense` *before* calling Anchor, so an `in_flight`
+  spend has real customer money frozen; and `reconciliation.service.ts:48` counts a transfer Anchor
+  has no record of as `unknown` and then skips it on every later pass. That intersection is money no
+  automated process will ever move again.
+- **The operator supplies authority and a reason, never the outcome.** The service re-queries Anchor
+  and applies its answer through the same `finalise`/`reverse` the cron calls, so the manual path
+  writes no postings of its own and inherits their `SELECT … FOR UPDATE` guards.
+- **A failed Anchor call is never read as absence.** The adapter returns `null` only on a definitive
+  404; everything else throws and is refused as `anchor_unreachable`. Tested on a 3-day-old row
+  where the force path would otherwise have fired — that is the case where an outage could have
+  become a reversal.
+- **Known gap, named not hidden:** stuck **non-`spend`** transactions. The sweep filters
+  `kind: 'spend'`, so stuck top-ups, VAS purchases and marketplace orders are never reconciled at
+  all. Excluded because "re-query Anchor and apply the answer" is the wrong rule for an inbound
+  credit or a third-party fulfilment leg. Recommended as the next work after A1.
+
+**Sub-plan A1 is complete.** Tasks 1-7 built; 1466 backend tests and 71 admin-portal tests green,
+four typechecks clean, both docs guards green.
 
 ## Open questions — answered 2026-08-28
 

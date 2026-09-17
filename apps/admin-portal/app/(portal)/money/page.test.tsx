@@ -105,9 +105,7 @@ describe('money page', () => {
   it('tells the operator to check Anchor rather than retry when Anchor is unreachable', async () => {
     const { ApiError } = await import('../../../lib/api');
     vi.mocked(api.money.stuck).mockResolvedValue({ transactions: oneStuck });
-    vi.mocked(api.money.resolve).mockRejectedValue(
-      new ApiError(503, 'anchor_unreachable', null),
-    );
+    vi.mocked(api.money.resolve).mockRejectedValue(new ApiError(503, 'anchor_unreachable', null));
 
     const el = mounted(owner);
     await flush();
@@ -122,9 +120,7 @@ describe('money page', () => {
   it('explains an elevation refusal specifically, not as a generic permission error', async () => {
     const { ApiError } = await import('../../../lib/api');
     vi.mocked(api.money.stuck).mockResolvedValue({ transactions: oneStuck });
-    vi.mocked(api.money.resolve).mockRejectedValue(
-      new ApiError(403, 'elevation_required', null),
-    );
+    vi.mocked(api.money.resolve).mockRejectedValue(new ApiError(403, 'elevation_required', null));
 
     const el = mounted(owner);
     await flush();

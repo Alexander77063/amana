@@ -6,9 +6,8 @@
 // walks straight past it.
 //
 // Same shape as probe-vas.mjs, which proved the identical bypass on the VAS path.
-import { call, idem, login, newBvn, newNin, newPhone } from './lib.mjs';
+import { adminCookie, call, idem, login, newBvn, newNin, newPhone } from './lib.mjs';
 
-const ADMIN = process.env.ADMIN_API_KEY ?? 'demo-admin-key-000000000000000000';
 const BACKEND = process.env.BACKEND_URL ?? 'http://localhost:3100';
 
 const pTok = (await login(newPhone(), { nin: newNin(), bvn: newBvn() })).body.accessToken;
@@ -57,7 +56,7 @@ console.log('parent locked spending to: transport, school');
 const adminJson = async (path, body) => {
   const res = await fetch(`${BACKEND}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-admin-api-key': ADMIN },
+    headers: { 'content-type': 'application/json', ...adminCookie() },
     body: JSON.stringify(body),
   });
   const t = await res.text();

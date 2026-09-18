@@ -5,6 +5,8 @@
 **Context:** [`PRICING.md` §8](./PRICING.md) — operational by-products, #1 (merchant cash-flow graph)
 **Sibling:** [`anchor-float-yield-request.md`](./anchor-float-yield-request.md) — same shape of
 conversation, different counterparty
+**Mirror doc:** [`credit-rail/concept.md`](./credit-rail/concept.md) — consumer-side counterpart
+(principal can borrow from a licensed partner via referral). Same regulatory surface, opposite direction.
 
 ---
 
